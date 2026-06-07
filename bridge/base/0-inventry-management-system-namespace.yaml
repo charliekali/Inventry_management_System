@@ -1,0 +1,8 @@
+#! 0-inventry-management-system-namespace.yaml
+# Generated code, do not edit
+apiVersion: v1
+kind: Namespace
+metadata:
+    name: inventry-management-system
+    labels:
+        com.docker.compose.project: inventry_management_system

@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ttrims-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ims_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "1234"
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ims_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    container_name: ttrims-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ims_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: "1234"
+      JWT_SECRET: ims_super_secret_jwt_key_2024_ttrims_must_be_32_chars_or_more_long_key
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:5000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: ttrims-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    environment:
+      - BACKEND_URL=http://backend:5000/api
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

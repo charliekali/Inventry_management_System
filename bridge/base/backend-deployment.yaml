@@ -1,0 +1,52 @@
+#! backend-deployment.yaml
+# Generated code, do not edit
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: backend
+    namespace: inventry-management-system
+    labels:
+        com.docker.compose.project: inventry_management_system
+        com.docker.compose.service: backend
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            com.docker.compose.project: inventry_management_system
+            com.docker.compose.service: backend
+    strategy:
+        type: Recreate
+    template:
+        metadata:
+            labels:
+                com.docker.compose.project: inventry_management_system
+                com.docker.compose.service: backend
+                com.docker.compose.network.default: "true"
+        spec:
+            restartPolicy: unless-stopped
+            containers:
+                - name: ttrims-backend
+                  image: inventry_management_system-backend
+                  imagePullPolicy: IfNotPresent
+                  env:
+                    - name: JWT_SECRET
+                      value: "ims_super_secret_jwt_key_2024_ttrims_must_be_32_chars_or_more_long_key"
+                    - name: SPRING_DATASOURCE_PASSWORD
+                      value: "1234"
+                    - name: SPRING_DATASOURCE_URL
+                      value: "jdbc:postgresql://postgres:5432/ims_db"
+                    - name: SPRING_DATASOURCE_USERNAME
+                      value: "postgres"
+                  livenessProbe:
+                    exec:
+                        command:
+                            - /bin/sh
+                            - -c
+                            - wget --quiet --tries=1 --spider http://localhost:5000/api/health || exit 1
+                    periodSeconds: 10
+                    initialDelaySeconds: 30
+                    timeoutSeconds: 5
+                    failureThreshold: 5
+                  ports:
+                    - name: backend-5000
+                      containerPort: 5000
