@@ -1,24 +1,24 @@
 import axios from 'axios';
+import { Capacitor } from '@capacitor/core';
 
-const getApiBase = () => {
+export const getApiBase = () => {
   const customUrl = localStorage.getItem('customApiUrl');
   if (customUrl) return customUrl;
-  
-  const isCapacitor = window.Capacitor || window.location.protocol === 'capacitor:';
-  if (isCapacitor) {
+
+  if (Capacitor.isNativePlatform()) {
     return 'http://10.0.2.2:5000/api';
   }
-  
+
   return import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 };
 
 const api = axios.create({
-  baseURL: getApiBase(),
   timeout: 30000,
 });
 
-// Request interceptor — attach token
+// Request interceptor — attach dynamic baseURL and token
 api.interceptors.request.use((config) => {
+  config.baseURL = getApiBase();
   const token = localStorage.getItem('accessToken');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
@@ -113,6 +113,8 @@ export const stockAPI = {
   summary: (params) => api.get('/stock/summary', { params }),
   locate: (productId) => api.get(`/stock/locate/${productId}`),
   dashboard: () => api.get('/stock/dashboard'),
+  productionDashboard: () => api.get('/stock/production-dashboard'),
+  warehouseDashboard: () => api.get('/stock/warehouse-dashboard'),
 };
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
@@ -123,6 +125,28 @@ export const ordersAPI = {
   updateStatus: (id, status) => api.patch(`/orders/${id}/status`, { status }),
   checkFeasibility: (items) => api.post('/orders/feasibility', { items }),
   productionYield: (data) => api.post('/orders/production-yield', data),
+  salesDashboard: () => api.get('/orders/sales-dashboard'),
+  posCreate: (data) => api.post('/orders/pos', data),
+  getInvoice: (id) => api.get(`/orders/${id}/invoice`),
+  listInvoices: () => api.get('/orders/invoices'),
+  collectPayment: (id, amount, paymentMode, notes) => api.patch(`/orders/${id}/payment`, { amount, payment_mode: paymentMode, notes }),
+  getPaymentHistory: (id) => api.get(`/orders/${id}/payment-history`),
+  listOutstanding: () => api.get('/orders/outstanding'),
+  getFollowUps: (id) => api.get(`/orders/${id}/followups`),
+  addFollowUp: (id, data) => api.post(`/orders/${id}/followups`, data),
+};
+
+// ─── Production Orders ────────────────────────────────────────────────────────
+export const productionOrdersAPI = {
+  list: () => api.get('/production-orders'),
+  create: (data) => api.post('/production-orders', data),
+  updateStatus: (id, status) => api.patch(`/production-orders/${id}/status`, { status }),
+  exportCsv: () => api.get('/production-orders/export', { responseType: 'blob' }),
+  importCsv: (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.post('/production-orders/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
 };
 
 // ─── Form Settings ────────────────────────────────────────────────────────────
@@ -138,6 +162,21 @@ export const productCategoriesAPI = {
   create: (data) => api.post('/product-categories', data),
   update: (id, data) => api.patch(`/product-categories/${id}`, data),
   delete: (id) => api.delete(`/product-categories/${id}`),
+};
+
+// ─── Postgres Instances ───────────────────────────────────────────────────────
+export const postgresAPI = {
+  list: () => api.get('/postgres-instances'),
+  create: (data) => api.post('/postgres-instances', data),
+  delete: (id) => api.delete(`/postgres-instances/${id}`),
+  getMetrics: (id) => api.get(`/postgres-instances/${id}/metrics`),
+  getLogs: (id) => api.get(`/postgres-instances/${id}/logs`),
+};
+
+// ─── Invoice Settings ─────────────────────────────────────────────────────────
+export const invoiceSettingsAPI = {
+  get: () => api.get('/invoice-settings'),
+  save: (data) => api.put('/invoice-settings', data),
 };
 
 export default api;

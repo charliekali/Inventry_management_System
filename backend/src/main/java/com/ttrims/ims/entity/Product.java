@@ -45,6 +45,14 @@ public class Product {
     @Column(name = "process_notes", length = 1000)
     private String processNotes;
 
+    /** Default selling price per unit (used in sales orders and POS). */
+    @Column(name = "selling_price")
+    private Double sellingPrice;
+
+    /** Cost price per unit (for margin calculations). */
+    @Column(name = "cost_price")
+    private Double costPrice;
+
     @Column(name = "min_stock")
     private Double minStock = 0.0;
 
@@ -87,6 +95,10 @@ public class Product {
     public void setBatchSizeKg(Double batchSizeKg) { this.batchSizeKg = batchSizeKg; }
     public String getProcessNotes() { return processNotes; }
     public void setProcessNotes(String processNotes) { this.processNotes = processNotes; }
+    public Double getSellingPrice() { return sellingPrice; }
+    public void setSellingPrice(Double sellingPrice) { this.sellingPrice = sellingPrice; }
+    public Double getCostPrice() { return costPrice; }
+    public void setCostPrice(Double costPrice) { this.costPrice = costPrice; }
     public Double getMinStock() { return minStock; }
     public void setMinStock(Double minStock) { this.minStock = minStock; }
     public boolean isActive() { return active; }

@@ -53,6 +53,7 @@ public class AuthController {
         userData.put("email", user.getEmail());
         userData.put("role", user.getRole() != null ? user.getRole().getName() : null);
         userData.put("role_id", user.getRole() != null ? user.getRole().getId() : null);
+        userData.put("role_category", user.getRole() != null ? user.getRole().getCategory() : null);
         userData.put("permissions", permissions);
 
         Map<String, Object> data = new HashMap<>();
@@ -101,6 +102,7 @@ public class AuthController {
         userData.put("email", full.getEmail());
         userData.put("role", full.getRole() != null ? full.getRole().getName() : null);
         userData.put("role_id", full.getRole() != null ? full.getRole().getId() : null);
+        userData.put("role_category", full.getRole() != null ? full.getRole().getCategory() : null);
         userData.put("permissions", permissions);
         return ResponseEntity.ok(success(userData));
     }

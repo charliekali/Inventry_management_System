@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { productsAPI, productCategoriesAPI } from '../api';
 import toast from 'react-hot-toast';
 import { Plus, Edit2, Archive, Package } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const getStepBadgeClass = (step) => {
   switch (step) {
@@ -16,8 +17,13 @@ const getStepBadgeClass = (step) => {
 };
 
 export default function ProductPage() {
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'Super Admin';
+
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pSellingPrice, setPSellingPrice] = useState('');
+  const [pCostPrice, setPCostPrice] = useState('');
   const [categories, setCategories] = useState([]); // [{category, subcategories:[]}]
   
   // Modals
@@ -78,6 +84,11 @@ export default function ProductPage() {
         process_notes: pType === 'FINISHED_GOOD' ? pProcessNotes : ''
       };
 
+      if (isSuperAdmin) {
+        payload.selling_price = pSellingPrice ? parseFloat(pSellingPrice) : null;
+        payload.cost_price = pCostPrice ? parseFloat(pCostPrice) : null;
+      }
+
       if (editingProductId) {
         await productsAPI.update(editingProductId, payload);
         toast.success('Product updated successfully');
@@ -106,6 +117,8 @@ export default function ProductPage() {
     setPPacksPerKg('');
     setPBatchSizeKg('');
     setPProcessNotes('');
+    setPSellingPrice('');
+    setPCostPrice('');
   };
 
   const handleEditProduct = (p, e) => {
@@ -122,6 +135,8 @@ export default function ProductPage() {
     setPPacksPerKg(p.packs_per_kg ? p.packs_per_kg.toString() : '');
     setPBatchSizeKg(p.batch_size_kg ? p.batch_size_kg.toString() : '');
     setPProcessNotes(p.process_notes || '');
+    setPSellingPrice(p.selling_price ? p.selling_price.toString() : '');
+    setPCostPrice(p.cost_price ? p.cost_price.toString() : '');
     setShowProductModal(true);
   };
 
@@ -176,6 +191,8 @@ export default function ProductPage() {
                   <th>Category</th>
                   <th>Type</th>
                   <th>Min</th>
+                  {isSuperAdmin && <th>Selling Price</th>}
+                  {isSuperAdmin && <th>Cost Price</th>}
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
@@ -202,6 +219,8 @@ export default function ProductPage() {
                         </span>
                       </td>
                       <td>{p.min_stock}</td>
+                      {isSuperAdmin && <td>₹{(p.selling_price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>}
+                      {isSuperAdmin && <td>₹{(p.cost_price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>}
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: 4 }}>
                           <button className="btn btn-ghost btn-icon btn-sm" onClick={(e) => handleEditProduct(p, e)}>
@@ -367,7 +386,34 @@ export default function ProductPage() {
                 </div>
               )}
 
-              <div className="form-group">
+              {isSuperAdmin && (
+                <div className="form-row" style={{ marginTop: 10 }}>
+                  <div className="form-group">
+                    <label className="form-label">Selling Price (₹)</label>
+                    <input 
+                      type="number" 
+                      step="any"
+                      className="form-control" 
+                      value={pSellingPrice} 
+                      onChange={(e) => setPSellingPrice(e.target.value)} 
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Cost Price (₹)</label>
+                    <input 
+                      type="number" 
+                      step="any"
+                      className="form-control" 
+                      value={pCostPrice} 
+                      onChange={(e) => setPCostPrice(e.target.value)} 
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="form-group" style={{ marginTop: 10 }}>
                 <label className="form-label">Description</label>
                 <textarea 
                   className="form-control" 

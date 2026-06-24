@@ -52,6 +52,7 @@ public class RoleController {
         Role role = new Role();
         role.setName(name);
         role.setDescription((String) body.get("description"));
+        role.setCategory((String) body.get("category"));
         role.setPermissions(perms);
         roleRepo.save(role);
         return ResponseEntity.status(201).body(Map.of("success", true, "data", toDto(role)));
@@ -65,6 +66,7 @@ public class RoleController {
         if (role.isSystem() && body.containsKey("name") && !role.getName().equals(body.get("name"))) return bad("Cannot rename system roles");
 
         if (body.containsKey("description")) role.setDescription((String) body.get("description"));
+        if (body.containsKey("category")) role.setCategory((String) body.get("category"));
         if (!role.isSystem() && body.containsKey("name")) role.setName((String) body.get("name"));
 
         if (body.containsKey("permission_ids")) {
@@ -86,16 +88,17 @@ public class RoleController {
     }
 
     private Map<String, Object> toDto(Role r) {
-        return Map.of(
-            "id", r.getId(),
-            "name", r.getName(),
-            "description", r.getDescription() != null ? r.getDescription() : "",
-            "is_system", r.isSystem(),
-            "created_at", r.getCreatedAt() != null ? r.getCreatedAt() : "",
-            "permissions", r.getPermissions().stream().map(p -> Map.of(
-                "id", p.getId(), "name", p.getName(), "module", p.getModule(), "action", p.getAction()
-            )).collect(Collectors.toList())
-        );
+        Map<String, Object> m = new HashMap<>();
+        m.put("id", r.getId());
+        m.put("name", r.getName());
+        m.put("description", r.getDescription() != null ? r.getDescription() : "");
+        m.put("category", r.getCategory() != null ? r.getCategory() : "");
+        m.put("is_system", r.isSystem());
+        m.put("created_at", r.getCreatedAt() != null ? r.getCreatedAt() : "");
+        m.put("permissions", r.getPermissions().stream().map(p -> Map.of(
+            "id", p.getId(), "name", p.getName(), "module", p.getModule(), "action", p.getAction()
+        )).collect(Collectors.toList()));
+        return m;
     }
 
     private ResponseEntity<?> ok(Object data) { return ResponseEntity.ok(Map.of("success", true, "data", data)); }

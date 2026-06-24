@@ -13,6 +13,7 @@ const _cache = {};
  * fieldMap is keyed by field_key for O(1) lookups:
  *   fieldMap['remarks'] → { visible, required, label, field_order, locked_visible, locked_required }
  */
+
 export default function useFormSettings(formType) {
   const [fields, setFields] = useState([]);
   const [loading, setLoading] = useState(true);

@@ -1,8 +1,13 @@
 // Main Application Routing Shell
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, NavLink } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { Toaster } from 'react-hot-toast';
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
+import { App as CapApp } from '@capacitor/app';
 import Sidebar from './components/Sidebar';
+import ThemeSelector from './components/ThemeSelector';
 
 // Pages
 import LoginPage from './pages/LoginPage';
@@ -24,10 +29,25 @@ import ProductionRunPage from './pages/ProductionRunPage';
 import RecipePage from './pages/RecipePage';
 import ProductionHistoryPage from './pages/ProductionHistoryPage';
 import YieldAnalyticsPage from './pages/YieldAnalyticsPage';
+import PostgresProvisionerPage from './pages/PostgresProvisionerPage';
+import ProductionDashboard from './pages/ProductionDashboard';
+import WarehouseDashboard from './pages/WarehouseDashboard';
+import SalesDashboard from './pages/SalesDashboard';
+import PosPage from './pages/PosPage';
+import InvoicePrint from './pages/InvoicePrint';
+import InvoiceDesignerPage from './pages/InvoiceDesignerPage';
+import BillingPage from './pages/BillingPage';
+import SalesCRMDashboard from './pages/SalesCRMDashboard';
+import NewLeadsPage from './pages/NewLeadsPage';
+import CustomersPage from './pages/CustomersPage';
+import SalesApp from './sales/SalesApp';
+import ProductionApp from './production/ProductionApp';
+import WarehouseApp from './warehouse/WarehouseApp';
 
 // Protected Route Guard
 function ProtectedRoute({ children, perm }) {
   const { user, loading, hasPermission } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -38,23 +58,88 @@ function ProtectedRoute({ children, perm }) {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  // Restrict access based on role category or role name for non-Super Admins
+  if (user.role !== 'Super Admin' && user.role_category !== 'Super Admin') {
+    const category = user.role_category;
+    
+    // 1. Warehouse people can ONLY access /warehouse
+    if (category === 'Warehouse') {
+      if (!location.pathname.startsWith('/warehouse')) {
+        return <Navigate to="/warehouse" replace />;
+      }
+    }
+    // 2. Sales people can ONLY access /sales
+    else if (category === 'Sales') {
+      if (!location.pathname.startsWith('/sales')) {
+        return <Navigate to="/sales" replace />;
+      }
+    }
+    // 3. Production people can ONLY access /production
+    else if (category === 'Production') {
+      if (!location.pathname.startsWith('/production')) {
+        return <Navigate to="/production" replace />;
+      }
+    }
+    // 4. Fallbacks using name checks for unassigned roles
+    else {
+      const roleLower = (user.role || '').toLowerCase();
+      if (roleLower.includes('warehouse') || roleLower.includes('keeper')) {
+        if (!location.pathname.startsWith('/warehouse')) {
+          return <Navigate to="/warehouse" replace />;
+        }
+      } else if (roleLower.includes('sales')) {
+        if (!location.pathname.startsWith('/sales')) {
+          return <Navigate to="/sales" replace />;
+        }
+      } else if (roleLower.includes('production')) {
+        if (!location.pathname.startsWith('/production')) {
+          return <Navigate to="/production" replace />;
+        }
+      } else {
+        // Default general fallback
+        if (!location.pathname.startsWith('/warehouse')) {
+          return <Navigate to="/warehouse" replace />;
+        }
+      }
+    }
   }
 
   if (perm && !hasPermission(perm)) {
+    if (user.role !== 'Super Admin' && user.role_category !== 'Super Admin') {
+      const category = user.role_category;
+      if (category === 'Warehouse') return <Navigate to="/warehouse" replace />;
+      if (category === 'Sales') return <Navigate to="/sales" replace />;
+      if (category === 'Production') return <Navigate to="/production" replace />;
+
+      const roleLower = (user.role || '').toLowerCase();
+      if (roleLower.includes('warehouse') || roleLower.includes('keeper')) return <Navigate to="/warehouse" replace />;
+      if (roleLower.includes('sales')) return <Navigate to="/sales" replace />;
+      if (roleLower.includes('production')) return <Navigate to="/production" replace />;
+    }
     return <Navigate to="/dashboard" replace />;
   }
 
   return children;
 }
 
-import { useState } from 'react';
-import { Menu } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Menu, LayoutDashboard, ArrowDownCircle, ArrowUpCircle, MapPin } from 'lucide-react';
 
 // Layout Shell for Authenticated Users
 function AuthenticatedLayout({ children }) {
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
+
+  const ADMIN_TABS = [
+    { path: '/dashboard', label: 'Home', Icon: LayoutDashboard },
+    { path: '/stock-in', label: 'Stock IN', Icon: ArrowDownCircle },
+    { path: '/stock-out', label: 'Stock OUT', Icon: ArrowUpCircle },
+    { path: '/locate', label: 'Finder', Icon: MapPin },
+  ];
   
   return (
     <div className="app-layout">
@@ -72,20 +157,95 @@ function AuthenticatedLayout({ children }) {
             <p>Welcome back, {user?.name || 'User'} (Role: {user?.role || 'Staff'})</p>
           </div>
           <div className="topbar-actions">
+            <ThemeSelector />
             <span className="badge badge-green">API Connected</span>
           </div>
         </header>
         <div className="page-content">
           {children}
         </div>
+        
+        {/* Mobile Bottom Navigation */}
+        <nav className="bottom-nav">
+          {ADMIN_TABS.map(({ path, label, Icon }) => {
+            const isActive = location.pathname === path || (path !== '/dashboard' && location.pathname.startsWith(path));
+            return (
+              <NavLink
+                key={path}
+                to={path}
+                className={`bottom-nav-item${isActive ? ' active' : ''}`}
+              >
+                <div className="bottom-nav-item-icon">
+                  <Icon size={18} />
+                </div>
+                <span className="bottom-nav-label">{label}</span>
+              </NavLink>
+            );
+          })}
+          <button
+            type="button"
+            className="bottom-nav-item"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <div className="bottom-nav-item-icon">
+              <Menu size={18} />
+            </div>
+            <span className="bottom-nav-label">Menu</span>
+          </button>
+        </nav>
       </main>
     </div>
   );
 }
 
 function App() {
+  useEffect(() => {
+    const isNative = Capacitor.isNativePlatform();
+    
+    // Add class to body for mobile styling overrides
+    document.body.classList.toggle('native-app', isNative);
+
+    if (isNative) {
+      // Configure Status Bar style
+      const setupStatusBar = async () => {
+        try {
+          await StatusBar.setStyle({ style: Style.Dark });
+        } catch (e) {
+          console.warn('StatusBar not available:', e);
+        }
+      };
+      setupStatusBar();
+
+      // Handle hardware back button navigation
+      const setupBackButton = async () => {
+        try {
+          const listener = await CapApp.addListener('backButton', () => {
+            const path = window.location.pathname;
+            if (path === '/dashboard' || path === '/login' || path === '/') {
+              CapApp.exitApp();
+            } else {
+              window.history.back();
+            }
+          });
+          return listener;
+        } catch (e) {
+          console.warn('BackButton handler not available:', e);
+        }
+      };
+
+      const listenerPromise = setupBackButton();
+
+      return () => {
+        listenerPromise.then(listener => {
+          if (listener) listener.remove();
+        });
+      };
+    }
+  }, []);
+
   return (
-    <AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
       <Router>
         <Routes>
           {/* Public Login Route */}
@@ -96,6 +256,30 @@ function App() {
             <ProtectedRoute>
               <AuthenticatedLayout>
                 <DashboardPage />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/dashboard/production" element={
+            <ProtectedRoute perm="STOCK:VIEW">
+              <AuthenticatedLayout>
+                <ProductionDashboard />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/dashboard/warehouse" element={
+            <ProtectedRoute perm="STOCK:VIEW">
+              <AuthenticatedLayout>
+                <WarehouseDashboard />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/dashboard/sales" element={
+            <ProtectedRoute perm="ORDERS:VIEW">
+              <AuthenticatedLayout>
+                <SalesDashboard />
               </AuthenticatedLayout>
             </ProtectedRoute>
           } />
@@ -236,6 +420,88 @@ function App() {
             </ProtectedRoute>
           } />
 
+          <Route path="/postgres-provisioner" element={
+            <ProtectedRoute perm="INFRASTRUCTURE:VIEW">
+              <AuthenticatedLayout>
+                <PostgresProvisionerPage />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/invoice-designer" element={
+            <ProtectedRoute perm="ROLES:VIEW">
+              <AuthenticatedLayout>
+                <InvoiceDesignerPage />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/billing" element={
+            <ProtectedRoute perm="ORDERS:VIEW">
+              <AuthenticatedLayout>
+                <BillingPage />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/crm" element={
+            <ProtectedRoute perm="ORDERS:VIEW">
+              <AuthenticatedLayout>
+                <SalesCRMDashboard />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/crm/leads" element={
+            <ProtectedRoute perm="ORDERS:VIEW">
+              <AuthenticatedLayout>
+                <NewLeadsPage />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/crm/customers" element={
+            <ProtectedRoute perm="ORDERS:VIEW">
+              <AuthenticatedLayout>
+                <CustomersPage />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/pos" element={
+            <ProtectedRoute perm="ORDERS:CREATE">
+              <AuthenticatedLayout>
+                <PosPage />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/invoice/:id" element={
+            <ProtectedRoute perm="ORDERS:VIEW">
+              <AuthenticatedLayout>
+                <InvoicePrint />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/sales/*" element={
+            <ProtectedRoute perm="ORDERS:VIEW">
+              <SalesApp />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/production/*" element={
+            <ProtectedRoute perm="STOCK:VIEW">
+              <ProductionApp />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/warehouse/*" element={
+            <ProtectedRoute perm="STOCK:VIEW">
+              <WarehouseApp />
+            </ProtectedRoute>
+          } />
+
           {/* Catch-all fallback */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
@@ -247,7 +513,8 @@ function App() {
           border: '1px solid var(--color-border)',
         }
       }} />
-    </AuthProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

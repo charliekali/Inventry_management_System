@@ -28,6 +28,8 @@ public class Role {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    private String category;
+
     @PrePersist
     void prePersist() { createdAt = LocalDateTime.now(); }
 
@@ -40,6 +42,8 @@ public class Role {
     public void setName(String name) { this.name = name; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
     public boolean isSystem() { return system; }
     public void setSystem(boolean system) { this.system = system; }
     public Set<Permission> getPermissions() { return permissions; }

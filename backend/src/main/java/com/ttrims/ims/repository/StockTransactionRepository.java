@@ -40,4 +40,7 @@ public interface StockTransactionRepository extends JpaRepository<StockTransacti
 
     @Query("SELECT t FROM StockTransaction t WHERE t.referenceDoc LIKE 'PROD-RUN-%' ORDER BY t.createdAt DESC")
     java.util.List<StockTransaction> findProductionTransactions();
+
+    @Query("SELECT t FROM StockTransaction t ORDER BY t.createdAt DESC, t.grNumber DESC")
+    java.util.List<StockTransaction> findLatestTransaction(org.springframework.data.domain.Pageable pageable);
 }
