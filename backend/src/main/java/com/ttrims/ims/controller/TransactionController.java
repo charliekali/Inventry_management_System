@@ -3,6 +3,7 @@ package com.ttrims.ims.controller;
 import com.ttrims.ims.entity.*;
 import com.ttrims.ims.repository.*;
 import com.ttrims.ims.service.AuthHelper;
+import com.ttrims.ims.controller.ProductionOrderController;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,9 @@ public class TransactionController {
     private final SectionRepository sectionRepo;
     private final BomRepository bomRepo;
     private final AuthHelper auth;
+    private final ProductionOrderRepository poRepo;
+    private final ProductionOrderItemRepository itemRepo;
+    private final ProductionOrderController poController;
 
     public TransactionController(StockTransactionRepository txRepo,
                                  StockBalanceRepository balanceRepo,
@@ -30,7 +34,10 @@ public class TransactionController {
                                  WarehouseRepository warehouseRepo,
                                  SectionRepository sectionRepo,
                                  BomRepository bomRepo,
-                                 AuthHelper auth) {
+                                 AuthHelper auth,
+                                 ProductionOrderRepository poRepo,
+                                 ProductionOrderItemRepository itemRepo,
+                                 ProductionOrderController poController) {
         this.txRepo = txRepo;
         this.balanceRepo = balanceRepo;
         this.productRepo = productRepo;
@@ -38,6 +45,9 @@ public class TransactionController {
         this.sectionRepo = sectionRepo;
         this.bomRepo = bomRepo;
         this.auth = auth;
+        this.poRepo = poRepo;
+        this.itemRepo = itemRepo;
+        this.poController = poController;
     }
 
     @PostMapping("/in")
@@ -174,8 +184,27 @@ public class TransactionController {
 
     private String generateGR() {
         String dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        long count = txRepo.countByTransactionDate(LocalDate.now()) + 1;
-        return String.format("GR-%s-%04d", dateStr, count);
+        long nextSeq = 1;
+        try {
+            List<StockTransaction> latest = txRepo.findLatestTransaction(PageRequest.of(0, 1));
+            if (!latest.isEmpty()) {
+                StockTransaction lastTx = latest.get(0);
+                String lastGr = lastTx.getGrNumber();
+                if (lastGr != null && lastGr.startsWith("GR-")) {
+                    String[] parts = lastGr.split("-");
+                    if (parts.length >= 3) {
+                        String lastDateStr = parts[1];
+                        if (lastDateStr.equals(dateStr)) {
+                            long lastSeq = Long.parseLong(parts[2]);
+                            nextSeq = lastSeq + 1;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            nextSeq = txRepo.countByTransactionDate(LocalDate.now()) + 1;
+        }
+        return String.format("GR-%s-%04d", dateStr, nextSeq);
     }
 
     private Map<String, Object> toDto(StockTransaction tx) {
@@ -348,6 +377,22 @@ public class TransactionController {
             var tx = transactionsToSave.get(i);
             tx.setGrNumber(baseGr + "-" + (i + 1));
             txRepo.save(tx);
+        }
+
+        String productionOrderId = (String) body.get("production_order_id");
+        String productionOrderItemId = (String) body.get("production_order_item_id");
+        if (productionOrderId != null && !productionOrderId.isBlank()) {
+            poRepo.findById(productionOrderId).ifPresent(po -> {
+                // Mark the specific item as completed
+                if (productionOrderItemId != null && !productionOrderItemId.isBlank()) {
+                    itemRepo.findById(productionOrderItemId).ifPresent(item -> {
+                        item.setStatus(ProductionOrderItem.Status.COMPLETED);
+                        itemRepo.save(item);
+                    });
+                }
+                // Recompute overall PO status based on all items
+                poController.recomputePoStatus(po);
+            });
         }
 
         return ResponseEntity.status(201).body(Map.of(

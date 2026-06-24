@@ -93,7 +93,7 @@ export default function RecipePage() {
 
   // Blend Percentage Auto-calculation
   useEffect(() => {
-    if (!selectedFg || !selectedFg.pack_size_g || !bomRmId || !bomQty) {
+    if (!selectedFg || !bomRmId || !bomQty) {
       setBomBlendPct('');
       return;
     }
@@ -104,9 +104,12 @@ export default function RecipePage() {
       setBomBlendPct('');
       return;
     }
-    const qtyInGrams = (rmUnit?.toUpperCase() === 'KG') ? (qtyVal * 1000) : qtyVal;
-    const calculated = (qtyInGrams / selectedFg.pack_size_g) * 100;
-    setBomBlendPct(calculated.toFixed(2));
+    if (rmUnit?.toUpperCase() === 'KG') {
+      const calculated = qtyVal * 100;
+      setBomBlendPct(calculated.toFixed(2));
+    } else {
+      setBomBlendPct('0.00');
+    }
   }, [bomRmId, bomQty, selectedFg]);
 
   // Submit recipe line
@@ -235,7 +238,7 @@ export default function RecipePage() {
               <div className="card-header" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: 16 }}>
                 <div>
                   <div className="card-title">Recipe Bill of Materials: {selectedFg.name}</div>
-                  <div className="card-subtitle">Define ingredients and proportions to produce 1 {selectedFg.unit}</div>
+                  <div className="card-subtitle">Define ingredients and proportions to produce 1 KG</div>
                 </div>
                 <button 
                   className="btn btn-primary btn-sm" 
@@ -371,7 +374,7 @@ export default function RecipePage() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Quantity Required (per 1 {selectedFg.unit}) <span>*</span></label>
+                  <label className="form-label">Quantity Required (per 1 KG) <span>*</span></label>
                   <input 
                     type="number" 
                     step="any"

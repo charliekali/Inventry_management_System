@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Settings } from 'lucide-react';
+import ThemeSelector from '../components/ThemeSelector';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('admin@ttrims.com');
@@ -36,15 +37,19 @@ export default function LoginPage() {
       </div>
 
       <div className="login-card">
-        {/* Settings button in card corner */}
-        <button 
-          className="btn btn-ghost btn-icon login-settings-btn" 
-          onClick={() => setShowSettings(!showSettings)}
-          title="Server Settings"
-          style={{ position: 'absolute', right: 20, top: 20, zIndex: 10 }}
-        >
-          <Settings size={18} color="var(--color-text-muted)" />
-        </button>
+        {/* Theme and Server Settings in card corner */}
+        <div style={{ position: 'absolute', right: 20, top: 20, zIndex: 10, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <ThemeSelector />
+          <button 
+            type="button"
+            className="btn btn-ghost btn-icon login-settings-btn" 
+            onClick={() => setShowSettings(!showSettings)}
+            title="Server Settings"
+            style={{ padding: 8 }}
+          >
+            <Settings size={18} color="var(--color-text-muted)" />
+          </button>
+        </div>
 
         <div className="login-logo">
           <div className="login-logo-icon">📦</div>
@@ -169,7 +174,7 @@ export default function LoginPage() {
 
       <style>{`
         .login-page {
-          min-height: 100vh;
+          min-height: 100dvh;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -188,16 +193,16 @@ export default function LoginPage() {
         .blob2 { width: 400px; height: 400px; background: #8b5cf6; bottom: -150px; right: -100px; }
         .blob3 { width: 300px; height: 300px; background: #06b6d4; top: 50%; left: 50%; transform: translate(-50%,-50%); }
         .login-card {
-          background: rgba(26, 34, 53, 0.85);
+          background: var(--color-bg-card);
           backdrop-filter: blur(20px);
-          border: 1px solid rgba(255,255,255,0.1);
+          border: 1px solid var(--color-border);
           border-radius: 24px;
           padding: 40px;
           width: 100%;
           max-width: 420px;
           position: relative;
           z-index: 1;
-          box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+          box-shadow: var(--shadow-lg);
           animation: slideUp 0.4s ease;
         }
         .login-logo {
@@ -244,7 +249,7 @@ export default function LoginPage() {
         }
         .login-divider span {
           position: relative;
-          background: rgba(26,34,53,0.85);
+          background: var(--color-bg-card);
           padding: 0 12px;
           font-size: 12.5px;
           color: var(--color-text-muted);
@@ -271,6 +276,67 @@ export default function LoginPage() {
         }
         .login-settings-btn:hover {
           background: rgba(255, 255, 255, 0.05) !important;
+        }
+
+        /* ── Mobile & APK responsive layout ── */
+        @media (max-width: 480px) {
+          .login-page {
+            background: var(--color-bg-card);
+            align-items: flex-start;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+          .login-bg {
+            display: none;
+          }
+          .login-card {
+            border-radius: 0;
+            border: none;
+            box-shadow: none;
+            padding: calc(48px + env(safe-area-inset-top, 0px)) 24px calc(28px + env(safe-area-inset-bottom, 0px)) !important;
+            max-width: 100%;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            backdrop-filter: none;
+            background: var(--color-bg-card);
+          }
+          .login-logo {
+            margin-bottom: 24px;
+            justify-content: center;
+          }
+          .login-logo-icon {
+            width: 44px;
+            height: 44px;
+            font-size: 22px;
+            border-radius: 12px;
+            box-shadow: 0 0 16px rgba(59, 130, 246, 0.35);
+          }
+          .login-title {
+            font-size: 20px;
+          }
+          .login-subtitle {
+            font-size: 11px;
+            letter-spacing: 0.2px;
+          }
+          .login-form {
+            gap: 14px;
+          }
+          .form-group {
+            gap: 4px;
+          }
+          .form-control {
+            padding: 11px 14px;
+            font-size: 14.5px;
+          }
+          .login-divider {
+            margin-bottom: 20px;
+          }
+          .login-hint {
+            margin-top: 16px;
+            font-size: 11px;
+          }
         }
       `}</style>
     </div>

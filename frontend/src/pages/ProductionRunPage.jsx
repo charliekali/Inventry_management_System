@@ -5,10 +5,15 @@ import {
   Factory, Save, AlertTriangle, CheckCircle, Calendar, 
   Info, Warehouse, Package, RefreshCw, AlertCircle, ArrowRight 
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 
 export default function ProductionRunPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const routerState = location.state;
+  
+  const [productionOrderId, setProductionOrderId] = useState('');
+  const [productionOrderItemId, setProductionOrderItemId] = useState('');
 
   // Master Data
   const [products, setProducts] = useState([]);
@@ -33,6 +38,24 @@ export default function ProductionRunPage() {
   const [ingredientStockLocations, setIngredientStockLocations] = useState({});
   const [ingredientSelections, setIngredientSelections] = useState({});
   const [submitting, setSubmitting] = useState(false);
+
+  // Handle prefilled state from Production Order
+  useEffect(() => {
+    if (routerState) {
+      if (routerState.product_id) {
+        setSelectedProductId(routerState.product_id);
+      }
+      if (routerState.quantity) {
+        setTargetQuantity(routerState.quantity);
+      }
+      if (routerState.production_order_id) {
+        setProductionOrderId(routerState.production_order_id);
+      }
+      if (routerState.production_order_item_id) {
+        setProductionOrderItemId(routerState.production_order_item_id);
+      }
+    }
+  }, [routerState]);
 
   // Load master data on mount
   useEffect(() => {
@@ -230,6 +253,20 @@ export default function ProductionRunPage() {
 
   // Calculations
   const selectedProduct = products.find(p => p.id === selectedProductId);
+  const getKgMultiplier = (product) => {
+    if (!product) return 1.0;
+    if (product.unit?.toUpperCase() === 'KG') {
+      return 1.0;
+    }
+    if (product.packs_per_kg && product.packs_per_kg > 0) {
+      return 1.0 / product.packs_per_kg;
+    }
+    if (product.pack_size_g && product.pack_size_g > 0) {
+      return product.pack_size_g / 1000.0;
+    }
+    return 1.0;
+  };
+  const multiplier = getKgMultiplier(selectedProduct);
   const wastage = parseFloat(wastagePct) || 0;
   const damage = parseFloat(damagePct) || 0;
   const lossMultiplier = 1.0 - ((wastage + damage) / 100.0);
@@ -249,7 +286,7 @@ export default function ProductionRunPage() {
         return { feasible: false, error: `Allocation location is missing for ${item.raw_material_name}.` };
       }
       
-      const requiredQty = item.qtyRequired * qtyNum * scalingFactor;
+      const requiredQty = item.qty_required * (qtyNum * multiplier) * scalingFactor;
       if (selection.availableStock < requiredQty) {
         return { feasible: false, error: `Insufficient stock for ${item.raw_material_name}. Need ${requiredQty.toFixed(3)}, have ${selection.availableStock.toFixed(3)}.` };
       }
@@ -284,10 +321,12 @@ export default function ProductionRunPage() {
         damage_pct: damage,
         transaction_date: transactionDate,
         remarks: remarks || `Production run of ${selectedProduct.name} - ${qtyNum} ${selectedProduct.unit}`,
+        production_order_id: productionOrderId || null,
+        production_order_item_id: productionOrderItemId || null,
         ingredients: bomItems.map(item => {
           const ingredientId = item.raw_material_id;
           const selection = ingredientSelections[ingredientId];
-          const needed = item.qtyRequired * qtyNum * scalingFactor;
+          const needed = item.qty_required * (qtyNum * multiplier) * scalingFactor;
           return {
             product_id: ingredientId,
             quantity: Math.round(needed * 1000.0) / 1000.0,
@@ -353,6 +392,27 @@ export default function ProductionRunPage() {
 
             <div className="modal-body" style={{ padding: 0 }}>
               
+              {/* Production Order Alert Banner */}
+              {productionOrderId && (
+                <div style={{
+                  padding: '12px 16px',
+                  background: 'rgba(245, 158, 11, 0.08)',
+                  border: '1px solid rgba(245, 158, 11, 0.25)',
+                  color: 'var(--color-warning)',
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: 16,
+                  fontSize: 13,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8
+                }}>
+                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                  <div>
+                    Linked to Production Order. Completing this run will mark the order as <strong>COMPLETED</strong>.
+                  </div>
+                </div>
+              )}
+
               {/* Product selection */}
               <div className="form-group">
                 <label className="form-label">Target Product to Produce (Bulk Blend / Pouch Pack)</label>
@@ -377,9 +437,9 @@ export default function ProductionRunPage() {
                   fontSize: 13,
                   color: 'var(--color-text-secondary)'
                 }}>
-                  <strong>Pack details:</strong> {selectedProduct.packSizeG ? `${selectedProduct.packSizeG}g Pack` : 'Bulk Blend'}
-                  {selectedProduct.batchSizeKg && ` | Std Batch: ${selectedProduct.batchSizeKg} KG`}
-                  {selectedProduct.processNotes && ` | Notes: ${selectedProduct.processNotes}`}
+                  <strong>Pack details:</strong> {selectedProduct.pack_size_g ? `${selectedProduct.pack_size_g}g Pack` : 'Bulk Blend'}
+                  {selectedProduct.batch_size_kg && ` | Std Batch: ${selectedProduct.batch_size_kg} KG`}
+                  {selectedProduct.process_notes && ` | Notes: ${selectedProduct.process_notes}`}
                 </div>
               )}
 
@@ -489,7 +549,7 @@ export default function ProductionRunPage() {
                     <tbody>
                       {bomItems.map((item, idx) => {
                         const ingredientId = item.raw_material_id;
-                        const needed = item.qtyRequired * parseFloat(targetQuantity || 0) * scalingFactor;
+                        const needed = item.qty_required * (parseFloat(targetQuantity || 0) * multiplier) * scalingFactor;
                         const selection = ingredientSelections[ingredientId] || { warehouseId: '', sectionId: null, availableStock: 0 };
                         const isSufficient = selection.availableStock >= needed;
 
@@ -499,14 +559,14 @@ export default function ProductionRunPage() {
                               <div style={{ display: 'flex', flexDirection: 'column' }}>
                                 <strong style={{ color: 'var(--color-text-primary)' }}>{item.raw_material_name}</strong>
                                 <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-                                  Code: {item.raw_material_code} | Step: {item.productionStep || 'BLENDING'}
+                                  Code: {item.raw_material_code} | Step: {item.production_step || 'BLENDING'}
                                 </span>
                               </div>
                             </td>
                             <td style={{ fontWeight: 700, fontSize: 14 }}>
                               {isNaN(needed) ? '0.000' : needed.toFixed(3)} {item.unit}
                               <div style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 400 }}>
-                                (Base: {item.qtyRequired} {item.unit}/fg)
+                                (Base: {item.qty_required} {item.unit}/KG)
                               </div>
                             </td>
                             <td>

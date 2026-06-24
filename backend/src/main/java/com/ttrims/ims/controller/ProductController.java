@@ -66,6 +66,11 @@ public class ProductController {
         p.setDescription((String) body.get("description"));
         p.setCategory((String) body.get("category"));
         p.setMinStock(body.containsKey("min_stock") ? ((Number) body.get("min_stock")).doubleValue() : 0.0);
+        if (body.containsKey("selling_price") || body.containsKey("cost_price")) {
+            auth.requireSuperAdmin();
+        }
+        if (body.containsKey("selling_price")) p.setSellingPrice(body.get("selling_price") == null ? null : ((Number) body.get("selling_price")).doubleValue());
+        if (body.containsKey("cost_price")) p.setCostPrice(body.get("cost_price") == null ? null : ((Number) body.get("cost_price")).doubleValue());
         applyPackConfig(p, body);
         p.setActive(true);
         productRepo.save(p);
@@ -83,6 +88,15 @@ public class ProductController {
         if (body.containsKey("category")) p.setCategory((String) body.get("category"));
         if (body.containsKey("min_stock")) p.setMinStock(((Number) body.get("min_stock")).doubleValue());
         if (body.containsKey("is_active")) p.setActive((Boolean) body.get("is_active"));
+        if (body.containsKey("selling_price") || body.containsKey("cost_price")) {
+            Double newSelling = body.containsKey("selling_price") ? (body.get("selling_price") == null ? null : ((Number) body.get("selling_price")).doubleValue()) : p.getSellingPrice();
+            Double newCost = body.containsKey("cost_price") ? (body.get("cost_price") == null ? null : ((Number) body.get("cost_price")).doubleValue()) : p.getCostPrice();
+            if (!Objects.equals(newSelling, p.getSellingPrice()) || !Objects.equals(newCost, p.getCostPrice())) {
+                auth.requireSuperAdmin();
+            }
+        }
+        if (body.containsKey("selling_price")) p.setSellingPrice(body.get("selling_price") == null ? null : ((Number) body.get("selling_price")).doubleValue());
+        if (body.containsKey("cost_price")) p.setCostPrice(body.get("cost_price") == null ? null : ((Number) body.get("cost_price")).doubleValue());
         applyPackConfig(p, body);
         productRepo.save(p);
         return ok(toDto(p));
@@ -171,6 +185,8 @@ public class ProductController {
         dto.put("category", p.getCategory() != null ? p.getCategory() : "");
         dto.put("description", p.getDescription() != null ? p.getDescription() : "");
         dto.put("min_stock", p.getMinStock());
+        dto.put("selling_price", p.getSellingPrice());
+        dto.put("cost_price", p.getCostPrice());
         dto.put("pack_size_g", p.getPackSizeG());
         dto.put("packs_per_kg", p.getPacksPerKg());
         dto.put("batch_size_kg", p.getBatchSizeKg());

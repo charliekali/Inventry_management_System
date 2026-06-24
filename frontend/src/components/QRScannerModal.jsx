@@ -136,21 +136,12 @@ export default function QRScannerModal({ onScanned, onClose }) {
     <div className="modal-overlay" onClick={handleClose}>
       <div className="qr-scanner-modal" onClick={e => e.stopPropagation()}>
 
-        {/* Header */}
-        <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Camera size={18} color="var(--color-primary-light)" />
-            <h3 className="modal-title">Scan Section QR Code</h3>
-          </div>
-          <button className="btn btn-ghost btn-sm" onClick={handleClose}>
-            <X size={16} />
-          </button>
-        </div>
 
-        <div style={{ padding: '16px 24px 24px' }}>
+
+        <div className="qr-scanner-body" style={{ padding: '16px 24px 24px' }}>
 
           {/* Camera viewport */}
-          <div style={{
+          <div className="qr-scanner-viewport" style={{
             position: 'relative',
             borderRadius: 'var(--radius-md)',
             overflow: 'hidden',

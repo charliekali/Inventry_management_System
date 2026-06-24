@@ -1,18 +1,168 @@
 import { useState, useEffect } from 'react';
-import { stockAPI } from '../api';
+import { stockAPI, ordersAPI } from '../api';
 import toast from 'react-hot-toast';
-import { Warehouse, Package, TrendingUp, TrendingDown, AlertTriangle, Activity } from 'lucide-react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { Capacitor } from '@capacitor/core';
+import { Warehouse, Package, TrendingUp, TrendingDown, AlertTriangle, Activity, Factory, ShoppingBag, ChevronRight } from 'lucide-react';
+
+function fmtCurrency(val) {
+  return '₹' + (val || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+function fmtDateShort(iso) {
+  if (!iso) return '—';
+  return iso.replace('T', ' ').substring(0, 16);
+}
 
 export default function DashboardPage() {
+  const { user, hasPermission } = useAuth();
+  const navigate = useNavigate();
+  const isApk = Capacitor.isNativePlatform();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [leads, setLeads] = useState([]);
 
   useEffect(() => {
-    stockAPI.dashboard()
-      .then(r => setData(r.data.data))
-      .catch(() => toast.error('Failed to load dashboard'))
+    if (user && user.role === 'Super Admin' && !isApk) {
+      setLoading(true);
+      Promise.all([
+        stockAPI.dashboard(),
+        ordersAPI.list()
+      ])
+      .then(([stockRes, ordersRes]) => {
+        setData(stockRes.data.data);
+        const ordersList = ordersRes.data.data || [];
+        // Extract customer names that have generated invoices
+        const invoicedCustomers = new Set(
+          ordersList.filter(item => item.invoice_number && !item.invoice_number.startsWith('ORD-')).map(item => item.customer)
+        );
+        // New leads are PENDING orders with no invoice generated AND whose customer has no active invoices
+        const prospects = ordersList.filter(
+          item => item.status === 'PENDING' && !invoicedCustomers.has(item.customer)
+        );
+        setLeads(prospects);
+      })
+      .catch(() => toast.error('Failed to load dashboard data'))
       .finally(() => setLoading(false));
-  }, []);
+    }
+  }, [user]);
+
+  // Smart Redirection based on role/permissions
+  if (user && user.role !== 'Super Admin') {
+    const hasStock = hasPermission('STOCK:VIEW') || hasPermission('TRANSACTIONS:STOCK_IN') || hasPermission('WAREHOUSES:VIEW');
+    const hasOrders = hasPermission('ORDERS:VIEW');
+
+    // Pure sales / CRM role → dedicated CRM workspace
+    if (hasOrders && !hasStock) {
+      return <Navigate to="/sales" replace />;
+    }
+
+    // Dedicated production role
+    if (user.role.toLowerCase().includes('production') && hasStock) {
+      return <Navigate to="/production" replace />;
+    }
+
+    // Dedicated warehouse / keeper role
+    if ((user.role.toLowerCase().includes('warehouse') || user.role.toLowerCase().includes('keeper')) && hasStock) {
+      return <Navigate to="/warehouse" replace />;
+    }
+
+    // General fallback for stock roles
+    if (hasStock) {
+      return <Navigate to="/warehouse" replace />;
+    }
+
+    // Mixed (orders + stock but not Super Admin)
+    if (hasOrders) {
+      return <Navigate to="/dashboard/sales" replace />;
+    }
+  }
+
+  if (isApk && user && user.role === 'Super Admin') {
+    return (
+      <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 480, margin: '0 auto', padding: '12px 4px' }}>
+        <div style={{ marginBottom: 8 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 900, color: 'var(--color-text-primary)' }}>IMS Workspace Hub</h2>
+          <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 2 }}>Welcome back, Super Admin. Choose a dashboard to manage.</p>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Warehouse Card */}
+          <div 
+            onClick={() => navigate('/dashboard/warehouse')}
+            className="kpi-card green"
+            style={{ 
+              flexDirection: 'row', 
+              alignItems: 'center', 
+              gap: 16, 
+              padding: '18px 16px', 
+              cursor: 'pointer',
+              border: '1px solid var(--color-border)',
+              margin: 0
+            }}
+          >
+            <div className="kpi-icon green" style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, margin: 0 }}>
+              <Warehouse size={22} color="#10b981" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)' }}>Warehouse Dashboard</h4>
+              <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>Manage stock counts, sections, and locations</p>
+            </div>
+            <ChevronRight size={18} color="var(--color-text-muted)" style={{ flexShrink: 0 }} />
+          </div>
+
+          {/* Production Card */}
+          <div 
+            onClick={() => navigate('/dashboard/production')}
+            className="kpi-card purple"
+            style={{ 
+              flexDirection: 'row', 
+              alignItems: 'center', 
+              gap: 16, 
+              padding: '18px 16px', 
+              cursor: 'pointer',
+              border: '1px solid var(--color-border)',
+              margin: 0
+            }}
+          >
+            <div className="kpi-icon purple" style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, margin: 0 }}>
+              <Factory size={22} color="#8b5cf6" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)' }}>Production Dashboard</h4>
+              <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>Track production runs, yields, and recipes</p>
+            </div>
+            <ChevronRight size={18} color="var(--color-text-muted)" style={{ flexShrink: 0 }} />
+          </div>
+
+          {/* Sales Card */}
+          <div 
+            onClick={() => navigate('/dashboard/sales')}
+            className="kpi-card blue"
+            style={{ 
+              flexDirection: 'row', 
+              alignItems: 'center', 
+              gap: 16, 
+              padding: '18px 16px', 
+              cursor: 'pointer',
+              border: '1px solid var(--color-border)',
+              margin: 0
+            }}
+          >
+            <div className="kpi-icon blue" style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, margin: 0 }}>
+              <ShoppingBag size={22} color="#3b82f6" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)' }}>Sales Dashboard</h4>
+              <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>View POS orders, invoices, collections & CRM</p>
+            </div>
+            <ChevronRight size={18} color="var(--color-text-muted)" style={{ flexShrink: 0 }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) return <div className="loading-center"><div className="loading-spinner"></div></div>;
   if (!data) return null;
@@ -147,6 +297,59 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Prospective Leads Tracker Card */}
+      <div className="card" style={{ marginTop: 24 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-title">Prospective Leads Tracker</div>
+            <div className="card-subtitle">Active targets with no invoices generated yet</div>
+          </div>
+          <span className="badge badge-purple" style={{ fontWeight: 700 }}>{leads.length} Pending</span>
+        </div>
+        {leads.length === 0 ? (
+          <div className="empty-state" style={{ padding: 30 }}>
+            <p>No active prospective leads at the moment</p>
+          </div>
+        ) : (
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Customer/Company</th>
+                  <th>Contact Info</th>
+                  <th>Estimated Value</th>
+                  <th>Added By</th>
+                  <th>Date Added</th>
+                  <th>Remarks</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leads.slice(0, 5).map((lead) => (
+                  <tr key={lead.id}>
+                    <td style={{ fontWeight: 700 }}>{lead.customer}</td>
+                    <td style={{ fontSize: 12 }}>
+                      {lead.custom_fields?.phone && <div>📞 {lead.custom_fields.phone}</div>}
+                      {lead.custom_fields?.email && <div>✉ {lead.custom_fields.email}</div>}
+                      {!lead.custom_fields?.phone && !lead.custom_fields?.email && <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No Contact Info</span>}
+                    </td>
+                    <td style={{ fontWeight: 700, color: '#f59e0b' }}>
+                      {fmtCurrency(lead.grand_total)}
+                    </td>
+                    <td>
+                      <span className="badge badge-purple" style={{ fontSize: 11 }}>👤 {lead.created_by_name || 'System'}</span>
+                    </td>
+                    <td style={{ fontSize: 12 }}>{fmtDateShort(lead.created_at)}</td>
+                    <td style={{ fontSize: 12, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lead.remarks}>
+                      {lead.remarks || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

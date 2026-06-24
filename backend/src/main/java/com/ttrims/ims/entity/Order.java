@@ -37,6 +37,33 @@ public class Order {
     @Column(name = "custom_fields", columnDefinition = "jsonb")
     private Map<String, String> customFields = new HashMap<>();
 
+    @Column(name = "invoice_number", unique = true)
+    private String invoiceNumber;
+
+    @Column(name = "invoice_date")
+    private LocalDateTime invoiceDate;
+
+    @Column(name = "subtotal")
+    private Double subtotal = 0.0;
+
+    @Column(name = "tax_percent")
+    private Double taxPercent = 0.0;
+
+    @Column(name = "tax_amount")
+    private Double taxAmount = 0.0;
+
+    @Column(name = "grand_total")
+    private Double grandTotal = 0.0;
+
+    @Column(name = "payment_mode")
+    private String paymentMode;
+
+    @Column(name = "paid_amount")
+    private Double paidAmount = 0.0;
+
+    @Column(name = "is_pos_order")
+    private Boolean isPosOrder = false;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -67,6 +94,25 @@ public class Order {
     public void setItems(List<OrderItem> items) { this.items = items; }
     public Map<String, String> getCustomFields() { return customFields; }
     public void setCustomFields(Map<String, String> customFields) { this.customFields = customFields; }
+
+    public String getInvoiceNumber() { return invoiceNumber; }
+    public void setInvoiceNumber(String invoiceNumber) { this.invoiceNumber = invoiceNumber; }
+    public LocalDateTime getInvoiceDate() { return invoiceDate; }
+    public void setInvoiceDate(LocalDateTime invoiceDate) { this.invoiceDate = invoiceDate; }
+    public Double getSubtotal() { return subtotal; }
+    public void setSubtotal(Double subtotal) { this.subtotal = subtotal; }
+    public Double getTaxPercent() { return taxPercent; }
+    public void setTaxPercent(Double taxPercent) { this.taxPercent = taxPercent; }
+    public Double getTaxAmount() { return taxAmount; }
+    public void setTaxAmount(Double taxAmount) { this.taxAmount = taxAmount; }
+    public Double getGrandTotal() { return grandTotal; }
+    public void setGrandTotal(Double grandTotal) { this.grandTotal = grandTotal; }
+    public String getPaymentMode() { return paymentMode; }
+    public void setPaymentMode(String paymentMode) { this.paymentMode = paymentMode; }
+    public Double getPaidAmount() { return paidAmount; }
+    public void setPaidAmount(Double paidAmount) { this.paidAmount = paidAmount; }
+    public Boolean getIsPosOrder() { return isPosOrder; }
+    public void setIsPosOrder(Boolean isPosOrder) { this.isPosOrder = isPosOrder; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

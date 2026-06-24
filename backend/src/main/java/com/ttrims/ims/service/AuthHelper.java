@@ -36,4 +36,12 @@ public class AuthHelper {
                 "Access denied. Required permission: " + perm);
         }
     }
+
+    public void requireSuperAdmin() {
+        if (!isSuperAdmin()) {
+            System.out.println("[AuthHelper] Access denied: Super Admin role required");
+            throw new org.springframework.security.access.AccessDeniedException(
+                "Access denied. This action is restricted to Super Admin only.");
+        }
+    }
 }

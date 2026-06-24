@@ -13,6 +13,7 @@ export default function RolePage() {
   const [editingRoleId, setEditingRoleId] = useState(null);
   const [rName, setRName] = useState('');
   const [rDesc, setRDesc] = useState('');
+  const [rCategory, setRCategory] = useState('');
   const [selectedPermIds, setSelectedPermIds] = useState(new Set());
   const [isSystem, setIsSystem] = useState(false);
 
@@ -35,6 +36,7 @@ export default function RolePage() {
     setEditingRoleId(null);
     setRName('');
     setRDesc('');
+    setRCategory('');
     setSelectedPermIds(new Set());
     setIsSystem(false);
   };
@@ -43,6 +45,7 @@ export default function RolePage() {
     setEditingRoleId(role.id);
     setRName(role.name);
     setRDesc(role.description || '');
+    setRCategory(role.category || '');
     setIsSystem(role.is_system || false);
     setSelectedPermIds(new Set(role.permissions.map(p => p.id)));
     setShowModal(true);
@@ -78,6 +81,7 @@ export default function RolePage() {
       const payload = {
         name: rName,
         description: rDesc,
+        category: rCategory,
         permission_ids: Array.from(selectedPermIds)
       };
 
@@ -138,6 +142,7 @@ export default function RolePage() {
               <thead>
                 <tr>
                   <th>Role Name</th>
+                  <th>Category Scope</th>
                   <th>Description</th>
                   <th>Permission Load</th>
                   <th>System Flag</th>
@@ -153,9 +158,18 @@ export default function RolePage() {
                         {r.name}
                       </div>
                     </td>
+                    <td>
+                      {r.category ? (
+                        <span className="badge badge-purple" style={{ textTransform: 'uppercase', fontSize: 10 }}>
+                          {r.category}
+                        </span>
+                      ) : (
+                        <span className="badge badge-gray">Not Set</span>
+                      )}
+                    </td>
                     <td>{r.description || '-'}</td>
                     <td>
-                      <span className="badge badge-purple">
+                      <span className="badge badge-blue">
                         {r.permissions?.length || 0} permissions assigned
                       </span>
                     </td>
@@ -218,6 +232,25 @@ export default function RolePage() {
                   onChange={(e) => setRDesc(e.target.value)} 
                   placeholder="e.g. Read-only audit access across all stock balances"
                 />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Category Scope *</label>
+                <select
+                  className="form-control"
+                  value={rCategory}
+                  onChange={(e) => setRCategory(e.target.value)}
+                  required
+                >
+                  <option value="">-- Choose Role Category --</option>
+                  <option value="Super Admin">Super Admin</option>
+                  <option value="Warehouse">Warehouse</option>
+                  <option value="Sales">Sales</option>
+                  <option value="Production">Production</option>
+                </select>
+                <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                  Assigned scope determines which mobile sub-app or admin console dashboard users will access.
+                </p>
               </div>
 
               <div className="divider"></div>

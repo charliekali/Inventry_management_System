@@ -338,7 +338,6 @@ export default function StockOutPage() {
                   value={unit}
                   onChange={e => setUnit(e.target.value)}
                   placeholder="e.g. PCS, KG"
-                  readOnly
                 />
               </div>
             )}
