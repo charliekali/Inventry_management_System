@@ -177,7 +177,6 @@ public class OrderController {
         String customer = (String) body.get("customer");
         List<Map<String, Object>> items = (List<Map<String, Object>>) body.get("items");
         
-        boolean isLead = body.containsKey("is_lead") && (Boolean) body.get("is_lead");
         if (customer == null || customer.trim().isEmpty()) return bad("customer name is required");
         if (!isLead && (items == null || items.isEmpty())) return bad("items are required");
 
