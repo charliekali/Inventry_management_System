@@ -1,1 +1,24 @@
 .env
+.env.example
+
+# Maven Build Artifacts
+backend/target/
+backend/bin/
+.mvn-portable/
+
+# Frontend/Node Build Artifacts & Dependencies
+frontend/node_modules/
+frontend/dist/
+frontend/android/
+frontend/.eslintcache
+
+# OS and IDE files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
