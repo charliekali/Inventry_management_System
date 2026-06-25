@@ -7,27 +7,13 @@ services:
     dockerContext: backend
     plan: free
     envVars:
-      # Database connection details automatically injected from the database service
-      - key: DB_HOST
-        fromDatabase:
-          name: ttrims-postgres
-          property: host
-      - key: DB_PORT
-        fromDatabase:
-          name: ttrims-postgres
-          property: port
-      - key: DB_NAME
-        fromDatabase:
-          name: ttrims-postgres
-          property: database
+      # Connect directly to your existing PostgreSQL database using the external hostname
+      - key: SPRING_DATASOURCE_URL
+        value: jdbc:postgresql://dpg-d8in6lcvikkc73c1l780-a.virginia-postgres.render.com:5432/ims_db_z4x7?sslmode=require
       - key: SPRING_DATASOURCE_USERNAME
-        fromDatabase:
-          name: ttrims-postgres
-          property: user
+        value: ims_db_z4x7_user
       - key: SPRING_DATASOURCE_PASSWORD
-        fromDatabase:
-          name: ttrims-postgres
-          property: password
+        value: OXuCjVeOESq1tooj37MjWfRXUvuPgg5k
       # Automatically generate a secure 32+ character JWT secret on initial deploy
       - key: JWT_SECRET
         generateValue: true
@@ -43,10 +29,3 @@ services:
       # Map the API proxy to the backend container's internal service URL
       - key: BACKEND_URL
         value: http://ttrims-backend:5000/api
-
-# ─── Database Service ─────────────────────────────────────────────────────────
-databases:
-  - name: ttrims-postgres
-    databaseName: ims_db
-    user: ims_user
-    plan: free
