@@ -258,12 +258,12 @@ public class DataSeeder implements CommandLineRunner {
         instance.setName("ttrims-postgres");
         instance.setDatabaseName("ims_db_z4x7");
         instance.setUsername("ims_db_z4x7_user");
-        instance.setPassword("********");
+        instance.setPassword("OXuCjVeOESq1tooj37MjWfRXUvuPgg5k");
         instance.setRegion("Virginia (US East)");
         instance.setVersion("17");
         instance.setPlanOption("Hobby");
         instance.setStatus("ACTIVE");
-        instance.setConnectionString("postgres://avnadmin:********@pg-1168d9e5-sudrs007-d282.b.aivencloud.com:13913/defaultdb?sslmode=require");
+        instance.setConnectionString("postgres://avnadmin:AVNS_ybK9qHZdRnPrWSH-aRC@pg-1168d9e5-sudrs007-d282.b.aivencloud.com:13913/defaultdb?sslmode=require");
         if (instance.getId() == null) {
             instance.setCreatedAt(LocalDateTime.now().minusMinutes(2));
         }
