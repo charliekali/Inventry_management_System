@@ -19,7 +19,7 @@ services:
       - key: DB_NAME
         fromDatabase:
           name: ttrims-postgres
-          property: databaseName
+          property: database
       - key: SPRING_DATASOURCE_USERNAME
         fromDatabase:
           name: ttrims-postgres
