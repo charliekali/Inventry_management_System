@@ -26,6 +26,6 @@ services:
     dockerContext: frontend
     plan: free
     envVars:
-      # Map the API proxy to the backend container's internal service URL
+      # Map the API proxy to the live backend service URL
       - key: BACKEND_URL
-        value: http://ttrims-backend:5000/api
+        value: https://ttrims-backend-4xho.onrender.com/api
