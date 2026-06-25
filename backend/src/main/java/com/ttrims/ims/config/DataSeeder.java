@@ -81,10 +81,14 @@ public class DataSeeder implements CommandLineRunner {
         runSchemaMigrations();
         seedPermissions();
         Role superAdminRole = seedRole("Super Admin", "Full system access", true, getAllPermissions());
-        seedRole("Viewer", "Read-only access", true, getPermsByAction("VIEW"));
-        seedRole("Warehouse Manager", "Stock transactions and reports", true, getWMPerms());
-        seedRole("Store Keeper", "Handle stock IN/OUT", true, getStoreKeeperPerms());
-        seedSuperAdmin(superAdminRole);
+        Role viewerRole = seedRole("Viewer", "Read-only access", true, getPermsByAction("VIEW"));
+        Role managerRole = seedRole("Warehouse Manager", "Stock transactions and reports", true, getWMPerms());
+        Role keeperRole = seedRole("Store Keeper", "Handle stock IN/OUT", true, getStoreKeeperPerms());
+        
+        seedUser("admin@ttrims.com", "Super Admin", "Admin@123", superAdminRole);
+        seedUser("manager@ttrims.com", "Warehouse Manager", "Manager@123", managerRole);
+        seedUser("keeper@ttrims.com", "Store Keeper", "Keeper@123", keeperRole);
+        seedUser("viewer@ttrims.com", "Viewer", "Viewer@123", viewerRole);
         seedProductCategories();
         seedPostgresInstances();
         seedBusinessData();
@@ -192,21 +196,21 @@ public class DataSeeder implements CommandLineRunner {
         return perms;
     }
 
-    private void seedSuperAdmin(Role superAdminRole) {
-        User user = userRepo.findByEmailAndActiveTrue("admin@ttrims.com").orElse(null);
+    private void seedUser(String email, String name, String password, Role role) {
+        User user = userRepo.findByEmailAndActiveTrue(email).orElse(null);
         if (user == null) {
             user = new User();
-            user.setName("Super Admin");
-            user.setEmail("admin@ttrims.com");
-            user.setPassword(passwordEncoder.encode("Admin@123"));
-            user.setRole(superAdminRole);
+            user.setName(name);
+            user.setEmail(email);
+            user.setPassword(passwordEncoder.encode(password));
+            user.setRole(role);
             user.setActive(true);
             userRepo.save(user);
-            log.info("✅ Super Admin created: admin@ttrims.com / Admin@123");
+            log.info("✅ User created: {} / {}", email, password);
         } else {
-            user.setRole(superAdminRole);
+            user.setRole(role);
             userRepo.save(user);
-            log.info("✅ Super Admin role synced for: admin@ttrims.com");
+            log.info("✅ User role synced for: {}", email);
         }
     }
 

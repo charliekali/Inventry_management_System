@@ -165,9 +165,27 @@ export default function LoginPage() {
               </button>
             </form>
 
-            <p className="login-hint">
-              Default credentials: <strong>admin@ttrims.com</strong> / <strong>Admin@123</strong>
-            </p>
+            <div className="login-hint-container">
+              <p className="login-hint-title">Default Demo Accounts</p>
+              <ul className="login-hint-list">
+                <li>
+                  <span>Admin:</span>
+                  <strong>admin@ttrims.com / Admin@123</strong>
+                </li>
+                <li>
+                  <span>Manager:</span>
+                  <strong>manager@ttrims.com / Manager@123</strong>
+                </li>
+                <li>
+                  <span>Store Keeper:</span>
+                  <strong>keeper@ttrims.com / Keeper@123</strong>
+                </li>
+                <li>
+                  <span>Viewer:</span>
+                  <strong>viewer@ttrims.com / Viewer@123</strong>
+                </li>
+              </ul>
+            </div>
           </>
         )}
       </div>
@@ -255,14 +273,38 @@ export default function LoginPage() {
           color: var(--color-text-muted);
         }
         .login-form { display: flex; flex-direction: column; gap: 16px; }
-        .login-hint {
-          margin-top: 20px;
-          text-align: center;
-          font-size: 12px;
-          color: var(--color-text-muted);
-          line-height: 1.6;
+        .login-hint-container {
+          margin-top: 24px;
+          border-top: 1px dashed var(--color-border);
+          padding-top: 16px;
         }
-        .login-hint strong { color: var(--color-text-secondary); }
+        .login-hint-title {
+          text-align: center;
+          font-size: 11px;
+          font-weight: 700;
+          color: var(--color-text-secondary);
+          margin-bottom: 10px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .login-hint-list {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .login-hint-list li {
+          display: flex;
+          justify-content: space-between;
+          font-size: 11px;
+          color: var(--color-text-muted);
+        }
+        .login-hint-list strong {
+          color: var(--color-text-primary);
+          font-family: monospace;
+        }
         .login-settings-btn {
           background: transparent !important;
           border: none !important;
