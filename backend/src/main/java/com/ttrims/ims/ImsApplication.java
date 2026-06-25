@@ -11,7 +11,28 @@ public class ImsApplication {
             url = System.getProperty("spring.datasource.url");
         }
         if (url != null && url.startsWith("postgresql://")) {
-            System.setProperty("spring.datasource.url", "jdbc:" + url);
+            try {
+                java.net.URI uri = new java.net.URI(url);
+                String host = uri.getHost();
+                int port = uri.getPort();
+                String path = uri.getPath();
+                String query = uri.getQuery();
+                
+                // Construct clean JDBC URL (without credentials)
+                String jdbcUrl = "jdbc:postgresql://" + host + (port != -1 ? ":" + port : "") + path + (query != null ? "?" + query : "");
+                System.setProperty("spring.datasource.url", jdbcUrl);
+                
+                // Extract credentials and set them separately
+                String userInfo = uri.getUserInfo();
+                if (userInfo != null && userInfo.contains(":")) {
+                    String[] parts = userInfo.split(":", 2);
+                    System.setProperty("spring.datasource.username", parts[0]);
+                    System.setProperty("spring.datasource.password", parts[1]);
+                }
+            } catch (Exception e) {
+                // Fallback to simple prepending if URI parsing fails
+                System.setProperty("spring.datasource.url", "jdbc:" + url);
+            }
         }
         SpringApplication.run(ImsApplication.class, args);
     }
