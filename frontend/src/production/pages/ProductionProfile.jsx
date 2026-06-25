@@ -106,13 +106,20 @@ export default function ProductionProfile() {
       </div>
 
       {/* Actions */}
-      <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
-        <button className="p-btn ghost lg" onClick={loadStats} style={{ flex: 1 }}>
-          <RefreshCw size={14} /> Sync Stats
-        </button>
-        <button className="p-btn danger lg" onClick={handleLogout} style={{ flex: 1.2 }}>
-          <LogOut size={14} /> Log Out
-        </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 24 }}>
+        {user?.role === 'Super Admin' && (
+          <button className="p-btn primary lg" onClick={() => navigate('/dashboard')} style={{ width: '100%' }}>
+            Back to Workspace Hub
+          </button>
+        )}
+        <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+          <button className="p-btn ghost lg" onClick={loadStats} style={{ flex: 1 }}>
+            <RefreshCw size={14} /> Sync Stats
+          </button>
+          <button className="p-btn danger lg" onClick={handleLogout} style={{ flex: 1.2 }}>
+            <LogOut size={14} /> Log Out
+          </button>
+        </div>
       </div>
     </div>
   );

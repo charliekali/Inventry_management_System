@@ -360,10 +360,12 @@ function PaymentModal({ invoice, onClose, onSaved }) {
 
 // ─── Outstanding Row ──────────────────────────────────────────────────────────
 function OutstandingRow({ inv, onFollowUp, onPayment, expanded, onToggle }) {
+  const { hasPermission } = useAuth();
   const balance = Math.max(0, (inv.grand_total || 0) - (inv.paid_amount || 0));
   const age = agingColor(inv.aging_days || 0);
   const overdue = isOverdue(inv.latest_next_follow_up_date);
   const ss = inv.latest_follow_up_status ? getFollowUpStatusStyle(inv.latest_follow_up_status) : null;
+  const showActions = hasPermission('SALES:LOG_FOLLOWUP') || hasPermission('SALES:COLLECT');
 
   return (
     <>
@@ -408,33 +410,39 @@ function OutstandingRow({ inv, onFollowUp, onPayment, expanded, onToggle }) {
             <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>—</span>
           )}
         </td>
-        <td onClick={e => e.stopPropagation()}>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              className="btn btn-secondary btn-sm"
-              style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}
-              onClick={() => onFollowUp(inv)}
-              title="Log CRM Follow-Up"
-            >
-              <PhoneCall size={13} /> Follow-Up
-            </button>
-            <button
-              className="btn btn-primary btn-sm"
-              style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, background: '#10b981', borderColor: '#10b981' }}
-              onClick={() => onPayment(inv)}
-              title="Collect Payment"
-            >
-              <DollarSign size={13} /> Pay
-            </button>
-          </div>
-        </td>
+        {showActions && (
+          <td onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {hasPermission('SALES:LOG_FOLLOWUP') && (
+                <button
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}
+                  onClick={() => onFollowUp(inv)}
+                  title="Log CRM Follow-Up"
+                >
+                  <PhoneCall size={13} /> Follow-Up
+                </button>
+              )}
+              {hasPermission('SALES:COLLECT') && (
+                <button
+                  className="btn btn-primary btn-sm"
+                  style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, background: '#10b981', borderColor: '#10b981' }}
+                  onClick={() => onPayment(inv)}
+                  title="Collect Payment"
+                >
+                  <DollarSign size={13} /> Pay
+                </button>
+              )}
+            </div>
+          </td>
+        )}
         <td style={{ width: 32, textAlign: 'center', color: 'var(--color-text-muted)' }}>
           {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
         </td>
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={8} style={{ padding: 0, background: 'rgba(0,0,0,0.08)' }}>
+          <td colSpan={showActions ? 8 : 7} style={{ padding: 0, background: 'rgba(0,0,0,0.08)' }}>
             <div style={{ padding: '14px 24px', display: 'flex', gap: 20, flexWrap: 'wrap' }}>
               <div style={{ fontSize: 12 }}>
                 <span style={{ color: 'var(--color-text-muted)' }}>Invoice Total: </span>
@@ -464,7 +472,7 @@ function OutstandingRow({ inv, onFollowUp, onPayment, expanded, onToggle }) {
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function SalesCRMDashboard() {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [outstanding, setOutstanding] = useState([]);
   const [loading, setLoading]         = useState(true);
   const [search, setSearch]           = useState('');
@@ -649,7 +657,7 @@ export default function SalesCRMDashboard() {
                   <th>Aging</th>
                   <th>CRM Status</th>
                   <th>Next Follow-Up</th>
-                  <th>Actions</th>
+                  {(hasPermission('SALES:LOG_FOLLOWUP') || hasPermission('SALES:COLLECT')) && <th>Actions</th>}
                   <th style={{ width: 32 }}></th>
                 </tr>
               </thead>

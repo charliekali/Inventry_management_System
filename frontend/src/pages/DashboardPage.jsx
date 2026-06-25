@@ -16,7 +16,7 @@ function fmtDateShort(iso) {
 }
 
 export default function DashboardPage() {
-  const { user, hasPermission } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const navigate = useNavigate();
   const isApk = Capacitor.isNativePlatform();
   const [data, setData] = useState(null);
@@ -90,7 +90,7 @@ export default function DashboardPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Warehouse Card */}
           <div 
-            onClick={() => navigate('/dashboard/warehouse')}
+            onClick={() => navigate('/warehouse')}
             className="kpi-card green"
             style={{ 
               flexDirection: 'row', 
@@ -106,7 +106,7 @@ export default function DashboardPage() {
               <Warehouse size={22} color="#10b981" />
             </div>
             <div style={{ flex: 1 }}>
-              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)' }}>Warehouse Dashboard</h4>
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)' }}>Warehouse App</h4>
               <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>Manage stock counts, sections, and locations</p>
             </div>
             <ChevronRight size={18} color="var(--color-text-muted)" style={{ flexShrink: 0 }} />
@@ -114,7 +114,7 @@ export default function DashboardPage() {
 
           {/* Production Card */}
           <div 
-            onClick={() => navigate('/dashboard/production')}
+            onClick={() => navigate('/production')}
             className="kpi-card purple"
             style={{ 
               flexDirection: 'row', 
@@ -130,7 +130,7 @@ export default function DashboardPage() {
               <Factory size={22} color="#8b5cf6" />
             </div>
             <div style={{ flex: 1 }}>
-              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)' }}>Production Dashboard</h4>
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)' }}>Production App</h4>
               <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>Track production runs, yields, and recipes</p>
             </div>
             <ChevronRight size={18} color="var(--color-text-muted)" style={{ flexShrink: 0 }} />
@@ -138,7 +138,7 @@ export default function DashboardPage() {
 
           {/* Sales Card */}
           <div 
-            onClick={() => navigate('/dashboard/sales')}
+            onClick={() => navigate('/sales')}
             className="kpi-card blue"
             style={{ 
               flexDirection: 'row', 
@@ -154,11 +154,41 @@ export default function DashboardPage() {
               <ShoppingBag size={22} color="#3b82f6" />
             </div>
             <div style={{ flex: 1 }}>
-              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)' }}>Sales Dashboard</h4>
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)' }}>Sales App</h4>
               <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>View POS orders, invoices, collections & CRM</p>
             </div>
             <ChevronRight size={18} color="var(--color-text-muted)" style={{ flexShrink: 0 }} />
           </div>
+
+          {/* Log Out Button */}
+          <button
+            onClick={async () => {
+              try {
+                await logout();
+                toast.success('Logged out successfully');
+                navigate('/login');
+              } catch {
+                toast.error('Logout failed');
+              }
+            }}
+            className="btn btn-danger"
+            style={{ 
+              marginTop: 12,
+              width: '100%', 
+              justifyContent: 'center',
+              padding: '14px',
+              borderRadius: '12px',
+              fontWeight: 700,
+              fontSize: 14.5,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            Sign Out
+          </button>
         </div>
       </div>
     );

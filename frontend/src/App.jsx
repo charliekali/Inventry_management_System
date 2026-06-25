@@ -141,6 +141,18 @@ function AuthenticatedLayout({ children }) {
     { path: '/locate', label: 'Finder', Icon: MapPin },
   ];
   
+  if (Capacitor.isNativePlatform()) {
+    return (
+      <div className="app-layout native-layout" style={{ display: 'block' }}>
+        <main className="main-content" style={{ marginLeft: 0, paddingTop: 0 }}>
+          <div className="page-content" style={{ padding: '16px 12px', marginTop: 0 }}>
+            {children}
+          </div>
+        </main>
+      </div>
+    );
+  }
+  
   return (
     <div className="app-layout">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
@@ -301,7 +313,7 @@ function App() {
           } />
 
           <Route path="/production-run" element={
-            <ProtectedRoute perm="TRANSACTIONS:STOCK_OUT">
+            <ProtectedRoute perm="PRODUCTION:RUN">
               <AuthenticatedLayout>
                 <ProductionRunPage />
               </AuthenticatedLayout>
@@ -309,7 +321,7 @@ function App() {
           } />
 
           <Route path="/production-history" element={
-            <ProtectedRoute perm="TRANSACTIONS:VIEW">
+            <ProtectedRoute perm="PRODUCTION:HISTORY">
               <AuthenticatedLayout>
                 <ProductionHistoryPage />
               </AuthenticatedLayout>
@@ -437,7 +449,7 @@ function App() {
           } />
 
           <Route path="/billing" element={
-            <ProtectedRoute perm="ORDERS:VIEW">
+            <ProtectedRoute perm="SALES:COLLECT">
               <AuthenticatedLayout>
                 <BillingPage />
               </AuthenticatedLayout>
@@ -445,7 +457,7 @@ function App() {
           } />
 
           <Route path="/crm" element={
-            <ProtectedRoute perm="ORDERS:VIEW">
+            <ProtectedRoute perm="SALES:CRM">
               <AuthenticatedLayout>
                 <SalesCRMDashboard />
               </AuthenticatedLayout>
@@ -453,7 +465,7 @@ function App() {
           } />
 
           <Route path="/crm/leads" element={
-            <ProtectedRoute perm="ORDERS:VIEW">
+            <ProtectedRoute perm="SALES:LEADS">
               <AuthenticatedLayout>
                 <NewLeadsPage />
               </AuthenticatedLayout>
@@ -461,7 +473,7 @@ function App() {
           } />
 
           <Route path="/crm/customers" element={
-            <ProtectedRoute perm="ORDERS:VIEW">
+            <ProtectedRoute perm="SALES:CUSTOMERS">
               <AuthenticatedLayout>
                 <CustomersPage />
               </AuthenticatedLayout>

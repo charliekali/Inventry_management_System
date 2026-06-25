@@ -12,25 +12,27 @@ import {
   LogOut
 } from 'lucide-react';
 
-const TABS = [
-  { path: '/sales',            label: 'Home',       Icon: Home,        key: 'home' },
-  { path: '/sales/crm',        label: 'CRM',        Icon: PhoneCall,   key: 'crm' },
-  { path: '/sales/collections',label: 'Collect',    Icon: Wallet,      key: 'collections' },
-  { path: '/sales/orders',     label: 'Orders',     Icon: ShoppingBag, key: 'orders' },
-  { path: '/sales/pos',        label: 'POS',        Icon: Zap,         key: 'pos' },
-  { path: '/sales/profile',    label: 'Me',         Icon: User,        key: 'profile' },
+const ALL_TABS = [
+  { path: '/sales',            label: 'Home',       Icon: Home,        key: 'home',        perm: null },
+  { path: '/sales/crm',        label: 'CRM',        Icon: PhoneCall,   key: 'crm',         perm: 'SALES:CRM' },
+  { path: '/sales/collections',label: 'Collect',    Icon: Wallet,      key: 'collections', perm: 'SALES:COLLECT' },
+  { path: '/sales/orders',     label: 'Orders',     Icon: ShoppingBag, key: 'orders',      perm: 'ORDERS:VIEW' },
+  { path: '/sales/pos',        label: 'POS',        Icon: Zap,         key: 'pos',         perm: 'ORDERS:CREATE' },
+  { path: '/sales/profile',    label: 'Me',         Icon: User,        key: 'profile',     perm: null },
 ];
 
 export default function SalesAppLayout({ children, crmBadge = 0, collectionBadge = 0 }) {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const TABS = ALL_TABS.filter(t => !t.perm || hasPermission(t.perm));
 
   const initials = user?.name
     ? user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
     : 'SP';
 
-  const activeTab = TABS.findLast(t => location.pathname.startsWith(t.path));
+  const activeTab = [...TABS].reverse().find(t => location.pathname.startsWith(t.path));
 
   const handleLogout = async () => {
     await logout().catch(() => {});

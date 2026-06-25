@@ -2,26 +2,34 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Home, Camera, ArrowDownCircle, ArrowUpCircle, BarChart3, MapPin, User } from 'lucide-react';
 
-const TABS = [
-  { path: '/warehouse',           label: 'Home',     Icon: Home,            key: 'home' },
-  { path: '/warehouse/scan',      label: 'Scan QR',  Icon: Camera,          key: 'scan' },
-  { path: '/warehouse/stock-in',  label: 'In',       Icon: ArrowDownCircle, key: 'stock-in' },
-  { path: '/warehouse/stock-out', label: 'Out',      Icon: ArrowUpCircle,   key: 'stock-out' },
-  { path: '/warehouse/balance',   label: 'Balance',  Icon: BarChart3,       key: 'balance' },
-  { path: '/warehouse/find',      label: 'Find',     Icon: MapPin,          key: 'find' },
-  { path: '/warehouse/profile',   label: 'Me',       Icon: User,            key: 'profile' },
+const ALL_TABS = [
+  { path: '/warehouse',           label: 'Home',     Icon: Home,            key: 'home',      perm: null },
+  { path: '/warehouse/scan',      label: 'Scan QR',  Icon: Camera,          key: 'scan',      perm: 'TRANSACTIONS:STOCK_IN' },
+  { path: '/warehouse/stock-in',  label: 'In',       Icon: ArrowDownCircle, key: 'stock-in',  perm: 'TRANSACTIONS:STOCK_IN' },
+  { path: '/warehouse/stock-out', label: 'Out',      Icon: ArrowUpCircle,   key: 'stock-out', perm: 'TRANSACTIONS:STOCK_OUT' },
+  { path: '/warehouse/balance',   label: 'Balance',  Icon: BarChart3,       key: 'balance',   perm: 'STOCK:VIEW' },
+  { path: '/warehouse/find',      label: 'Find',     Icon: MapPin,          key: 'find',      perm: 'STOCK:LOCATE' },
+  { path: '/warehouse/profile',   label: 'Me',       Icon: User,            key: 'profile',   perm: null },
 ];
 
 export default function WarehouseAppLayout({ children }) {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const TABS = ALL_TABS.filter(t => {
+    if (!t.perm) return true;
+    if (t.key === 'scan') {
+      return hasPermission('TRANSACTIONS:STOCK_IN') || hasPermission('TRANSACTIONS:STOCK_OUT');
+    }
+    return hasPermission(t.perm);
+  });
 
   const initials = user?.name
     ? user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
     : 'WH';
 
-  const activeTab = TABS.findLast(t => location.pathname.startsWith(t.path));
+  const activeTab = [...TABS].reverse().find(t => location.pathname.startsWith(t.path));
 
   return (
     <div className="warehouse-app">

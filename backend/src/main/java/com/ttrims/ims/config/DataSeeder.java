@@ -68,7 +68,11 @@ public class DataSeeder implements CommandLineRunner {
             { "ORDERS", "FULFILL" },
             { "PRODUCTION_ORDERS", "VIEW" }, { "PRODUCTION_ORDERS", "CREATE" }, { "PRODUCTION_ORDERS", "EDIT" },
             { "BOM", "VIEW" }, { "BOM", "CREATE" }, { "BOM", "EDIT" }, { "BOM", "DELETE" },
-            { "REPORTS", "VIEW" }
+            { "REPORTS", "VIEW" },
+            { "SALES", "CRM" }, { "SALES", "COLLECT" },
+            { "PRODUCTION", "RUN" }, { "PRODUCTION", "HISTORY" },
+            { "SALES", "ADD_LEAD" }, { "SALES", "LOG_FOLLOWUP" },
+            { "SALES", "LEADS" }, { "SALES", "CUSTOMERS" }
     };
 
     @Override

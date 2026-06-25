@@ -262,9 +262,25 @@ export default function RolePage() {
                 </h4>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {Object.entries(groupedPermissions).map(([module, perms]) => {
-                    const moduleCheckedCount = perms.filter(p => selectedPermIds.has(p.id)).length;
-                    const allChecked = moduleCheckedCount === perms.length;
+                  {Object.entries(groupedPermissions)
+                    .filter(([module]) => {
+                      if (!rCategory) return true;
+                      const cat = rCategory.toLowerCase();
+                      if (cat === 'super admin') return true;
+                      if (cat === 'warehouse') {
+                        return ['stock', 'transactions', 'warehouses'].includes(module.toLowerCase());
+                      }
+                      if (cat === 'production') {
+                        return ['stock', 'transactions', 'bom', 'production'].includes(module.toLowerCase());
+                      }
+                      if (cat === 'sales') {
+                        return ['orders', 'sales'].includes(module.toLowerCase());
+                      }
+                      return true;
+                    })
+                    .map(([module, perms]) => {
+                      const moduleCheckedCount = perms.filter(p => selectedPermIds.has(p.id)).length;
+                      const allChecked = moduleCheckedCount === perms.length;
                     const someChecked = moduleCheckedCount > 0 && !allChecked;
 
                     return (

@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ordersAPI } from '../../api';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
 import {
   PhoneCall, CalendarDays, ChevronDown, X,
   Search, User, CheckCircle2, RefreshCw
@@ -331,6 +332,7 @@ function AddLeadSheet({ onClose, onSaved }) {
 
 // ── Main CRM Page ─────────────────────────────────────────────────────────────
 export default function SalesCRM() {
+  const { hasPermission } = useAuth();
   const location   = useLocation();
   const urlParams  = new URLSearchParams(location.search);
   const initFilter = urlParams.get('filter') || 'ALL';
@@ -405,13 +407,15 @@ export default function SalesCRM() {
           <div className="s-text-sm s-text-muted">{outstanding.length} CRM items assigned</div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          <button
-            className="s-btn success sm"
-            onClick={() => setShowAddLeadSheet(true)}
-            style={{ display: 'flex', gap: 5, alignItems: 'center' }}
-          >
-            ➕ Add Lead
-          </button>
+          {hasPermission('SALES:ADD_LEAD') && (
+            <button
+              className="s-btn success sm"
+              onClick={() => setShowAddLeadSheet(true)}
+              style={{ display: 'flex', gap: 5, alignItems: 'center' }}
+            >
+              ➕ Add Lead
+            </button>
+          )}
           <button
             className="s-btn ghost sm"
             onClick={load}
@@ -561,13 +565,15 @@ export default function SalesCRM() {
                           </div>
                         )}
                       </div>
-                      <button
-                        className="s-btn primary md"
-                        style={{ width: '100%' }}
-                        onClick={e => { e.stopPropagation(); setSheetInvoice(inv); }}
-                      >
-                        <PhoneCall size={14} /> Log Follow-Up
-                      </button>
+                      {hasPermission('SALES:LOG_FOLLOWUP') && (
+                        <button
+                          className="s-btn primary md"
+                          style={{ width: '100%' }}
+                          onClick={e => { e.stopPropagation(); setSheetInvoice(inv); }}
+                        >
+                          <PhoneCall size={14} /> Log Follow-Up
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

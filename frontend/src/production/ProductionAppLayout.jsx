@@ -3,24 +3,26 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { Home, Factory, History, ListPlus, User } from 'lucide-react';
 
-const TABS = [
-  { path: '/production',          label: 'Home',    Icon: Home,     key: 'home' },
-  { path: '/production/runs',     label: 'Runs',    Icon: Factory,  key: 'runs' },
-  { path: '/production/history',  label: 'History', Icon: History,  key: 'history' },
-  { path: '/production/recipes',  label: 'Recipes', Icon: ListPlus, key: 'recipes' },
-  { path: '/production/profile',  label: 'Me',      Icon: User,     key: 'profile' },
+const ALL_TABS = [
+  { path: '/production',          label: 'Home',    Icon: Home,     key: 'home',    perm: null },
+  { path: '/production/runs',     label: 'Runs',    Icon: Factory,  key: 'runs',    perm: 'PRODUCTION:RUN' },
+  { path: '/production/history',  label: 'History', Icon: History,  key: 'history', perm: 'PRODUCTION:HISTORY' },
+  { path: '/production/recipes',  label: 'Recipes', Icon: ListPlus, key: 'recipes', perm: 'BOM:VIEW' },
+  { path: '/production/profile',  label: 'Me',      Icon: User,     key: 'profile', perm: null },
 ];
 
 export default function ProductionAppLayout({ children }) {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const TABS = ALL_TABS.filter(t => !t.perm || hasPermission(t.perm));
 
   const initials = user?.name
     ? user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
     : 'PM';
 
-  const activeTab = TABS.findLast(t => location.pathname.startsWith(t.path));
+  const activeTab = [...TABS].reverse().find(t => location.pathname.startsWith(t.path));
 
   return (
     <div className="production-app">

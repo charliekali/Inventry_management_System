@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ordersAPI } from '../api';
 import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
 import { 
   PhoneCall, CalendarDays, User, X, Search, RefreshCw, 
   MessageSquareMore, FileText, CheckCircle2, ChevronDown, ChevronUp 
@@ -232,6 +233,7 @@ function FollowUpModal({ lead, onClose, onSaved }) {
 
 // Main Page Component
 export default function NewLeadsPage() {
+  const { hasPermission } = useAuth();
   const [leads, setLeads]             = useState([]);
   const [loading, setLoading]         = useState(true);
   const [search, setSearch]           = useState('');
@@ -332,7 +334,7 @@ export default function NewLeadsPage() {
                   <th>Est. Deal Value</th>
                   <th>Added By</th>
                   <th>Date Added</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
+                  {hasPermission('SALES:LOG_FOLLOWUP') && <th style={{ textAlign: 'right' }}>Actions</th>}
                   <th style={{ width: 32 }}></th>
                 </tr>
               </thead>
@@ -362,15 +364,17 @@ export default function NewLeadsPage() {
                         <span className="badge badge-purple">👤 {lead.created_by_name || 'System'}</span>
                       </td>
                       <td>{fmtDateShort(lead.created_at)}</td>
-                      <td style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
-                        <button 
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12 }}
-                          onClick={() => setFollowUpLead(lead)}
-                        >
-                          <PhoneCall size={12} /> Log Follow-Up
-                        </button>
-                      </td>
+                      {hasPermission('SALES:LOG_FOLLOWUP') && (
+                        <td style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                          <button 
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12 }}
+                            onClick={() => setFollowUpLead(lead)}
+                          >
+                            <PhoneCall size={12} /> Log Follow-Up
+                          </button>
+                        </td>
+                      )}
                       <td style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>
                         {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                       </td>

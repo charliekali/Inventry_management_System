@@ -168,7 +168,12 @@ public class OrderController {
     @PostMapping
     @Transactional
     public ResponseEntity<?> create(@RequestBody Map<String, Object> body) {
-        auth.requirePermission("ORDERS:CREATE");
+        boolean isLead = body != null && body.containsKey("is_lead") && Boolean.TRUE.equals(body.get("is_lead"));
+        if (isLead) {
+            auth.requirePermission("SALES:ADD_LEAD");
+        } else {
+            auth.requirePermission("ORDERS:CREATE");
+        }
         String customer = (String) body.get("customer");
         List<Map<String, Object>> items = (List<Map<String, Object>>) body.get("items");
         
@@ -317,7 +322,7 @@ public class OrderController {
     @PatchMapping("/{id}/payment")
     @Transactional
     public ResponseEntity<?> collectPayment(@PathVariable String id, @RequestBody Map<String, Object> body) {
-        auth.requirePermission("ORDERS:EDIT");
+        auth.requirePermission("SALES:COLLECT");
         Order order = orderRepo.findById(id).orElse(null);
         if (order == null) return ResponseEntity.status(404).body(err("Order not found"));
         if (order.getInvoiceNumber() == null) {
@@ -392,7 +397,7 @@ public class OrderController {
     @GetMapping("/{id}/followups")
     @Transactional(readOnly = true)
     public ResponseEntity<?> getFollowUps(@PathVariable String id) {
-        auth.requirePermission("ORDERS:VIEW");
+        auth.requirePermission("SALES:CRM");
         Order order = orderRepo.findById(id).orElse(null);
         if (order == null) return ResponseEntity.status(404).body(err("Order not found"));
 
@@ -419,7 +424,7 @@ public class OrderController {
     @PostMapping("/{id}/followups")
     @Transactional
     public ResponseEntity<?> addFollowUp(@PathVariable String id, @RequestBody Map<String, Object> body) {
-        auth.requirePermission("ORDERS:EDIT");
+        auth.requirePermission("SALES:LOG_FOLLOWUP");
         Order order = orderRepo.findById(id).orElse(null);
         if (order == null) return ResponseEntity.status(404).body(err("Order not found"));
 
@@ -459,7 +464,9 @@ public class OrderController {
     @GetMapping("/outstanding")
     @Transactional(readOnly = true)
     public ResponseEntity<?> listOutstanding() {
-        auth.requirePermission("ORDERS:VIEW");
+        if (!auth.hasPermission("SALES:CRM") && !auth.hasPermission("SALES:COLLECT") && !auth.hasPermission("SALES:LEADS") && !auth.hasPermission("SALES:CUSTOMERS")) {
+            auth.requirePermission("SALES:CRM");
+        }
         LocalDateTime now = LocalDateTime.now();
         List<Map<String, Object>> result = orderRepo.findAll().stream()
             .filter(o -> o.getStatus() == Order.Status.PENDING || (o.getInvoiceNumber() != null && o.getGrandTotal() > (o.getPaidAmount() != null ? o.getPaidAmount() : 0.0)))
