@@ -40,5 +40,5 @@ services:
 databases:
   - name: ttrims-postgres
     databaseName: ims_db
-    user: postgres
+    user: ims_user
     plan: free
