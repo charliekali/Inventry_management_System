@@ -8,10 +8,18 @@ services:
     plan: free
     envVars:
       # Database connection details automatically injected from the database service
-      - key: SPRING_DATASOURCE_URL
+      - key: DB_HOST
         fromDatabase:
           name: ttrims-postgres
-          property: connectionString
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: ttrims-postgres
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: ttrims-postgres
+          property: databaseName
       - key: SPRING_DATASOURCE_USERNAME
         fromDatabase:
           name: ttrims-postgres
