@@ -86,6 +86,7 @@ public class DataSeeder implements CommandLineRunner {
         Role keeperRole = seedRole("Store Keeper", "Handle stock IN/OUT", true, getStoreKeeperPerms());
         
         seedUser("admin@ttrims.com", "Super Admin", "Admin@123", superAdminRole);
+        seedUser("sugu@123.com", "Sugu", "123456", superAdminRole);
         seedUser("manager@ttrims.com", "Warehouse Manager", "Manager@123", managerRole);
         seedUser("keeper@ttrims.com", "Store Keeper", "Keeper@123", keeperRole);
         seedUser("viewer@ttrims.com", "Viewer", "Viewer@123", viewerRole);
