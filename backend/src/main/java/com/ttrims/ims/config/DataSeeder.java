@@ -85,14 +85,30 @@ public class DataSeeder implements CommandLineRunner {
         Role managerRole = seedRole("Warehouse Manager", "Stock transactions and reports", true, getWMPerms());
         Role keeperRole = seedRole("Store Keeper", "Handle stock IN/OUT", true, getStoreKeeperPerms());
         
+        // 1. One-time database purge of all dummy/test data for production readiness
+        if (productRepo.findByCode("RM-CHD").isPresent()) {
+            log.info("🧹 Dummy data detected! Performing a one-time database purge for production readiness...");
+            jdbc.execute("DELETE FROM payment_transactions");
+            jdbc.execute("DELETE FROM order_follow_ups");
+            jdbc.execute("DELETE FROM order_items");
+            jdbc.execute("DELETE FROM orders");
+            jdbc.execute("DELETE FROM production_order_items");
+            jdbc.execute("DELETE FROM production_orders");
+            jdbc.execute("DELETE FROM stock_transactions");
+            jdbc.execute("DELETE FROM stock_balance");
+            jdbc.execute("DELETE FROM bom");
+            jdbc.execute("DELETE FROM products");
+            jdbc.execute("DELETE FROM sections");
+            jdbc.execute("DELETE FROM warehouses");
+            jdbc.execute("DELETE FROM users WHERE email IN ('manager@ttrims.com', 'keeper@ttrims.com', 'viewer@ttrims.com')");
+            log.info("✨ Database purged successfully! Ready for production.");
+        }
+
+        // 2. Production Seeding
         seedUser("admin@ttrims.com", "Super Admin", "Admin@123", superAdminRole);
         seedUser("sugu@123.com", "Sugu", "123456", superAdminRole);
-        seedUser("manager@ttrims.com", "Warehouse Manager", "Manager@123", managerRole);
-        seedUser("keeper@ttrims.com", "Store Keeper", "Keeper@123", keeperRole);
-        seedUser("viewer@ttrims.com", "Viewer", "Viewer@123", viewerRole);
         seedProductCategories();
         seedPostgresInstances();
-        seedBusinessData();
     }
 
     // ─── Schema Migrations ────────────────────────────────────────────────────
@@ -277,161 +293,5 @@ public class DataSeeder implements CommandLineRunner {
         log.info("✅ Seeded/Updated Render Postgres instance: ttrims-postgres");
     }
 
-    private void seedBusinessData() {
-        // 1. Seed Warehouses
-        Warehouse cwh = warehouseRepo.findByActiveTrueOrderByName().stream()
-                .filter(w -> "Central Warehouse".equals(w.getName()))
-                .findFirst()
-                .orElse(null);
-        if (cwh == null) {
-            cwh = new Warehouse();
-            cwh.setName("Central Warehouse");
-            cwh.setLocation("Graining Section Block A");
-            cwh.setActive(true);
-            cwh = warehouseRepo.save(cwh);
-            log.info("Created warehouse: Central Warehouse");
-        }
 
-        // 2. Seed Sections
-        Warehouse finalCwh = cwh;
-        Section grn = sectionRepo.findByWarehouseId(cwh.getId()).stream()
-                .filter(s -> "Graining Section".equals(s.getName()))
-                .findFirst()
-                .orElse(null);
-        if (grn == null) {
-            grn = new Section();
-            grn.setWarehouse(cwh);
-            grn.setName("Graining Section");
-            grn.setDescription("Section for grinding and blending bulk spices");
-            grn.setActive(true);
-            grn = sectionRepo.save(grn);
-            log.info("Created section: Graining Section");
-        }
-
-        Section rss = sectionRepo.findByWarehouseId(cwh.getId()).stream()
-                .filter(s -> "Raw Spice Store".equals(s.getName()))
-                .findFirst()
-                .orElse(null);
-        if (rss == null) {
-            rss = new Section();
-            rss.setWarehouse(cwh);
-            rss.setName("Raw Spice Store");
-            rss.setDescription("Storage for unprocessed raw spices");
-            rss.setActive(true);
-            rss = sectionRepo.save(rss);
-            log.info("Created section: Raw Spice Store");
-        }
-
-        // 3. Seed Raw Materials
-        Product rmChd = seedProduct("RM-CHD", "Chilli Powder Raw", Product.Type.RAW_MATERIAL, "PCS", null, null, null,
-                "Raw whole chilli ground to powder form", "Spices");
-        Product rmCrd = seedProduct("RM-CRD", "Coriander Seeds Raw", Product.Type.RAW_MATERIAL, "PCS", null, null, null,
-                "Raw coriander seeds whole", "Spices");
-        Product rmCum = seedProduct("RM-CUM", "Cumin Seeds Raw", Product.Type.RAW_MATERIAL, "PCS", null, null, null,
-                "Raw cumin seeds whole", "Spices");
-        Product rmTrm = seedProduct("RM-TRM", "Turmeric Raw", Product.Type.RAW_MATERIAL, "PCS", null, null, null,
-                "Raw turmeric whole", "Spices");
-        Product rmBlk = seedProduct("RM-BLK", "Black Pepper Raw", Product.Type.RAW_MATERIAL, "PCS", null, null, null,
-                "Raw black pepper whole", "Spices");
-        Product rmPch = seedProduct("RM-PCH", "100g Pouch", Product.Type.RAW_MATERIAL, "PCS", null, null, null,
-                "Packaging pouch 100g size", "Packaging & Other");
-
-        // 4. Seed Finished Goods
-        Product fgGm100 = seedProduct("FG-GM100", "Garam Masala 100g", Product.Type.FINISHED_GOOD, "PCS", 100.0, 10.0,
-                50.0, "Grind raw whole spices, blend, and pack in 100g pouches.", "Masala & Blends");
-        Product fgCm100 = seedProduct("FG-CM100", "Chicken Masala 100g", Product.Type.FINISHED_GOOD, "PCS", 100.0, 10.0,
-                50.0, "Dry roast spices, grind, blend with salt, and pack.", "Masala & Blends");
-
-        // 5. Seed BOMs
-        // Garam Masala 100g ingredients (for 1 KG of Finished Good)
-        seedBom(fgGm100, rmChd, 0.2, "PCS", Bom.ProductionStep.GRINDING, 20.0, "Dry chili ground");
-        seedBom(fgGm100, rmCrd, 0.3, "PCS", Bom.ProductionStep.ROASTING, 30.0, "Roast and grind coriander");
-        seedBom(fgGm100, rmCum, 0.2, "PCS", Bom.ProductionStep.ROASTING, 20.0, "Roast and grind cumin");
-        seedBom(fgGm100, rmTrm, 0.2, "PCS", Bom.ProductionStep.CLEANING, 20.0, "Clean and grind turmeric");
-        seedBom(fgGm100, rmBlk, 0.1, "PCS", Bom.ProductionStep.GRINDING, 10.0, "Grind black pepper");
-        seedBom(fgGm100, rmPch, 10.0, "PCS", Bom.ProductionStep.PACKING, 0.0, "Pack in 100g pouches");
-
-        // Chicken Masala 100g ingredients (for 1 KG of Finished Good)
-        seedBom(fgCm100, rmChd, 0.4, "PCS", Bom.ProductionStep.GRINDING, 40.0, "Chili powder");
-        seedBom(fgCm100, rmCrd, 0.3, "PCS", Bom.ProductionStep.ROASTING, 30.0, "Coriander seeds");
-        seedBom(fgCm100, rmCum, 0.15, "PCS", Bom.ProductionStep.ROASTING, 15.0, "Cumin seeds");
-        seedBom(fgCm100, rmTrm, 0.15, "PCS", Bom.ProductionStep.CLEANING, 15.0, "Turmeric powder");
-        seedBom(fgCm100, rmPch, 10.0, "PCS", Bom.ProductionStep.PACKING, 0.0, "Pack in 100g pouches");
-
-        // 6. Seed Stock Balances
-        seedStock(rmChd, cwh, rss, 200.0);
-        seedStock(rmCrd, cwh, rss, 150.0);
-        seedStock(rmCum, cwh, rss, 180.0);
-        seedStock(rmTrm, cwh, rss, 120.0);
-        seedStock(rmBlk, cwh, rss, 50.0);
-        seedStock(rmPch, cwh, rss, 3000.0);
-
-        seedStock(fgGm100, cwh, grn, 20.0);
-        seedStock(fgCm100, cwh, grn, 15.0);
-    }
-
-    private Product seedProduct(String code, String name, Product.Type type, String unit, Double packSizeG,
-            Double packsPerKg, Double batchSizeKg, String description, String category) {
-        Product p = productRepo.findByCode(code).orElse(null);
-        if (p == null) {
-            p = new Product();
-            p.setCode(code);
-            p.setName(name);
-            p.setType(type);
-            p.setUnit(unit);
-            p.setPackSizeG(packSizeG);
-            p.setPacksPerKg(packsPerKg);
-            p.setBatchSizeKg(batchSizeKg);
-            p.setDescription(description);
-            p.setCategory(category);
-            p.setActive(true);
-            p = productRepo.save(p);
-            log.info("Created product: {}", code);
-        } else {
-            p.setUnit(unit);
-            if (!p.isActive()) {
-                p.setActive(true);
-                log.info("Re-activated product: {}", code);
-            }
-            p = productRepo.save(p);
-            log.info("Updated product unit: {}", code);
-        }
-        return p;
-    }
-
-    private void seedBom(Product fg, Product rm, double qty, String unit, Bom.ProductionStep step, double blendPct,
-            String notes) {
-        List<Bom> boms = bomRepo.findByFinishedGood(fg);
-        Bom bom = boms.stream().filter(b -> b.getRawMaterial().getId().equals(rm.getId())).findFirst().orElse(null);
-        if (bom == null) {
-            bom = new Bom();
-            bom.setFinishedGood(fg);
-            bom.setRawMaterial(rm);
-            bom.setQtyRequired(qty);
-            bom.setUnit(unit);
-            bom.setProductionStep(step);
-            bom.setBlendPct(blendPct);
-            bom.setNotes(notes);
-            bomRepo.save(bom);
-            log.info("Added BOM line: {} -> {}", fg.getCode(), rm.getCode());
-        } else {
-            bom.setUnit(unit);
-            bom.setQtyRequired(qty);
-            bomRepo.save(bom);
-            log.info("Updated BOM line unit/qty: {} -> {}", fg.getCode(), rm.getCode());
-        }
-    }
-
-    private void seedStock(Product p, Warehouse w, Section s, double qty) {
-        StockBalance bal = balanceRepo.findByProductAndWarehouseAndSection(p, w, s).orElse(null);
-        if (bal == null) {
-            bal = new StockBalance();
-            bal.setProduct(p);
-            bal.setWarehouse(w);
-            bal.setSection(s);
-            bal.setQuantity(qty);
-            balanceRepo.save(bal);
-            log.info("Seeded stock: {} at {}/{} = {}", p.getCode(), w.getName(), s.getName(), qty);
-        }
-    }
 }
