@@ -218,10 +218,9 @@ public class DataSeeder implements CommandLineRunner {
         }
 
         try {
-            jdbc.execute("ALTER TABLE key_logs ADD COLUMN status VARCHAR(30) NOT NULL DEFAULT 'CHECKED_OUT'");
-            log.info("Schema migration: added status column to key_logs");
+            jdbc.execute("ALTER TABLE key_logs ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'CHECKED_OUT'");
+            log.info("Schema migration: added status column to key_logs if it did not exist");
         } catch (Exception e) {
-            // This is expected if the column already exists
             log.debug("Schema migration: key_logs status column alter query — {}", e.getMessage());
         }
     }
