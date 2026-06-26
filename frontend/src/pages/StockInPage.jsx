@@ -7,6 +7,16 @@ import QRScannerModal from '../components/QRScannerModal';
 import useFormSettings from '../hooks/useFormSettings';
 import SearchableSelect from '../components/SearchableSelect';
 
+const getTypeLabel = (type) => {
+  switch (type) {
+    case 'FINISHED_GOOD': return 'FG';
+    case 'RAW_MATERIAL': return 'RM';
+    case 'BLEND': return 'BLEND';
+    case 'TOOL': return 'TOOL';
+    default: return type;
+  }
+};
+
 export default function StockInPage() {
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
@@ -22,6 +32,7 @@ export default function StockInPage() {
   const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
   const [submitting, setSubmitting] = useState(false);
   const [customFieldsData, setCustomFieldsData] = useState({});
+  const [stockType, setStockType] = useState('ALL');
 
   // QR Scanner state
   const [showScanner, setShowScanner] = useState(false);
@@ -134,6 +145,8 @@ export default function StockInPage() {
     );
   }
 
+  const filteredProducts = products.filter(p => stockType === 'ALL' || p.type === stockType);
+
   return (
     <div className="fade-in" style={{ maxWidth: 800, margin: '0 auto' }}>
       <div className="page-header">
@@ -190,8 +203,23 @@ export default function StockInPage() {
 
           {/* ── Dynamic Fields ──────────────────────────────────────────── */}
 
-          {/* Row: Product + Transaction Date */}
+          {/* Row: Stock Type + Product */}
           <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Stock Type</label>
+              <select 
+                className="form-control" 
+                value={stockType} 
+                onChange={e => { setStockType(e.target.value); setProductId(''); }}
+              >
+                <option value="ALL">All Stock Types</option>
+                <option value="FINISHED_GOOD">Finished Goods (FG)</option>
+                <option value="RAW_MATERIAL">Raw Materials (RM)</option>
+                <option value="BLEND">Spices Blends</option>
+                <option value="TOOL">Tools & Equipment</option>
+              </select>
+            </div>
+
             {isVisible('product_id') && (
               <div className="form-group">
                 <label className="form-label">
@@ -199,33 +227,17 @@ export default function StockInPage() {
                   {isRequired('product_id') && <span> *</span>}
                 </label>
                 <SearchableSelect
-                  options={products.map(p => ({ value: p.id, label: `[${p.code}] ${p.name} (${p.type})` }))}
+                  options={filteredProducts.map(p => ({ value: p.id, label: `[${p.code}] ${p.name} (${getTypeLabel(p.type)})` }))}
                   value={productId}
                   onChange={val => setProductId(val)}
                   placeholder="Select Product..."
                 />
               </div>
             )}
-
-            {isVisible('transaction_date') && (
-              <div className="form-group">
-                <label className="form-label">
-                  {getLabel('transaction_date', 'Transaction Date')}
-                  {isRequired('transaction_date') && <span> *</span>}
-                </label>
-                <input
-                  type="date"
-                  className="form-control"
-                  value={transactionDate}
-                  onChange={e => setTransactionDate(e.target.value)}
-                  required={isRequired('transaction_date')}
-                />
-              </div>
-            )}
           </div>
 
-          {/* Row: Warehouse + Section */}
-          <div className="form-row">
+          {/* Row: Warehouse + Section + Transaction Date */}
+          <div className="form-row-3">
             {isVisible('warehouse_id') && (
               <div className="form-group">
                 <label className="form-label">
@@ -253,6 +265,22 @@ export default function StockInPage() {
                   disabled={!warehouseId}
                   onChange={val => setSectionId(val)}
                   placeholder="Select Section..."
+                />
+              </div>
+            )}
+
+            {isVisible('transaction_date') && (
+              <div className="form-group">
+                <label className="form-label">
+                  {getLabel('transaction_date', 'Transaction Date')}
+                  {isRequired('transaction_date') && <span> *</span>}
+                </label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={transactionDate}
+                  onChange={e => setTransactionDate(e.target.value)}
+                  required={isRequired('transaction_date')}
                 />
               </div>
             )}

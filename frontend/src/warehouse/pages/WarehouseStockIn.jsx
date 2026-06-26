@@ -5,6 +5,16 @@ import toast from 'react-hot-toast';
 import { ArrowDownCircle, Save, Warehouse } from 'lucide-react';
 import SearchableSelect from '../../components/SearchableSelect';
 
+const getTypeLabel = (type) => {
+  switch (type) {
+    case 'FINISHED_GOOD': return 'FG';
+    case 'RAW_MATERIAL': return 'RM';
+    case 'BLEND': return 'BLEND';
+    case 'TOOL': return 'TOOL';
+    default: return type;
+  }
+};
+
 export default function WarehouseStockIn() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -21,6 +31,7 @@ export default function WarehouseStockIn() {
   const [remarks, setRemarks] = useState('');
   const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
   const [submitting, setSubmitting] = useState(false);
+  const [stockType, setStockType] = useState('ALL');
 
   useEffect(() => {
     productsAPI.list()
@@ -83,6 +94,7 @@ export default function WarehouseStockIn() {
     }
   };
 
+  const filteredProducts = products.filter(p => stockType === 'ALL' || p.type === stockType);
   const selectedWh = warehouses.find(w => String(w.id) === String(warehouseId));
 
   return (
@@ -151,9 +163,25 @@ export default function WarehouseStockIn() {
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div className="w-form-group">
+              <label className="w-label">Stock Type</label>
+              <select 
+                className="w-input" 
+                value={stockType} 
+                onChange={e => { setStockType(e.target.value); setProductId(''); }}
+                style={{ background: 'var(--w-surface)', color: 'var(--w-text)', border: '1px solid var(--w-border)' }}
+              >
+                <option value="ALL">All Stock Types</option>
+                <option value="FINISHED_GOOD">Finished Goods (FG)</option>
+                <option value="RAW_MATERIAL">Raw Materials (RM)</option>
+                <option value="BLEND">Spices Blends</option>
+                <option value="TOOL">Tools & Equipment</option>
+              </select>
+            </div>
+
+            <div className="w-form-group">
               <label className="w-label">Select Product *</label>
               <SearchableSelect
-                options={products.map(p => ({ value: p.id, label: `[${p.code}] ${p.name}` }))}
+                options={filteredProducts.map(p => ({ value: p.id, label: `[${p.code}] ${p.name} (${getTypeLabel(p.type)})` }))}
                 value={productId}
                 onChange={val => setProductId(val)}
                 placeholder="Choose product..."
