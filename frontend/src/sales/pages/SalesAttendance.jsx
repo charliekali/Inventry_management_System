@@ -4,11 +4,15 @@
  * - "Start" button: clocks in + starts 30-second GPS ping interval.
  * - "Stop" button:  clocks out + clears the interval.
  * - Shows live elapsed timer, GPS status indicator, and daily log.
+ * - Uses @capacitor/geolocation on Android for proper runtime permission prompting.
+ * - Falls back to navigator.geolocation on web.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
 import { attendanceAPI } from '../../api';
 import toast from 'react-hot-toast';
-import { MapPin, Clock, Play, Square, Wifi, WifiOff, CheckCircle, AlertCircle } from 'lucide-react';
+import { MapPin, Clock, Play, Square } from 'lucide-react';
 
 const PING_INTERVAL_MS = 30_000; // 30 seconds
 
@@ -52,6 +56,54 @@ export default function SalesAttendance() {
   const pingIntervalRef = useRef(null);
   const timerIntervalRef = useRef(null);
 
+  // ─── Unified GPS: Capacitor plugin on Android, browser API on web ───────────
+  const requestGpsPermission = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const status = await Geolocation.checkPermissions();
+        if (status.location !== 'granted') {
+          const result = await Geolocation.requestPermissions({ permissions: ['location'] });
+          if (result.location !== 'granted') {
+            throw new Error('Location permission denied by user');
+          }
+        }
+      } catch (err) {
+        throw new Error('Could not request location permission: ' + err.message);
+      }
+    }
+    // Web: browser handles permission natively via getCurrentPosition
+  };
+
+  const getCurrentPosition = async () => {
+    if (Capacitor.isNativePlatform()) {
+      // Use the Capacitor native plugin — properly triggers Android permission dialog
+      const pos = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 10000,
+      });
+      return {
+        coords: {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        },
+      };
+    } else {
+      // Web / browser fallback
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error('Geolocation not supported in this browser'));
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 5000,
+        });
+      });
+    }
+  };
+
   // ─── Load initial data ──────────────────────────────────────────────────────
   const loadSessions = useCallback(async () => {
     try {
@@ -93,19 +145,6 @@ export default function SalesAttendance() {
     timerIntervalRef.current = setInterval(tick, 1000);
   };
 
-  // ─── GPS helpers ────────────────────────────────────────────────────────────
-  const getCurrentPosition = () => new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('Geolocation not supported'));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 5000,
-    });
-  });
-
   // ─── Ping loop ───────────────────────────────────────────────────────────────
   const startPingLoop = (sessionId) => {
     clearInterval(pingIntervalRef.current);
@@ -132,7 +171,17 @@ export default function SalesAttendance() {
     setStarting(true);
     setGpsStatus('acquiring');
     try {
-      // Try to get initial GPS fix
+      // Step 1: Request GPS permission (triggers Android dialog if not yet granted)
+      try {
+        await requestGpsPermission();
+      } catch (permErr) {
+        toast.error('Location permission is required for attendance tracking. Please allow location access in your device settings.');
+        setGpsStatus('error');
+        setStarting(false);
+        return;
+      }
+
+      // Step 2: Get initial GPS fix
       let gps = null;
       try {
         const pos = await getCurrentPosition();
@@ -143,8 +192,8 @@ export default function SalesAttendance() {
         };
         setLastAccuracy(Math.round(pos.coords.accuracy));
       } catch {
-        // GPS optional for start — will warn user
-        toast('Location unavailable. Attendance started without GPS fix.', { icon: '⚠️' });
+        // GPS optional for start — session still created
+        toast('GPS fix unavailable right now. Attendance started — location will update on next ping.', { icon: '⚠️' });
       }
 
       const res = await attendanceAPI.start(gps);
