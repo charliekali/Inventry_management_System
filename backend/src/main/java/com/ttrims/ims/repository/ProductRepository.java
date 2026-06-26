@@ -12,6 +12,7 @@ public interface ProductRepository extends JpaRepository<Product, String> {
     List<Product> findByTypeAndActiveTrueOrderByName(Product.Type type);
     boolean existsByCode(String code);
     Optional<Product> findByCodeAndActiveTrue(String code);
+    Optional<Product> findByCode(String code);
 
     @Query("SELECT p FROM Product p WHERE p.active = true AND (LOWER(p.name) LIKE LOWER(CONCAT('%',:q,'%')) OR LOWER(p.code) LIKE LOWER(CONCAT('%',:q,'%')))")
     List<Product> search(@Param("q") String query);

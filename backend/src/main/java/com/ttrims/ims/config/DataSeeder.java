@@ -372,7 +372,7 @@ public class DataSeeder implements CommandLineRunner {
 
     private Product seedProduct(String code, String name, Product.Type type, String unit, Double packSizeG,
             Double packsPerKg, Double batchSizeKg, String description, String category) {
-        Product p = productRepo.findByCodeAndActiveTrue(code).orElse(null);
+        Product p = productRepo.findByCode(code).orElse(null);
         if (p == null) {
             p = new Product();
             p.setCode(code);
@@ -389,6 +389,10 @@ public class DataSeeder implements CommandLineRunner {
             log.info("Created product: {}", code);
         } else {
             p.setUnit(unit);
+            if (!p.isActive()) {
+                p.setActive(true);
+                log.info("Re-activated product: {}", code);
+            }
             p = productRepo.save(p);
             log.info("Updated product unit: {}", code);
         }
