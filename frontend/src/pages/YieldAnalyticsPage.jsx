@@ -48,14 +48,6 @@ export default function YieldAnalyticsPage() {
 
   const filteredRuns = getFilteredRuns();
 
-  if (loading) {
-    return (
-      <div className="loading-center" style={{ height: '60vh' }}>
-        <div className="loading-spinner" />
-      </div>
-    );
-  }
-
   // 1. KPI Metrics Calculations
   let totalInputKg = 0;
   let totalOutputKg = 0;
@@ -159,6 +151,14 @@ export default function YieldAnalyticsPage() {
     getSelectedItems,
     selectedCount
   } = useBulkActions(productData, 'id');
+
+  if (loading) {
+    return (
+      <div className="loading-center" style={{ height: '60vh' }}>
+        <div className="loading-spinner" />
+      </div>
+    );
+  }
 
   const handleBulkExport = () => {
     const selected = getSelectedItems();
