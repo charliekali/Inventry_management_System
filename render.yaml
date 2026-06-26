@@ -28,4 +28,4 @@ services:
     envVars:
       # Map the API proxy to the live backend service URL
       - key: BACKEND_URL
-        value: https://ttrims-backend-4xho.onrender.com/api
+        value: http://ttrims-backend:5000/api
