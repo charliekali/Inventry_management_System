@@ -14,11 +14,13 @@ import java.util.stream.Collectors;
 public class ProductController {
     private final ProductRepository productRepo;
     private final BomRepository bomRepo;
+    private final StockBalanceRepository stockBalanceRepo;
     private final AuthHelper auth;
 
-    public ProductController(ProductRepository productRepo, BomRepository bomRepo, AuthHelper auth) {
+    public ProductController(ProductRepository productRepo, BomRepository bomRepo, StockBalanceRepository stockBalanceRepo, AuthHelper auth) {
         this.productRepo = productRepo;
         this.bomRepo = bomRepo;
+        this.stockBalanceRepo = stockBalanceRepo;
         this.auth = auth;
     }
 
@@ -112,10 +114,15 @@ public class ProductController {
         auth.requirePermission("PRODUCTS:DELETE");
         if (permanent) {
             try {
+                // Safely clear transient records associated with this product
+                bomRepo.deleteByProductId(id);
+                stockBalanceRepo.deleteByProductId(id);
+
+                // Now delete the product itself
                 productRepo.deleteById(id);
                 return ok("Product permanently deleted");
             } catch (Exception e) {
-                return bad("Cannot permanently delete this product because it is referenced in historical records (e.g. orders, stock balances, or recipes). Please keep it archived instead.");
+                return bad("Cannot permanently delete this product because it is referenced in historical records (e.g. orders or stock transactions). Please keep it archived instead.");
             }
         } else {
             productRepo.findById(id).ifPresent(p -> { p.setActive(false); productRepo.save(p); });
