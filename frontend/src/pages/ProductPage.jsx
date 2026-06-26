@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { productsAPI, productCategoriesAPI } from '../api';
 import toast from 'react-hot-toast';
-import { Plus, Edit2, Archive, Package } from 'lucide-react';
+import { Plus, Edit2, Archive, Package, Download } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import useBulkActions from '../hooks/useBulkActions';
+import BulkActionBar from '../components/BulkActionBar';
 
 const getStepBadgeClass = (step) => {
   switch (step) {
@@ -22,6 +24,18 @@ export default function ProductPage() {
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Bulk Actions Hook
+  const {
+    selectedIds,
+    isSelected,
+    toggleSelect,
+    toggleSelectAll,
+    isAllSelected,
+    clearSelection,
+    getSelectedItems,
+    selectedCount
+  } = useBulkActions(products);
   const [pSellingPrice, setPSellingPrice] = useState('');
   const [pCostPrice, setPCostPrice] = useState('');
   const [categories, setCategories] = useState([]); // [{category, subcategories:[]}]
@@ -152,7 +166,47 @@ export default function ProductPage() {
     }
   };
 
+  const handleBulkArchive = async () => {
+    if (!window.confirm(`Are you sure you want to archive ${selectedCount} products?`)) return;
+    const loadingToast = toast.loading(`Archiving ${selectedCount} products...`);
+    try {
+      await Promise.all(selectedIds.map(id => productsAPI.delete(id)));
+      toast.success('Selected products archived successfully', { id: loadingToast });
+      clearSelection();
+      loadProducts();
+    } catch (err) {
+      toast.error('Failed to archive some products', { id: loadingToast });
+    }
+  };
 
+  const handleBulkExport = () => {
+    const selected = getSelectedItems();
+    let csvContent = 'data:text/csv;charset=utf-8,';
+    csvContent += 'Code,Name,Category,Type,Min Stock,Selling Price,Cost Price,Description\n';
+    
+    selected.forEach(p => {
+      const row = [
+        p.code,
+        p.name,
+        p.category || '',
+        p.type,
+        p.min_stock,
+        p.selling_price || 0,
+        p.cost_price || 0,
+        p.description || ''
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+      csvContent += row + '\n';
+    });
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `products_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`Exported ${selectedCount} products to CSV`);
+  };
 
   return (
     <div className="fade-in">
@@ -186,6 +240,14 @@ export default function ProductPage() {
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: 40, textAlign: 'center' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={isAllSelected} 
+                      onChange={toggleSelectAll} 
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </th>
                   <th>Code</th>
                   <th>Name</th>
                   <th>Category</th>
@@ -199,8 +261,17 @@ export default function ProductPage() {
               <tbody>
                 {products.map(p => {
                   const isFG = p.type === 'FINISHED_GOOD';
+                  const isChecked = isSelected(p.id);
                   return (
-                    <tr key={p.id}>
+                    <tr key={p.id} style={{ background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent' }}>
+                      <td style={{ textAlign: 'center' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked} 
+                          onChange={() => toggleSelect(p.id)} 
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </td>
                       <td style={{ fontWeight: 700 }}>{p.code}</td>
                       <td>
                         <div style={{ fontWeight: 600 }}>{p.name}</div>
@@ -430,6 +501,25 @@ export default function ProductPage() {
           </form>
         </div>
       )}
+
+      <BulkActionBar 
+        selectedCount={selectedCount}
+        onClear={clearSelection}
+        actions={[
+          {
+            label: 'Export CSV',
+            icon: <Download size={16} />,
+            onClick: handleBulkExport,
+            className: 'btn-secondary'
+          },
+          {
+            label: 'Archive Selected',
+            icon: <Archive size={16} />,
+            onClick: handleBulkArchive,
+            className: 'btn-danger text-danger'
+          }
+        ]}
+      />
     </div>
   );
 }

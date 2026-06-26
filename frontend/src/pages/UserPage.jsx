@@ -1,13 +1,27 @@
 import { useState, useEffect } from 'react';
 import { usersAPI, rolesAPI, warehousesAPI } from '../api';
 import toast from 'react-hot-toast';
-import { Users, Plus, Edit2, Archive, Check, X } from 'lucide-react';
+import { Users, Plus, Edit2, Archive, Check, X, Download } from 'lucide-react';
+import useBulkActions from '../hooks/useBulkActions';
+import BulkActionBar from '../components/BulkActionBar';
 
 export default function UserPage() {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Bulk Actions Hook
+  const {
+    selectedIds,
+    isSelected,
+    toggleSelect,
+    toggleSelectAll,
+    isAllSelected,
+    clearSelection,
+    getSelectedItems,
+    selectedCount
+  } = useBulkActions(users);
 
   // Modals / forms
   const [showModal, setShowModal] = useState(false);
@@ -107,6 +121,51 @@ export default function UserPage() {
     }
   };
 
+  const handleBulkDeactivate = async () => {
+    // Only filter active users to deactivate
+    const activeSelected = getSelectedItems().filter(u => u.is_active);
+    if (activeSelected.length === 0) {
+      return toast.error('No active users selected to deactivate');
+    }
+    if (!window.confirm(`Are you sure you want to archive/deactivate ${activeSelected.length} users?`)) return;
+    const loadingToast = toast.loading(`Deactivating ${activeSelected.length} users...`);
+    try {
+      await Promise.all(activeSelected.map(u => usersAPI.delete(u.id)));
+      toast.success('Selected users deactivated successfully', { id: loadingToast });
+      clearSelection();
+      loadData();
+    } catch (err) {
+      toast.error('Failed to deactivate some users', { id: loadingToast });
+    }
+  };
+
+  const handleBulkExport = () => {
+    const selected = getSelectedItems();
+    let csvContent = 'data:text/csv;charset=utf-8,';
+    csvContent += 'Name,Email,Role,Warehouse Scope,Status\n';
+    
+    selected.forEach(u => {
+      const wScope = u.warehouse_id ? (warehouses.find(w => w.id === u.warehouse_id)?.name || 'Mapped') : 'Global';
+      const row = [
+        u.name,
+        u.email,
+        u.role_name || 'No Role',
+        wScope,
+        u.is_active ? 'Active' : 'Archived'
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+      csvContent += row + '\n';
+    });
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `users_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`Exported ${selectedCount} users to CSV`);
+  };
+
   return (
     <div className="fade-in">
       <div className="page-header">
@@ -136,6 +195,14 @@ export default function UserPage() {
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: 40, textAlign: 'center' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={isAllSelected} 
+                      onChange={toggleSelectAll} 
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </th>
                   <th>Name</th>
                   <th>Email Address</th>
                   <th>Security Role</th>
@@ -145,56 +212,67 @@ export default function UserPage() {
                 </tr>
               </thead>
               <tbody>
-                {users.map(u => (
-                  <tr key={u.id}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div className="sidebar-avatar" style={{ width: 28, height: 28, fontSize: 11 }}>
-                          {u.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+                {users.map(u => {
+                  const isChecked = isSelected(u.id);
+                  return (
+                    <tr key={u.id} style={{ background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent' }}>
+                      <td style={{ textAlign: 'center' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked} 
+                          onChange={() => toggleSelect(u.id)} 
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div className="sidebar-avatar" style={{ width: 28, height: 28, fontSize: 11 }}>
+                            {u.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+                          </div>
+                          <span style={{ fontWeight: 700 }}>{u.name}</span>
                         </div>
-                        <span style={{ fontWeight: 700 }}>{u.name}</span>
-                      </div>
-                    </td>
-                    <td>{u.email}</td>
-                    <td>
-                      <span className="badge badge-purple" style={{ fontWeight: 700 }}>
-                        🔑 {u.role_name || 'No Role'}
-                      </span>
-                    </td>
-                    <td>
-                      {u.warehouse_id ? (
-                        <span className="badge badge-blue">
-                          🏢 {warehouses.find(w => w.id === u.warehouse_id)?.name || 'Mapped'}
+                      </td>
+                      <td>{u.email}</td>
+                      <td>
+                        <span className="badge badge-purple" style={{ fontWeight: 700 }}>
+                          🔑 {u.role_name || 'No Role'}
                         </span>
-                      ) : (
-                        <span style={{ color: 'var(--color-text-muted)', fontSize: 12.5, fontStyle: 'italic' }}>Global Scope</span>
-                      )}
-                    </td>
-                    <td>
-                      {u.is_active ? (
-                        <span className="badge badge-green" style={{ display: 'inline-flex', gap: 4 }}>
-                          <Check size={11} /> Active
-                        </span>
-                      ) : (
-                        <span className="badge badge-red" style={{ display: 'inline-flex', gap: 4 }}>
-                          <X size={11} /> Archived
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'inline-flex', gap: 4 }}>
-                        <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleEditUser(u)}>
-                          <Edit2 size={13} />
-                        </button>
-                        {u.is_active && (
-                          <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={() => handleDeactivate(u.id)}>
-                            <Archive size={13} />
-                          </button>
+                      </td>
+                      <td>
+                        {u.warehouse_id ? (
+                          <span className="badge badge-blue">
+                            🏢 {warehouses.find(w => w.id === u.warehouse_id)?.name || 'Mapped'}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--color-text-muted)', fontSize: 12.5, fontStyle: 'italic' }}>Global Scope</span>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>
+                        {u.is_active ? (
+                          <span className="badge badge-green" style={{ display: 'inline-flex', gap: 4 }}>
+                            <Check size={11} /> Active
+                          </span>
+                        ) : (
+                          <span className="badge badge-red" style={{ display: 'inline-flex', gap: 4 }}>
+                            <X size={11} /> Archived
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: 4 }}>
+                          <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleEditUser(u)}>
+                            <Edit2 size={13} />
+                          </button>
+                          {u.is_active && (
+                            <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={() => handleDeactivate(u.id)}>
+                              <Archive size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -300,6 +378,25 @@ export default function UserPage() {
           </form>
         </div>
       )}
+
+      <BulkActionBar 
+        selectedCount={selectedCount}
+        onClear={clearSelection}
+        actions={[
+          {
+            label: 'Export CSV',
+            icon: <Download size={16} />,
+            onClick: handleBulkExport,
+            className: 'btn-secondary'
+          },
+          {
+            label: 'Deactivate Selected',
+            icon: <Archive size={16} />,
+            onClick: handleBulkDeactivate,
+            className: 'btn-danger text-danger'
+          }
+        ]}
+      />
     </div>
   );
 }

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { transactionsAPI, productsAPI, warehousesAPI } from '../api';
 import toast from 'react-hot-toast';
-import { ClipboardList, Search, Eye, Filter, ArrowLeft, ArrowRight } from 'lucide-react';
+import { ClipboardList, Search, Eye, Filter, ArrowLeft, ArrowRight, Download } from 'lucide-react';
+import useBulkActions from '../hooks/useBulkActions';
+import BulkActionBar from '../components/BulkActionBar';
 
 export default function TransactionPage() {
   const [transactions, setTransactions] = useState([]);
@@ -63,6 +65,53 @@ export default function TransactionPage() {
     e.preventDefault();
     setPage(1);
     loadData();
+  };
+
+  // Bulk Actions Hook
+  const {
+    selectedIds,
+    isSelected,
+    toggleSelect,
+    toggleSelectAll,
+    isAllSelected,
+    clearSelection,
+    getSelectedItems,
+    selectedCount
+  } = useBulkActions(transactions);
+
+  const handleBulkExport = () => {
+    const selected = getSelectedItems();
+    let csvContent = 'GR / Issue Slip,Date,Type,Product Code,Product Name,Product Type,Warehouse,Section,Quantity,Unit,Performed By,Reference Doc,Remarks\n';
+    
+    selected.forEach(tx => {
+      const row = [
+        tx.gr_number,
+        tx.transaction_date,
+        tx.type,
+        tx.product_code,
+        tx.product_name,
+        tx.product_type,
+        tx.warehouse_name,
+        tx.section_name || '',
+        tx.quantity,
+        tx.unit,
+        tx.performed_by_name,
+        tx.reference_doc || '',
+        tx.remarks || ''
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+      csvContent += row + '\n';
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `transactions_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${selectedCount} transactions to CSV`);
   };
 
   return (
@@ -154,6 +203,14 @@ export default function TransactionPage() {
               <table>
                 <thead>
                   <tr>
+                    <th style={{ width: 40, textAlign: 'center' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={isAllSelected} 
+                        onChange={toggleSelectAll} 
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </th>
                     <th>GR / Issue Slip</th>
                     <th>Date</th>
                     <th>Type</th>
@@ -165,40 +222,51 @@ export default function TransactionPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {transactions.map(tx => (
-                    <tr key={tx.id}>
-                      <td>
-                        <span className="gr-number">{tx.gr_number}</span>
-                      </td>
-                      <td>{tx.transaction_date}</td>
-                      <td>
-                        <span className={tx.type === 'IN' ? 'stock-in-pill' : 'stock-out-pill'}>
-                          {tx.type === 'IN' ? '↓ IN' : '↑ OUT'}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{ fontWeight: 600 }}>{tx.product_name}</div>
-                        <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{tx.product_code} · {tx.product_type}</div>
-                      </td>
-                      <td>
-                        <div>{tx.warehouse_name}</div>
-                        {tx.section_name && <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Section: {tx.section_name}</div>}
-                      </td>
-                      <td style={{ fontWeight: 700, color: tx.type === 'IN' ? 'var(--color-success)' : 'var(--color-danger)' }}>
-                        {tx.type === 'IN' ? '+' : '-'}{tx.quantity} {tx.unit}
-                      </td>
-                      <td>{tx.performed_by_name}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        <button 
-                          className="btn btn-ghost btn-icon" 
-                          onClick={() => setSelectedTx(tx)}
-                          title="View Details"
-                        >
-                          <Eye size={15} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {transactions.map(tx => {
+                    const isChecked = isSelected(tx.id);
+                    return (
+                      <tr key={tx.id} style={{ background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent' }}>
+                        <td style={{ textAlign: 'center' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked} 
+                            onChange={() => toggleSelect(tx.id)} 
+                            style={{ cursor: 'pointer' }}
+                          />
+                        </td>
+                        <td>
+                          <span className="gr-number">{tx.gr_number}</span>
+                        </td>
+                        <td>{tx.transaction_date}</td>
+                        <td>
+                          <span className={tx.type === 'IN' ? 'stock-in-pill' : 'stock-out-pill'}>
+                            {tx.type === 'IN' ? '↓ IN' : '↑ OUT'}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{tx.product_name}</div>
+                          <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{tx.product_code} · {tx.product_type}</div>
+                        </td>
+                        <td>
+                          <div>{tx.warehouse_name}</div>
+                          {tx.section_name && <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Section: {tx.section_name}</div>}
+                        </td>
+                        <td style={{ fontWeight: 700, color: tx.type === 'IN' ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                          {tx.type === 'IN' ? '+' : '-'}{tx.quantity} {tx.unit}
+                        </td>
+                        <td>{tx.performed_by_name}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button 
+                            className="btn btn-ghost btn-icon" 
+                            onClick={() => setSelectedTx(tx)}
+                            title="View Details"
+                          >
+                            <Eye size={15} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -321,6 +389,20 @@ export default function TransactionPage() {
           </div>
         </div>
       )}
+
+      {/* Floating Bulk Action Bar */}
+      <BulkActionBar 
+        selectedCount={selectedCount}
+        onClear={clearSelection}
+        actions={[
+          {
+            label: 'Export CSV',
+            icon: <Download size={16} />,
+            onClick: handleBulkExport,
+            className: 'btn-secondary'
+          }
+        ]}
+      />
     </div>
   );
 }

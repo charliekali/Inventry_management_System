@@ -1,10 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { ordersAPI, productsAPI, productionOrdersAPI } from '../api';
 import toast from 'react-hot-toast';
-import { BookOpen, Plus, Trash2, Eye, ShieldCheck, Clipboard, Factory, Upload, Download, FileText, Printer } from 'lucide-react';
+import { BookOpen, Plus, Trash2, Eye, ShieldCheck, Clipboard, Factory, Upload, Download, FileText, Printer, Check, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import useFormSettings from '../hooks/useFormSettings';
 import { useAuth } from '../context/AuthContext';
+import useBulkActions from '../hooks/useBulkActions';
+import BulkActionBar from '../components/BulkActionBar';
 
 export default function OrderPage() {
   const navigate = useNavigate();
@@ -13,6 +15,10 @@ export default function OrderPage() {
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Bulk Actions Hooks
+  const bulkSales = useBulkActions(orders);
+  const bulkProduction = useBulkActions(productionOrders);
 
   // Production Orders state
   const [productionOrders, setProductionOrders] = useState([]);
@@ -84,6 +90,96 @@ export default function OrderPage() {
       .then(r => setProducts(r.data.data))
       .catch(() => {});
   }, []);
+
+  // Sales Orders Bulk Handlers
+  const handleBulkUpdateOrderStatus = async (status) => {
+    const activeSelected = bulkSales.getSelectedItems().filter(o => o.status !== status);
+    if (activeSelected.length === 0) {
+      return toast.error(`No orders need to be updated to ${status}`);
+    }
+    if (!window.confirm(`Are you sure you want to update ${activeSelected.length} orders to ${status}?`)) return;
+    const loadingToast = toast.loading(`Updating ${activeSelected.length} orders...`);
+    try {
+      await Promise.all(activeSelected.map(o => ordersAPI.updateStatus(o.id, status)));
+      toast.success('Selected orders updated successfully', { id: loadingToast });
+      bulkSales.clearSelection();
+      loadOrders();
+    } catch (err) {
+      toast.error('Failed to update some orders', { id: loadingToast });
+    }
+  };
+
+  const handleBulkExportSalesOrders = () => {
+    const selected = bulkSales.getSelectedItems();
+    let csvContent = 'data:text/csv;charset=utf-8,';
+    csvContent += 'Order Number,Customer,Status,Total Items,Date Placed,Remarks\n';
+    
+    selected.forEach(o => {
+      const row = [
+        o.order_number,
+        o.customer,
+        o.status,
+        `${o.item_count} items`,
+        o.created_at ? o.created_at.split('T')[0] : 'N/A',
+        o.remarks || ''
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+      csvContent += row + '\n';
+    });
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `sales_orders_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`Exported ${bulkSales.selectedCount} sales orders to CSV`);
+  };
+
+  // Production Orders Bulk Handlers
+  const handleBulkUpdatePoStatus = async (status) => {
+    const activeSelected = bulkProduction.getSelectedItems().filter(po => po.status !== status);
+    if (activeSelected.length === 0) {
+      return toast.error(`No production orders need to be updated to ${status}`);
+    }
+    if (!window.confirm(`Are you sure you want to update ${activeSelected.length} production orders to ${status}?`)) return;
+    const loadingToast = toast.loading(`Updating ${activeSelected.length} production orders...`);
+    try {
+      await Promise.all(activeSelected.map(po => productionOrdersAPI.updateStatus(po.id, status)));
+      toast.success('Selected production orders updated successfully', { id: loadingToast });
+      bulkProduction.clearSelection();
+      loadProductionOrders();
+    } catch (err) {
+      toast.error('Failed to update some production orders', { id: loadingToast });
+    }
+  };
+
+  const handleBulkExportProductionOrders = () => {
+    const selected = bulkProduction.getSelectedItems();
+    let csvContent = 'data:text/csv;charset=utf-8,';
+    csvContent += 'Production Order Number,Status,Remarks,Created By,Date Created,Item Count\n';
+    
+    selected.forEach(po => {
+      const row = [
+        po.production_order_number,
+        po.status,
+        po.remarks || '',
+        po.created_by_name || '',
+        po.created_at ? po.created_at.split('T')[0] : 'N/A',
+        po.item_count || 0
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+      csvContent += row + '\n';
+    });
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `production_orders_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`Exported ${bulkProduction.selectedCount} production orders to CSV`);
+  };
 
   const handleCreateProductionOrder = async (e) => {
     e.preventDefault();
@@ -450,6 +546,14 @@ export default function OrderPage() {
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: 40, textAlign: 'center' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={bulkSales.isAllSelected} 
+                      onChange={bulkSales.toggleSelectAll} 
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </th>
                   <th>Order Number</th>
                   <th>Customer</th>
                   <th>Status</th>
@@ -460,26 +564,37 @@ export default function OrderPage() {
                 </tr>
               </thead>
               <tbody>
-                {orders.map(o => (
-                  <tr key={o.id}>
-                    <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{o.order_number}</td>
-                    <td style={{ fontWeight: 600 }}>{o.customer}</td>
-                    <td>
-                      <span className={`badge ${getStatusBadge(o.status)}`}>
-                        {o.status}
-                      </span>
-                    </td>
-                    <td>{o.item_count} items</td>
-                    <td>{o.created_at ? o.created_at.split('T')[0] : 'N/A'}</td>
-                    <td>{o.remarks || '-'}</td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button className="btn btn-secondary btn-sm" onClick={() => handleViewDetails(o)}>
-                        <Eye size={13} style={{ marginRight: 4 }} />
-                        View
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {orders.map(o => {
+                  const isChecked = bulkSales.isSelected(o.id);
+                  return (
+                    <tr key={o.id} style={{ background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent' }}>
+                      <td style={{ textAlign: 'center' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked} 
+                          onChange={() => bulkSales.toggleSelect(o.id)} 
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </td>
+                      <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{o.order_number}</td>
+                      <td style={{ fontWeight: 600 }}>{o.customer}</td>
+                      <td>
+                        <span className={`badge ${getStatusBadge(o.status)}`}>
+                          {o.status}
+                        </span>
+                      </td>
+                      <td>{o.item_count} items</td>
+                      <td>{o.created_at ? o.created_at.split('T')[0] : 'N/A'}</td>
+                      <td>{o.remarks || '-'}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button className="btn btn-secondary btn-sm" onClick={() => handleViewDetails(o)}>
+                          <Eye size={13} style={{ marginRight: 4 }} />
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -884,6 +999,14 @@ export default function OrderPage() {
               <table>
                 <thead>
                   <tr>
+                    <th style={{ width: 40, textAlign: 'center' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={bulkProduction.isAllSelected} 
+                        onChange={bulkProduction.toggleSelectAll} 
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </th>
                     <th style={{ width: 28 }}></th>
                     <th>PO Number</th>
                     <th>Items</th>
@@ -895,91 +1018,106 @@ export default function OrderPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {productionOrders.map(po => (
-                    <>
-                      {/* PO header row */}
-                      <tr key={po.id} style={{ cursor: 'pointer' }} onClick={() => setExpandedPoId(prev => prev === po.id ? null : po.id)}>
-                        <td style={{ textAlign: 'center', fontSize: 14 }}>
-                          {expandedPoId === po.id ? '▼' : '▶'}
-                        </td>
-                        <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{po.production_order_number}</td>
-                        <td>
-                          <span style={{ fontWeight: 600 }}>{po.item_count} product{po.item_count !== 1 ? 's' : ''}</span>
-                          {po.items && po.items.length > 0 && (
-                            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                              {po.items.slice(0, 2).map(i => i.product_code).join(', ')}{po.items.length > 2 ? ` +${po.items.length - 2} more` : ''}
-                            </div>
-                          )}
-                        </td>
-                        <td>
-                          <span className={`badge ${
-                            po.status === 'PENDING'   ? 'badge-gray'   :
-                            po.status === 'COMPLETED' ? 'badge-green'  :
-                            po.status === 'PARTIAL'   ? 'badge-orange' : 'badge-red'
-                          }`}>
-                            {po.status}
-                          </span>
-                        </td>
-                        <td>{po.remarks || '-'}</td>
-                        <td>{po.created_at ? po.created_at.split('T')[0] : 'N/A'}</td>
-                        <td>{po.created_by_name}</td>
-                        <td style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
-                          {user?.role === 'Super Admin' && (po.status === 'PENDING' || po.status === 'PARTIAL') && (
-                            <button
-                              className="btn btn-ghost btn-icon btn-sm text-danger"
-                              title="Cancel Entire PO"
-                              onClick={() => handleCancelProductionOrder(po.id)}
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                      {/* Expanded items sub-rows */}
-                      {expandedPoId === po.id && po.items && po.items.map(item => (
-                        <tr key={item.id} style={{ background: 'rgba(255,255,255,0.02)' }}>
-                          <td></td>
-                          <td colSpan={2} style={{ paddingLeft: 24 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <span style={{ fontWeight: 700, fontFamily: 'monospace', fontSize: 12, color: 'var(--color-text-muted)' }}>{item.product_code}</span>
-                              <span style={{ fontWeight: 600 }}>{item.product_name}</span>
-                              <span style={{ fontSize: 12, color: 'var(--color-primary-light)', fontWeight: 700 }}>{item.quantity} {item.unit}</span>
-                            </div>
+                  {productionOrders.map(po => {
+                    const isChecked = bulkProduction.isSelected(po.id);
+                    return (
+                      <Fragment key={po.id}>
+                        {/* PO header row */}
+                        <tr 
+                          style={{ cursor: 'pointer', background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent' }} 
+                          onClick={() => setExpandedPoId(prev => prev === po.id ? null : po.id)}
+                        >
+                          <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                            <input 
+                              type="checkbox" 
+                              checked={isChecked} 
+                              onChange={() => bulkProduction.toggleSelect(po.id)} 
+                              style={{ cursor: 'pointer' }}
+                            />
+                          </td>
+                          <td style={{ textAlign: 'center', fontSize: 14 }}>
+                            {expandedPoId === po.id ? '▼' : '▶'}
+                          </td>
+                          <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{po.production_order_number}</td>
+                          <td>
+                            <span style={{ fontWeight: 600 }}>{po.item_count} product{po.item_count !== 1 ? 's' : ''}</span>
+                            {po.items && po.items.length > 0 && (
+                              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                                {po.items.slice(0, 2).map(i => i.product_code).join(', ')}{po.items.length > 2 ? ` +${po.items.length - 2} more` : ''}
+                              </div>
+                            )}
                           </td>
                           <td>
                             <span className={`badge ${
-                              item.status === 'PENDING'   ? 'badge-gray'   :
-                              item.status === 'COMPLETED' ? 'badge-green'  : 'badge-red'
-                            }`} style={{ fontSize: 10 }}>
-                              {item.status}
+                              po.status === 'PENDING'   ? 'badge-gray'   :
+                              po.status === 'COMPLETED' ? 'badge-green'  :
+                              po.status === 'PARTIAL'   ? 'badge-orange' : 'badge-red'
+                            }`}>
+                              {po.status}
                             </span>
                           </td>
-                          <td></td>
-                          <td></td>
-                          <td></td>
-                          <td style={{ textAlign: 'right' }}>
-                            {item.status === 'PENDING' && (
+                          <td>{po.remarks || '-'}</td>
+                          <td>{po.created_at ? po.created_at.split('T')[0] : 'N/A'}</td>
+                          <td>{po.created_by_name}</td>
+                          <td style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                            {user?.role === 'Super Admin' && (po.status === 'PENDING' || po.status === 'PARTIAL') && (
                               <button
-                                className="btn btn-success btn-sm"
-                                style={{ fontSize: 12 }}
-                                onClick={() => navigate('/production-run', {
-                                  state: {
-                                    product_id: item.product_id,
-                                    quantity: item.quantity,
-                                    production_order_id: po.id,
-                                    production_order_item_id: item.id
-                                  }
-                                })}
+                                className="btn btn-ghost btn-icon btn-sm text-danger"
+                                title="Cancel Entire PO"
+                                onClick={() => handleCancelProductionOrder(po.id)}
                               >
-                                <Factory size={12} style={{ marginRight: 4 }} />
-                                Execute Run
+                                <Trash2 size={13} />
                               </button>
                             )}
                           </td>
                         </tr>
-                      ))}
-                    </>
-                  ))}
+                        {/* Expanded items sub-rows */}
+                        {expandedPoId === po.id && po.items && po.items.map(item => (
+                          <tr key={item.id} style={{ background: isChecked ? 'rgba(59, 130, 246, 0.04)' : 'rgba(255,255,255,0.02)' }}>
+                            <td></td>
+                            <td></td>
+                            <td colSpan={2} style={{ paddingLeft: 24 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontWeight: 700, fontFamily: 'monospace', fontSize: 12, color: 'var(--color-text-muted)' }}>{item.product_code}</span>
+                                <span style={{ fontWeight: 600 }}>{item.product_name}</span>
+                                <span style={{ fontSize: 12, color: 'var(--color-primary-light)', fontWeight: 700 }}>{item.quantity} {item.unit}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <span className={`badge ${
+                                item.status === 'PENDING'   ? 'badge-gray'   :
+                                item.status === 'COMPLETED' ? 'badge-green'  : 'badge-red'
+                              }`} style={{ fontSize: 10 }}>
+                                {item.status}
+                              </span>
+                            </td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td style={{ textAlign: 'right' }}>
+                              {item.status === 'PENDING' && (
+                                <button
+                                  className="btn btn-success btn-sm"
+                                  style={{ fontSize: 12 }}
+                                  onClick={() => navigate('/production-run', {
+                                    state: {
+                                      product_id: item.product_id,
+                                      quantity: item.quantity,
+                                      production_order_id: po.id,
+                                      production_order_item_id: item.id
+                                    }
+                                  })}
+                                >
+                                  <Factory size={12} style={{ marginRight: 4 }} />
+                                  Execute Run
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1143,6 +1281,62 @@ export default function OrderPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Sales Orders Bulk Action Bar */}
+      {activeTab === 'sales' && (
+        <BulkActionBar 
+          selectedCount={bulkSales.selectedCount}
+          onClear={bulkSales.clearSelection}
+          actions={[
+            {
+              label: 'Export CSV',
+              icon: <Download size={16} />,
+              onClick: handleBulkExportSalesOrders,
+              className: 'btn-secondary'
+            },
+            {
+              label: 'Mark Completed',
+              icon: <Check size={16} />,
+              onClick: () => handleBulkUpdateOrderStatus('COMPLETED'),
+              className: 'btn-success'
+            },
+            {
+              label: 'Mark Cancelled',
+              icon: <X size={16} />,
+              onClick: () => handleBulkUpdateOrderStatus('CANCELLED'),
+              className: 'btn-danger text-danger'
+            }
+          ]}
+        />
+      )}
+
+      {/* Production Orders Bulk Action Bar */}
+      {activeTab === 'production' && (
+        <BulkActionBar 
+          selectedCount={bulkProduction.selectedCount}
+          onClear={bulkProduction.clearSelection}
+          actions={[
+            {
+              label: 'Export CSV',
+              icon: <Download size={16} />,
+              onClick: handleBulkExportProductionOrders,
+              className: 'btn-secondary'
+            },
+            {
+              label: 'Mark Completed',
+              icon: <Check size={16} />,
+              onClick: () => handleBulkUpdatePoStatus('COMPLETED'),
+              className: 'btn-success'
+            },
+            {
+              label: 'Mark Cancelled',
+              icon: <X size={16} />,
+              onClick: () => handleBulkUpdatePoStatus('CANCELLED'),
+              className: 'btn-danger text-danger'
+            }
+          ]}
+        />
       )}
     </div>
   );

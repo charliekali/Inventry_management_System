@@ -5,8 +5,10 @@ import { useNavigate } from 'react-router-dom';
 import {
   Receipt, DollarSign, TrendingUp, Clock, Search,
   CreditCard, Printer, AlertCircle, ChevronDown, ChevronUp,
-  History, Banknote, CalendarDays, User, StickyNote, X, PhoneCall
+  History, Banknote, CalendarDays, User, StickyNote, X, PhoneCall, Download
 } from 'lucide-react';
+import useBulkActions from '../hooks/useBulkActions';
+import BulkActionBar from '../components/BulkActionBar';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtCurrency(val) {
@@ -487,6 +489,75 @@ export default function BillingPage() {
     }
   };
 
+  // Initialize bulk action hooks
+  const ledgerBulk = useBulkActions(filteredInvoices);
+  const outstandingBulk = useBulkActions(outstanding);
+
+  const handleBulkExportLedger = () => {
+    const selected = ledgerBulk.getSelectedItems();
+    let csvContent = 'Invoice #,Order Ref,Customer,Date Issued,Type,Grand Total,Paid,Balance,Status\n';
+    
+    selected.forEach(inv => {
+      const typeStr = inv.is_pos_order ? 'RETAIL' : 'BULK';
+      const row = [
+        inv.invoice_number,
+        inv.order_number || '',
+        inv.customer,
+        inv.invoice_date ? fmtDateShort(inv.invoice_date) : 'N/A',
+        typeStr,
+        inv.grand_total || 0,
+        inv.paid_amount || 0,
+        inv.balance || 0,
+        inv.paymentStatus
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+      csvContent += row + '\n';
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `invoice_ledger_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${ledgerBulk.selectedCount} invoices to CSV`);
+  };
+
+  const handleBulkExportOutstanding = () => {
+    const selected = outstandingBulk.getSelectedItems();
+    let csvContent = 'Invoice #,Customer,Date Issued,Balance Due,Paid,Grand Total,Days Overdue,Next Follow-Up Date,Follow-Up Status,Latest Remarks\n';
+    
+    selected.forEach(inv => {
+      const balance = inv.balance || Math.max(0, inv.grand_total - (inv.paid_amount || 0));
+      const row = [
+        inv.invoice_number,
+        inv.customer,
+        inv.invoice_date ? fmtDateShort(inv.invoice_date).split(' ')[0] : '—',
+        balance,
+        inv.paid_amount || 0,
+        inv.grand_total || 0,
+        inv.days_overdue,
+        inv.next_follow_up_date || 'Not Scheduled',
+        inv.follow_up_status || 'NONE',
+        inv.latest_comment || ''
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+      csvContent += row + '\n';
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `outstanding_dues_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${outstandingBulk.selectedCount} accounts to CSV`);
+  };
+
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="fade-in" style={{ maxWidth: 1300, margin: '0 auto' }}>
@@ -524,59 +595,90 @@ export default function BillingPage() {
         <div className="kpi-card purple">
           <div className="kpi-icon purple"><TrendingUp size={20} color="#8b5cf6" /></div>
           <div className="kpi-value">{collectionRate}%</div>
-          <div className="kpi-label">Collection Rate</div>
+          <div className="kpi-label">Collection Efficiency</div>
         </div>
       </div>
 
-      {/* Top Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-        {[
-          { id: 'LEDGER',  label: '📋 Invoice Ledger' },
-          { id: 'FOLLOWUP', label: `📞 Due Follow-Ups${outstanding.length > 0 ? ` (${outstanding.length})` : ''}` },
-        ].map(tab => (
-          <button key={tab.id}
-            className={`btn btn-sm ${activeTab === tab.id ? 'btn-primary' : 'btn-ghost'}`}
-            style={{ padding: '8px 18px', fontWeight: 600, fontSize: 13 }}
-            onClick={() => setActiveTab(tab.id)}>
-            {tab.label}
-          </button>
-        ))}
+      {/* Main Tabs */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 20, borderBottom: '1px solid var(--color-border)', paddingBottom: 10 }}>
+        <button
+          onClick={() => { setActiveTab('LEDGER'); ledgerBulk.clearSelection(); }}
+          className={`btn ${activeTab === 'LEDGER' ? 'btn-primary' : 'btn-ghost'}`}
+          style={{ fontSize: 13.5, padding: '8px 16px' }}
+        >
+          📄 Invoices History / Ledger
+        </button>
+        <button
+          onClick={() => { setActiveTab('FOLLOWUP'); outstandingBulk.clearSelection(); }}
+          className={`btn ${activeTab === 'FOLLOWUP' ? 'btn-primary' : 'btn-ghost'}`}
+          style={{ fontSize: 13.5, padding: '8px 16px', display: 'flex', gap: 6, alignItems: 'center' }}
+        >
+          ⏰ Aging & Collections
+          {unpaidCount + partialCount > 0 && (
+            <span className="badge badge-red" style={{ fontSize: 10, padding: '2px 6px', fontWeight: 700 }}>
+              {unpaidCount + partialCount} Dues
+            </span>
+          )}
+        </button>
       </div>
 
       {/* ══ LEDGER TAB ═══════════════════════════════════════════════════════ */}
       {activeTab === 'LEDGER' && (
         <>
-          {/* Filters */}
-          <div className="card" style={{ padding: 18, marginBottom: 20 }}>
-            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-              <div className="search-wrapper" style={{ flex: 1.5, minWidth: 260, margin: 0 }}>
-                <Search className="search-icon" size={18} />
-                <input type="text" placeholder="Search by Invoice #, Customer or Order Ref..."
-                  value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="search-input" />
+          {/* Filters Card */}
+          <div className="card" style={{ marginBottom: 20 }}>
+            <div className="filters-row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              
+              {/* Search Bar */}
+              <div className="form-group" style={{ minWidth: 220, flex: 1 }}>
+                <label className="form-label" style={{ fontSize: 10 }}>Search Ledger</label>
+                <div className="search-bar" style={{ width: '100%' }}>
+                  <Search size={14} />
+                  <input type="text" className="form-control" style={{ width: '100%' }}
+                    value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                    placeholder="Invoice #, Order Ref, Customer..." />
+                </div>
               </div>
-              <div className="form-group" style={{ margin: 0, minWidth: 120 }}>
-                <label className="form-label" style={{ fontSize: 10, marginBottom: 4 }}>Order Type</label>
-                <select className="form-control" value={selectedType} onChange={e => setSelectedType(e.target.value)} style={{ padding: '6px 10px', fontSize: 13 }}>
-                  <option value="ALL">All Types</option>
-                  <option value="BULK">Bulk (Sales)</option>
-                  <option value="POS">Retail (POS)</option>
+
+              {/* Status Filter */}
+              <div className="form-group" style={{ minWidth: 140 }}>
+                <label className="form-label" style={{ fontSize: 10 }}>Status</label>
+                <select className="form-control" value={selectedStatus} onChange={e => setSelectedStatus(e.target.value)}>
+                  <option value="ALL">All Statuses</option>
+                  <option value="PAID">Fully Paid</option>
+                  <option value="PARTIAL">Partially Paid</option>
+                  <option value="UNPAID">Unpaid</option>
                 </select>
               </div>
-              <div className="form-group" style={{ margin: 0, minWidth: 120 }}>
-                <label className="form-label" style={{ fontSize: 10, marginBottom: 4 }}>Payment Mode</label>
-                <select className="form-control" value={selectedMethod} onChange={e => setSelectedMethod(e.target.value)} style={{ padding: '6px 10px', fontSize: 13 }}>
-                  <option value="ALL">All Modes</option>
+
+              {/* Type Filter */}
+              <div className="form-group" style={{ minWidth: 130 }}>
+                <label className="form-label" style={{ fontSize: 10 }}>Billing Type</label>
+                <select className="form-control" value={selectedType} onChange={e => setSelectedType(e.target.value)}>
+                  <option value="ALL">All Channels</option>
+                  <option value="POS">Retail (POS)</option>
+                  <option value="BULK">Bulk Sales</option>
+                </select>
+              </div>
+
+              {/* Method Filter */}
+              <div className="form-group" style={{ minWidth: 140 }}>
+                <label className="form-label" style={{ fontSize: 10 }}>Payment Mode</label>
+                <select className="form-control" value={selectedMethod} onChange={e => setSelectedMethod(e.target.value)}>
+                  <option value="ALL">All Methods</option>
                   <option value="CASH">Cash</option>
-                  <option value="UPI">UPI</option>
+                  <option value="UPI">UPI Transfer</option>
                   <option value="CARD">Card</option>
+                  <option value="NETBANKING">Net Banking</option>
                   <option value="CREDIT">Credit</option>
                 </select>
               </div>
             </div>
-            {/* Status Tabs */}
-            <div style={{ display: 'flex', gap: 8, marginTop: 14, borderTop: '1px solid var(--color-border)', paddingTop: 14 }}>
+
+            {/* Quick Status Tabs shortcut */}
+            <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
               {[
-                { value: 'ALL',     label: `All Bills (${invoicesWithBalance.length})` },
+                { value: 'ALL',     label: `All Invoices (${invoicesWithBalance.length})` },
                 { value: 'PAID',    label: `✅ Fully Paid (${invoicesWithBalance.filter(i => i.paymentStatus === 'PAID').length})` },
                 { value: 'PARTIAL', label: `🔸 Partial (${partialCount})` },
                 { value: 'UNPAID',  label: `🔴 Unpaid (${unpaidCount})` },
@@ -593,7 +695,7 @@ export default function BillingPage() {
           {/* Ledger Table */}
           <div className="card">
             {loading ? (
-              <div className="loading-center"><div className="loading-spinner" /></div>
+              <div className="loading-center" style={{ padding: 60 }}><div className="loading-spinner" /></div>
             ) : filteredInvoices.length === 0 ? (
               <div className="empty-state" style={{ padding: 60 }}>
                 <Receipt size={40} style={{ opacity: 0.5 }} />
@@ -605,6 +707,14 @@ export default function BillingPage() {
                 <table>
                   <thead>
                     <tr>
+                      <th style={{ width: 40, textAlign: 'center' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={ledgerBulk.isAllSelected} 
+                          onChange={ledgerBulk.toggleSelectAll} 
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </th>
                       <th>Invoice #</th>
                       <th>Order Ref</th>
                       <th>Customer</th>
@@ -618,47 +728,58 @@ export default function BillingPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredInvoices.map(inv => (
-                      <tr key={inv.id}>
-                        <td style={{ fontWeight: 700, color: 'var(--color-primary-light)' }}>{inv.invoice_number}</td>
-                        <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{inv.order_number || '—'}</td>
-                        <td style={{ fontWeight: 600 }}>{inv.customer}</td>
-                        <td style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
-                          {inv.invoice_date ? fmtDateShort(inv.invoice_date) : 'N/A'}
-                        </td>
-                        <td>
-                          <span className={`badge ${inv.is_pos_order ? 'badge-blue' : 'badge-purple'}`} style={{ fontSize: 9.5 }}>
-                            {inv.is_pos_order ? 'RETAIL' : 'BULK'}
-                          </span>
-                        </td>
-                        <td style={{ fontWeight: 700 }}>{fmtCurrency(inv.grand_total)}</td>
-                        <td style={{ color: 'var(--color-success)', fontWeight: 600 }}>{fmtCurrency(inv.paid_amount)}</td>
-                        <td style={{ color: inv.balance > 0 ? 'var(--color-danger)' : 'inherit', fontWeight: 700 }}>
-                          {fmtCurrency(inv.balance)}
-                        </td>
-                        <td><span className={`badge ${getStatusBadge(inv.paymentStatus)}`}>{inv.paymentStatus}</span></td>
-                        <td style={{ textAlign: 'right' }}>
-                          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                            <button className="btn btn-ghost btn-icon btn-sm text-primary"
-                              onClick={() => setHistoryInvoiceId(inv.id)} title="View Payment History">
-                              <History size={14} />
-                            </button>
-                            <button className="btn btn-ghost btn-icon btn-sm text-primary"
-                              onClick={() => navigate(`/invoice/${inv.id}`)} title="Print Invoice">
-                              <Printer size={14} />
-                            </button>
-                            {inv.balance > 0 && (
-                              <button className="btn btn-secondary btn-sm"
-                                style={{ padding: '4px 8px', fontSize: 11.5 }}
-                                onClick={() => handleOpenPaymentModal(inv)}>
-                                <CreditCard size={12} style={{ marginRight: 4 }} />
-                                Collect
+                    {filteredInvoices.map(inv => {
+                      const isChecked = ledgerBulk.isSelected(inv.id);
+                      return (
+                        <tr key={inv.id} style={{ background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent' }}>
+                          <td style={{ textAlign: 'center' }}>
+                            <input 
+                              type="checkbox" 
+                              checked={isChecked} 
+                              onChange={() => ledgerBulk.toggleSelect(inv.id)} 
+                              style={{ cursor: 'pointer' }}
+                            />
+                          </td>
+                          <td style={{ fontWeight: 700, color: 'var(--color-primary-light)' }}>{inv.invoice_number}</td>
+                          <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{inv.order_number || '—'}</td>
+                          <td style={{ fontWeight: 600 }}>{inv.customer}</td>
+                          <td style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
+                            {inv.invoice_date ? fmtDateShort(inv.invoice_date) : 'N/A'}
+                          </td>
+                          <td>
+                            <span className={`badge ${inv.is_pos_order ? 'badge-blue' : 'badge-purple'}`} style={{ fontSize: 9.5 }}>
+                              {inv.is_pos_order ? 'RETAIL' : 'BULK'}
+                            </span>
+                          </td>
+                          <td style={{ fontWeight: 700 }}>{fmtCurrency(inv.grand_total)}</td>
+                          <td style={{ color: 'var(--color-success)', fontWeight: 600 }}>{fmtCurrency(inv.paid_amount)}</td>
+                          <td style={{ color: inv.balance > 0 ? 'var(--color-danger)' : 'inherit', fontWeight: 700 }}>
+                            {fmtCurrency(inv.balance)}
+                          </td>
+                          <td><span className={`badge ${getStatusBadge(inv.paymentStatus)}`}>{inv.paymentStatus}</span></td>
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                              <button className="btn btn-ghost btn-icon btn-sm text-primary"
+                                onClick={() => setHistoryInvoiceId(inv.id)} title="View Payment History">
+                                <History size={14} />
                               </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                              <button className="btn btn-ghost btn-icon btn-sm text-primary"
+                                onClick={() => navigate(`/invoice/${inv.id}`)} title="Print Invoice">
+                                <Printer size={14} />
+                              </button>
+                              {inv.balance > 0 && (
+                                <button className="btn btn-secondary btn-sm"
+                                  style={{ padding: '4px 8px', fontSize: 11.5 }}
+                                  onClick={() => handleOpenPaymentModal(inv)}>
+                                  <CreditCard size={12} style={{ marginRight: 4 }} />
+                                  Collect
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -698,6 +819,14 @@ export default function BillingPage() {
               <table>
                 <thead>
                   <tr>
+                    <th style={{ width: 40, textAlign: 'center' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={outstandingBulk.isAllSelected} 
+                        onChange={outstandingBulk.toggleSelectAll} 
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </th>
                     <th style={{ width: 16 }}></th>
                     <th>Invoice #</th>
                     <th>Customer</th>
@@ -714,8 +843,17 @@ export default function BillingPage() {
                     const aging = agingColor(inv.days_overdue);
                     const balance = inv.balance || Math.max(0, inv.grand_total - (inv.paid_amount || 0));
                     const paymentStatus = inv.paid_amount > 0 ? 'PARTIAL' : 'UNPAID';
+                    const isChecked = outstandingBulk.isSelected(inv.id);
                     return (
-                      <tr key={inv.id} style={{ borderLeft: `3px solid ${aging.color}` }}>
+                      <tr key={inv.id} style={{ borderLeft: `3px solid ${aging.color}`, background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent' }}>
+                        <td style={{ textAlign: 'center' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked} 
+                            onChange={() => outstandingBulk.toggleSelect(inv.id)} 
+                            style={{ cursor: 'pointer' }}
+                          />
+                        </td>
                         <td>
                           <span style={{ width: 10, height: 10, borderRadius: '50%', background: aging.color, display: 'inline-block' }} title={aging.label} />
                         </td>
@@ -1043,6 +1181,38 @@ export default function BillingPage() {
             </div>
           </form>
         </div>
+      )}
+
+      {/* Floating Action Bar for Invoices Ledger (active when Tab is LEDGER) */}
+      {activeTab === 'LEDGER' && (
+        <BulkActionBar 
+          selectedCount={ledgerBulk.selectedCount}
+          onClear={ledgerBulk.clearSelection}
+          actions={[
+            {
+              label: 'Export CSV',
+              icon: <Download size={16} />,
+              onClick: handleBulkExportLedger,
+              className: 'btn-secondary'
+            }
+          ]}
+        />
+      )}
+
+      {/* Floating Action Bar for Outstanding Dues (active when Tab is FOLLOWUP) */}
+      {activeTab === 'FOLLOWUP' && (
+        <BulkActionBar 
+          selectedCount={outstandingBulk.selectedCount}
+          onClear={outstandingBulk.clearSelection}
+          actions={[
+            {
+              label: 'Export CSV',
+              icon: <Download size={16} />,
+              onClick: handleBulkExportOutstanding,
+              className: 'btn-secondary'
+            }
+          ]}
+        />
       )}
     </div>
   );

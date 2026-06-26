@@ -3,8 +3,10 @@ import { transactionsAPI, productsAPI, warehousesAPI } from '../api';
 import toast from 'react-hot-toast';
 import { 
   History, Search, Eye, Calendar, User, 
-  ShieldCheck, Factory, AlertTriangle, Package, Warehouse
+  ShieldCheck, Factory, AlertTriangle, Package, Warehouse, Download
 } from 'lucide-react';
+import useBulkActions from '../hooks/useBulkActions';
+import BulkActionBar from '../components/BulkActionBar';
 
 export default function ProductionHistoryPage() {
   const [runs, setRuns] = useState([]);
@@ -81,6 +83,53 @@ export default function ProductionHistoryPage() {
   const avgDamage = totalRuns > 0 
     ? filteredRuns.reduce((sum, r) => sum + (r.damage_pct || 0), 0) / totalRuns 
     : 0;
+
+  // Bulk Actions Hook
+  const {
+    selectedIds,
+    isSelected,
+    toggleSelect,
+    toggleSelectAll,
+    isAllSelected,
+    clearSelection,
+    getSelectedItems,
+    selectedCount
+  } = useBulkActions(filteredRuns, 'reference_doc'); // using reference_doc as key field since id isn't explicitly defined
+
+  const handleBulkExport = () => {
+    const selected = getSelectedItems();
+    let csvContent = 'Batch Reference,Date,Produced FG Name,Produced FG Code,Destination Location,Net Quantity Produced,Unit,Wastage %,Damage %,Net Yield %,Operator,Remarks\n';
+    
+    selected.forEach(run => {
+      const netYield = (100 - (run.wastage_pct || 0) - (run.damage_pct || 0)).toFixed(1);
+      const row = [
+        run.reference_doc,
+        run.transaction_date,
+        run.product_name,
+        run.product_code,
+        `${run.warehouse_name}${run.section_name ? ' (' + run.section_name + ')' : ''}`,
+        run.quantity_produced,
+        run.unit,
+        run.wastage_pct || 0,
+        run.damage_pct || 0,
+        netYield,
+        run.performed_by,
+        run.remarks || ''
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+      csvContent += row + '\n';
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `production_history_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${selectedCount} batch runs to CSV`);
+  };
 
   return (
     <div className="fade-in">
@@ -187,6 +236,14 @@ export default function ProductionHistoryPage() {
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: 40, textAlign: 'center' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={isAllSelected} 
+                      onChange={toggleSelectAll} 
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </th>
                   <th>Batch Reference</th>
                   <th>Date</th>
                   <th>Produced FG</th>
@@ -199,49 +256,60 @@ export default function ProductionHistoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredRuns.map((run, idx) => (
-                  <tr key={idx}>
-                    <td>
-                      <span className="gr-number" style={{ fontFamily: 'monospace', fontWeight: 600 }}>{run.reference_doc}</span>
-                    </td>
-                    <td>{run.transaction_date}</td>
-                    <td>
-                      <div style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{run.product_name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Code: {run.product_code}</div>
-                    </td>
-                    <td>
-                      <div>{run.warehouse_name}</div>
-                      {run.section_name && <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Section: {run.section_name}</div>}
-                    </td>
-                    <td style={{ fontWeight: 700, color: 'var(--color-success)', textAlign: 'right' }}>
-                      {run.quantity_produced.toFixed(2)} {run.unit}
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <span className={`badge ${run.wastage_pct > 5 ? 'badge-red' : run.wastage_pct > 0 ? 'badge-orange' : 'badge-green'}`}>
-                        {run.wastage_pct}%
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <span className={`badge ${run.damage_pct > 3 ? 'badge-red' : run.damage_pct > 0 ? 'badge-orange' : 'badge-green'}`}>
-                        {run.damage_pct}%
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 13 }}>{run.performed_by}</span>
-                      </div>
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <button 
-                        className="btn btn-ghost btn-icon" 
-                        onClick={() => setSelectedRun(run)}
-                        title="Trace Batch Materials"
-                      >
-                        <Eye size={15} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredRuns.map((run, idx) => {
+                  const isChecked = isSelected(run.reference_doc);
+                  return (
+                    <tr key={idx} style={{ background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent' }}>
+                      <td style={{ textAlign: 'center' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked} 
+                          onChange={() => toggleSelect(run.reference_doc)} 
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </td>
+                      <td>
+                        <span className="gr-number" style={{ fontFamily: 'monospace', fontWeight: 600 }}>{run.reference_doc}</span>
+                      </td>
+                      <td>{run.transaction_date}</td>
+                      <td>
+                        <div style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{run.product_name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Code: {run.product_code}</div>
+                      </td>
+                      <td>
+                        <div>{run.warehouse_name}</div>
+                        {run.section_name && <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Section: {run.section_name}</div>}
+                      </td>
+                      <td style={{ fontWeight: 700, color: 'var(--color-success)', textAlign: 'right' }}>
+                        {run.quantity_produced.toFixed(2)} {run.unit}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`badge ${run.wastage_pct > 5 ? 'badge-red' : run.wastage_pct > 0 ? 'badge-orange' : 'badge-green'}`}>
+                          {run.wastage_pct}%
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`badge ${run.damage_pct > 3 ? 'badge-red' : run.damage_pct > 0 ? 'badge-orange' : 'badge-green'}`}>
+                          {run.damage_pct}%
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 13 }}>{run.performed_by}</span>
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button 
+                          className="btn btn-ghost btn-icon" 
+                          onClick={() => setSelectedRun(run)}
+                          title="Trace Batch Materials"
+                        >
+                          <Eye size={15} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -294,7 +362,7 @@ export default function ProductionHistoryPage() {
                 marginBottom: 20
               }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-success)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Produced Finished Good Output</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                <div style={{ display: 'flex', justifycontent: 'space-between', alignItems: 'center', marginTop: 8 }}>
                   <div>
                     <h4 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: 'var(--color-text-primary)' }}>{selectedRun.product_name}</h4>
                     <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Code: {selectedRun.product_code}</span>
@@ -412,6 +480,20 @@ export default function ProductionHistoryPage() {
           </div>
         </div>
       )}
+
+      {/* Floating Bulk Action Bar */}
+      <BulkActionBar 
+        selectedCount={selectedCount}
+        onClear={clearSelection}
+        actions={[
+          {
+            label: 'Export CSV',
+            icon: <Download size={16} />,
+            onClick: handleBulkExport,
+            className: 'btn-secondary'
+          }
+        ]}
+      />
     </div>
   );
 }

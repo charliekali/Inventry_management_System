@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { stockAPI, productsAPI, warehousesAPI } from '../api';
 import toast from 'react-hot-toast';
-import { BarChart3, Search, AlertTriangle, RefreshCw, Layers } from 'lucide-react';
+import { BarChart3, Search, AlertTriangle, RefreshCw, Layers, Download } from 'lucide-react';
+import useBulkActions from '../hooks/useBulkActions';
+import BulkActionBar from '../components/BulkActionBar';
 
 export default function StockBalancePage() {
   const [balances, setBalances] = useState([]);
@@ -63,6 +65,65 @@ export default function StockBalancePage() {
     item.warehouse_name.toLowerCase().includes(search.toLowerCase()) ||
     (item.section_name && item.section_name.toLowerCase().includes(search.toLowerCase()))
   );
+
+  // Initialize two separate bulk action hooks
+  const summaryBulk = useBulkActions(filteredSummary);
+  const detailedBulk = useBulkActions(filteredBalances);
+
+  const activeBulk = viewType === 'summary' ? summaryBulk : detailedBulk;
+
+  const handleBulkExport = () => {
+    const selected = activeBulk.getSelectedItems();
+    let csvContent = '';
+    let filename = '';
+    
+    if (viewType === 'summary') {
+      csvContent = 'Product Code,Product Name,Type,Min Level,Current Total,UOM,Status\n';
+      selected.forEach(item => {
+        const status = item.min_stock > 0 && item.is_low_stock ? 'Low Stock' : 'Healthy';
+        const row = [
+          item.code,
+          item.name,
+          item.type,
+          item.min_stock,
+          item.total_quantity,
+          item.unit,
+          status
+        ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+        csvContent += row + '\n';
+      });
+      filename = `stock_summary_export_${Date.now()}.csv`;
+    } else {
+      csvContent = 'Product Code,Product Name,Product Type,Warehouse,Section,In-Stock Quantity,UOM,Alert Status,Last Updated\n';
+      selected.forEach(item => {
+        const status = item.is_low_stock && item.min_stock > 0 ? 'Low Stock' : 'OK';
+        const row = [
+          item.product_code,
+          item.product_name,
+          item.product_type,
+          item.warehouse_name,
+          item.section_name || 'Unspecified',
+          item.quantity,
+          item.product_unit,
+          status,
+          item.updated_at ? item.updated_at.split('T')[0] : 'N/A'
+        ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+        csvContent += row + '\n';
+      });
+      filename = `stock_location_map_export_${Date.now()}.csv`;
+    }
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${activeBulk.selectedCount} items to CSV`);
+  };
 
   return (
     <div className="fade-in">
@@ -164,6 +225,14 @@ export default function StockBalancePage() {
               <table>
                 <thead>
                   <tr>
+                    <th style={{ width: 40, textAlign: 'center' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={summaryBulk.isAllSelected} 
+                        onChange={summaryBulk.toggleSelectAll} 
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </th>
                     <th>Product Code</th>
                     <th>Product Name</th>
                     <th>Type</th>
@@ -174,32 +243,43 @@ export default function StockBalancePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredSummary.map(item => (
-                    <tr key={item.id}>
-                      <td style={{ fontWeight: 700 }}>{item.code}</td>
-                      <td style={{ fontWeight: 600 }}>{item.name}</td>
-                      <td>
-                        <span className={`badge ${item.type === 'FINISHED_GOOD' ? 'badge-blue' : 'badge-purple'}`}>
-                          {item.type}
-                        </span>
-                      </td>
-                      <td>{item.min_stock}</td>
-                      <td style={{ fontSize: 15, fontWeight: 700, color: item.is_low_stock && item.min_stock > 0 ? 'var(--color-danger)' : 'var(--color-text-primary)' }}>
-                        {item.total_quantity}
-                      </td>
-                      <td>{item.unit}</td>
-                      <td>
-                        {item.min_stock > 0 && item.is_low_stock ? (
-                          <span className="badge badge-red" style={{ display: 'inline-flex', gap: 4 }}>
-                            <AlertTriangle size={12} />
-                            Low Stock
+                  {filteredSummary.map(item => {
+                    const isChecked = summaryBulk.isSelected(item.id);
+                    return (
+                      <tr key={item.id} style={{ background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent' }}>
+                        <td style={{ textAlign: 'center' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked} 
+                            onChange={() => summaryBulk.toggleSelect(item.id)} 
+                            style={{ cursor: 'pointer' }}
+                          />
+                        </td>
+                        <td style={{ fontWeight: 700 }}>{item.code}</td>
+                        <td style={{ fontWeight: 600 }}>{item.name}</td>
+                        <td>
+                          <span className={`badge ${item.type === 'FINISHED_GOOD' ? 'badge-blue' : 'badge-purple'}`}>
+                            {item.type}
                           </span>
-                        ) : (
-                          <span className="badge badge-green">Healthy</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td>{item.min_stock}</td>
+                        <td style={{ fontSize: 15, fontWeight: 700, color: item.is_low_stock && item.min_stock > 0 ? 'var(--color-danger)' : 'var(--color-text-primary)' }}>
+                          {item.total_quantity}
+                        </td>
+                        <td>{item.unit}</td>
+                        <td>
+                          {item.min_stock > 0 && item.is_low_stock ? (
+                            <span className="badge badge-red" style={{ display: 'inline-flex', gap: 4 }}>
+                              <AlertTriangle size={12} />
+                              Low Stock
+                            </span>
+                          ) : (
+                            <span className="badge badge-green">Healthy</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -217,6 +297,14 @@ export default function StockBalancePage() {
               <table>
                 <thead>
                   <tr>
+                    <th style={{ width: 40, textAlign: 'center' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={detailedBulk.isAllSelected} 
+                        onChange={detailedBulk.toggleSelectAll} 
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </th>
                     <th>Product</th>
                     <th>Warehouse</th>
                     <th>Section</th>
@@ -226,38 +314,63 @@ export default function StockBalancePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredBalances.map(item => (
-                    <tr key={item.id}>
-                      <td>
-                        <div style={{ fontWeight: 600 }}>{item.product_name}</div>
-                        <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{item.product_code} · {item.product_type}</div>
-                      </td>
-                      <td style={{ fontWeight: 500 }}>{item.warehouse_name}</td>
-                      <td>{item.section_name ? <span className="badge badge-gray">{item.section_name}</span> : <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>Unspecified</span>}</td>
-                      <td style={{ fontSize: 15, fontWeight: 700, color: item.is_low_stock && item.min_stock > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
-                        {item.quantity} {item.product_unit}
-                      </td>
-                      <td>
-                        {item.is_low_stock && item.min_stock > 0 ? (
-                          <span className="badge badge-red" style={{ display: 'inline-flex', gap: 4 }}>
-                            <AlertTriangle size={12} />
-                            Low Stock
-                          </span>
-                        ) : (
-                          <span className="badge badge-green">OK</span>
-                        )}
-                      </td>
-                      <td style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
-                        {item.updated_at ? item.updated_at.split('T')[0] : 'N/A'}
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredBalances.map(item => {
+                    const isChecked = detailedBulk.isSelected(item.id);
+                    return (
+                      <tr key={item.id} style={{ background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent' }}>
+                        <td style={{ textAlign: 'center' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked} 
+                            onChange={() => detailedBulk.toggleSelect(item.id)} 
+                            style={{ cursor: 'pointer' }}
+                          />
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{item.product_name}</div>
+                          <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{item.product_code} · {item.product_type}</div>
+                        </td>
+                        <td style={{ fontWeight: 500 }}>{item.warehouse_name}</td>
+                        <td>{item.section_name ? <span className="badge badge-gray">{item.section_name}</span> : <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>Unspecified</span>}</td>
+                        <td style={{ fontSize: 15, fontWeight: 700, color: item.is_low_stock && item.min_stock > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
+                          {item.quantity} {item.product_unit}
+                        </td>
+                        <td>
+                          {item.is_low_stock && item.min_stock > 0 ? (
+                            <span className="badge badge-red" style={{ display: 'inline-flex', gap: 4 }}>
+                              <AlertTriangle size={12} />
+                              Low Stock
+                            </span>
+                          ) : (
+                            <span className="badge badge-green">OK</span>
+                          )}
+                        </td>
+                        <td style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
+                          {item.updated_at ? item.updated_at.split('T')[0] : 'N/A'}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )
         )}
       </div>
+
+      {/* Floating Bulk Action Bar */}
+      <BulkActionBar 
+        selectedCount={activeBulk.selectedCount}
+        onClear={activeBulk.clearSelection}
+        actions={[
+          {
+            label: 'Export CSV',
+            icon: <Download size={16} />,
+            onClick: handleBulkExport,
+            className: 'btn-secondary'
+          }
+        ]}
+      />
     </div>
   );
 }

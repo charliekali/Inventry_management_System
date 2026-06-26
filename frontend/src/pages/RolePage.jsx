@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { rolesAPI } from '../api';
 import toast from 'react-hot-toast';
-import { Shield, Plus, Edit2, Archive, CheckSquare, Square } from 'lucide-react';
+import { Shield, Plus, Edit2, Archive, CheckSquare, Square, Download } from 'lucide-react';
+import useBulkActions from '../hooks/useBulkActions';
+import BulkActionBar from '../components/BulkActionBar';
 
 export default function RolePage() {
   const [roles, setRoles] = useState([]);
@@ -112,6 +114,75 @@ export default function RolePage() {
     }
   };
 
+  // Bulk Actions Hook
+  const {
+    selectedIds,
+    isSelected,
+    toggleSelect,
+    toggleSelectAll,
+    isAllSelected,
+    clearSelection,
+    getSelectedItems,
+    selectedCount
+  } = useBulkActions(roles);
+
+  const handleBulkExport = () => {
+    const selected = getSelectedItems();
+    let csvContent = 'Role Name,Category Scope,Description,Permissions Count,System Protected\n';
+    
+    selected.forEach(r => {
+      const row = [
+        r.name,
+        r.category || 'Not Set',
+        r.description || '',
+        r.permissions?.length || 0,
+        r.is_system ? 'YES' : 'NO'
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+      csvContent += row + '\n';
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `roles_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${selectedCount} roles to CSV`);
+  };
+
+  const handleBulkArchive = async () => {
+    const selected = getSelectedItems();
+    const systemProtected = selected.filter(r => r.is_system);
+    const customRoles = selected.filter(r => !r.is_system);
+
+    if (customRoles.length === 0) {
+      toast.error('Cannot archive selected roles. All selected roles are system-protected.');
+      return;
+    }
+
+    let confirmMsg = `Are you sure you want to archive ${customRoles.length} custom roles?`;
+    if (systemProtected.length > 0) {
+      confirmMsg += ` (${systemProtected.length} system-protected roles will be skipped.)`;
+    }
+
+    if (!window.confirm(confirmMsg)) return;
+
+    const loadingToast = toast.loading(`Archiving ${customRoles.length} roles...`);
+    try {
+      for (const r of customRoles) {
+        await rolesAPI.delete(r.id);
+      }
+      toast.success(`Archived ${customRoles.length} roles successfully`, { id: loadingToast });
+      clearSelection();
+      loadRoles();
+    } catch (err) {
+      toast.error('Failed to archive some roles', { id: loadingToast });
+    }
+  };
+
   return (
     <div className="fade-in">
       <div className="page-header">
@@ -141,6 +212,14 @@ export default function RolePage() {
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: 40, textAlign: 'center' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={isAllSelected} 
+                      onChange={toggleSelectAll} 
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </th>
                   <th>Role Name</th>
                   <th>Category Scope</th>
                   <th>Description</th>
@@ -150,50 +229,61 @@ export default function RolePage() {
                 </tr>
               </thead>
               <tbody>
-                {roles.map(r => (
-                  <tr key={r.id}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700 }}>
-                        <span>🛡️</span>
-                        {r.name}
-                      </div>
-                    </td>
-                    <td>
-                      {r.category ? (
-                        <span className="badge badge-purple" style={{ textTransform: 'uppercase', fontSize: 10 }}>
-                          {r.category}
-                        </span>
-                      ) : (
-                        <span className="badge badge-gray">Not Set</span>
-                      )}
-                    </td>
-                    <td>{r.description || '-'}</td>
-                    <td>
-                      <span className="badge badge-blue">
-                        {r.permissions?.length || 0} permissions assigned
-                      </span>
-                    </td>
-                    <td>
-                      {r.is_system ? (
-                        <span className="badge badge-blue">Protected</span>
-                      ) : (
-                        <span className="badge badge-gray">Custom</span>
-                      )}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'inline-flex', gap: 4 }}>
-                        <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleEditRole(r)} title="Edit Role Permissions">
-                          <Edit2 size={13} />
-                        </button>
-                        {!r.is_system && (
-                          <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={() => handleArchiveRole(r.id)} title="Delete Custom Role">
-                            <Archive size={13} />
-                          </button>
+                {roles.map(r => {
+                  const isChecked = isSelected(r.id);
+                  return (
+                    <tr key={r.id} style={{ background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent' }}>
+                      <td style={{ textAlign: 'center' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked} 
+                          onChange={() => toggleSelect(r.id)} 
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700 }}>
+                          <span>🛡️</span>
+                          {r.name}
+                        </div>
+                      </td>
+                      <td>
+                        {r.category ? (
+                          <span className="badge badge-purple" style={{ textTransform: 'uppercase', fontSize: 10 }}>
+                            {r.category}
+                          </span>
+                        ) : (
+                          <span className="badge badge-gray">Not Set</span>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>{r.description || '-'}</td>
+                      <td>
+                        <span className="badge badge-blue">
+                          {r.permissions?.length || 0} permissions assigned
+                        </span>
+                      </td>
+                      <td>
+                        {r.is_system ? (
+                          <span className="badge badge-blue">Protected</span>
+                        ) : (
+                          <span className="badge badge-gray">Custom</span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: 4 }}>
+                          <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleEditRole(r)} title="Edit Role Permissions">
+                            <Edit2 size={13} />
+                          </button>
+                          {!r.is_system && (
+                            <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={() => handleArchiveRole(r.id)} title="Delete Custom Role">
+                              <Archive size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -281,53 +371,52 @@ export default function RolePage() {
                     .map(([module, perms]) => {
                       const moduleCheckedCount = perms.filter(p => selectedPermIds.has(p.id)).length;
                       const allChecked = moduleCheckedCount === perms.length;
-                    const someChecked = moduleCheckedCount > 0 && !allChecked;
 
-                    return (
-                      <div key={module} style={{
-                        background: 'rgba(255,255,255,0.02)', padding: 14, borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--color-border)'
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: 6 }}>
-                          <span style={{ fontWeight: 800, fontSize: 12.5, color: 'var(--color-text-primary)', letterSpacing: 0.5 }}>
-                            {module}
-                          </span>
-                          <button 
-                            type="button" 
-                            className="btn btn-ghost btn-sm" 
-                            onClick={() => handleToggleModuleAll(perms, allChecked)}
-                            style={{ padding: '2px 8px', fontSize: 11, fontWeight: 700 }}
-                          >
-                            {allChecked ? 'Deselect All' : 'Select All'}
-                          </button>
-                        </div>
+                      return (
+                        <div key={module} style={{
+                          background: 'rgba(255,255,255,0.02)', padding: 14, borderRadius: 'var(--radius-md)',
+                          border: '1px solid var(--color-border)'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: 6 }}>
+                            <span style={{ fontWeight: 800, fontSize: 12.5, color: 'var(--color-text-primary)', letterSpacing: 0.5 }}>
+                              {module}
+                            </span>
+                            <button 
+                              type="button" 
+                              className="btn btn-ghost btn-sm" 
+                              onClick={() => handleToggleModuleAll(perms, allChecked)}
+                              style={{ padding: '2px 8px', fontSize: 11, fontWeight: 700 }}
+                            >
+                              {allChecked ? 'Deselect All' : 'Select All'}
+                            </button>
+                          </div>
 
-                        <div className="responsive-grid-4" style={{ gap: 10 }}>
-                          {perms.map(p => {
-                            const isChecked = selectedPermIds.has(p.id);
-                            return (
-                              <div 
-                                key={p.id}
-                                onClick={() => handleTogglePermission(p.id)}
-                                style={{
-                                  display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5,
-                                  cursor: 'pointer', padding: '6px 8px', borderRadius: 'var(--radius-sm)',
-                                  background: isChecked ? 'rgba(59,130,246,0.1)' : 'transparent',
-                                  border: isChecked ? '1px solid rgba(59,130,246,0.2)' : '1px solid transparent',
-                                  transition: 'all var(--transition-fast)'
-                                }}
-                              >
-                                {isChecked ? <CheckSquare size={14} className="text-primary" /> : <Square size={14} color="var(--color-text-muted)" />}
-                                <span style={{ fontWeight: isChecked ? 600 : 400, color: isChecked ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>
-                                  {p.action}
-                                </span>
-                              </div>
-                            );
-                          })}
+                          <div className="responsive-grid-4" style={{ gap: 10 }}>
+                            {perms.map(p => {
+                              const isChecked = selectedPermIds.has(p.id);
+                              return (
+                                <div 
+                                  key={p.id}
+                                  onClick={() => handleTogglePermission(p.id)}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5,
+                                    cursor: 'pointer', padding: '6px 8px', borderRadius: 'var(--radius-sm)',
+                                    background: isChecked ? 'rgba(59,130,246,0.1)' : 'transparent',
+                                    border: isChecked ? '1px solid rgba(59,130,246,0.2)' : '1px solid transparent',
+                                    transition: 'all var(--transition-fast)'
+                                  }}
+                                >
+                                  {isChecked ? <CheckSquare size={14} className="text-primary" /> : <Square size={14} color="var(--color-text-muted)" />}
+                                  <span style={{ fontWeight: isChecked ? 600 : 400, color: isChecked ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>
+                                    {p.action}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                 </div>
               </div>
             </div>
@@ -339,6 +428,26 @@ export default function RolePage() {
           </form>
         </div>
       )}
+
+      {/* Floating Bulk Action Bar */}
+      <BulkActionBar 
+        selectedCount={selectedCount}
+        onClear={clearSelection}
+        actions={[
+          {
+            label: 'Export CSV',
+            icon: <Download size={16} />,
+            onClick: handleBulkExport,
+            className: 'btn-secondary'
+          },
+          {
+            label: 'Archive Selected',
+            icon: <Archive size={16} />,
+            onClick: handleBulkArchive,
+            className: 'btn-danger text-danger'
+          }
+        ]}
+      />
     </div>
   );
 }

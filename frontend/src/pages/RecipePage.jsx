@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { productsAPI } from '../api';
 import toast from 'react-hot-toast';
-import { Plus, Edit2, Package, ListPlus, Trash2, Sliders, CheckCircle, Info } from 'lucide-react';
+import { Plus, Edit2, Package, ListPlus, Trash2, Sliders, CheckCircle, Info, Download, Trash } from 'lucide-react';
+import useBulkActions from '../hooks/useBulkActions';
+import BulkActionBar from '../components/BulkActionBar';
 
 const getStepBadgeClass = (step) => {
   switch (step) {
@@ -67,6 +69,7 @@ export default function RecipePage() {
       return;
     }
     setSelectedFg(prod);
+    bomBulk.clearSelection();
     loadBom(prod.id);
   };
 
@@ -160,6 +163,123 @@ export default function RecipePage() {
   // List eligible ingredients (filter out self-reference)
   const rawMaterials = products.filter(p => !selectedFg || p.id !== selectedFg.id);
 
+  // Initialize bulk action hooks for both tables
+  const fgBulk = useBulkActions(finishedGoods);
+  const bomBulk = useBulkActions(bomItems);
+
+  // Bulk Finished Goods Actions
+  const handleBulkExportFg = async () => {
+    const selected = fgBulk.getSelectedItems();
+    const loadingToast = toast.loading(`Compiling BOM recipes for ${selected.length} products...`);
+    try {
+      let csvContent = 'Finished Good Code,Finished Good Name,Ingredient Code,Ingredient Name,Step,Qty Required,Unit,Blend %\n';
+      // Fetch all BOMs in parallel
+      const boms = await Promise.all(selected.map(fg => productsAPI.getBom(fg.id)));
+      
+      selected.forEach((fg, idx) => {
+        const items = boms[idx].data.data || [];
+        if (items.length === 0) {
+          const row = [fg.code, fg.name, '', '', '', '', '', ''].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+          csvContent += row + '\n';
+        } else {
+          items.forEach(item => {
+            const row = [
+              fg.code,
+              fg.name,
+              item.raw_material_code,
+              item.raw_material_name,
+              item.production_step || '',
+              item.qty_required,
+              item.unit,
+              item.blend_pct != null ? `${item.blend_pct}%` : ''
+            ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+            csvContent += row + '\n';
+          });
+        }
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `bom_recipes_export_${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('BOM recipes compiled and exported successfully', { id: loadingToast });
+    } catch (err) {
+      toast.error('Failed to export recipes', { id: loadingToast });
+    }
+  };
+
+  const handleBulkClearFg = async () => {
+    const selected = fgBulk.getSelectedItems();
+    if (!window.confirm(`Are you sure you want to completely WIPE all ingredients from the recipes of ${selected.length} products?`)) return;
+    const loadingToast = toast.loading(`Wiping recipes for ${selected.length} products...`);
+    try {
+      for (const fg of selected) {
+        const res = await productsAPI.getBom(fg.id);
+        const items = res.data.data || [];
+        for (const item of items) {
+          await productsAPI.deleteBom(fg.id, item.id);
+        }
+      }
+      toast.success('BOM recipes cleared successfully', { id: loadingToast });
+      fgBulk.clearSelection();
+      if (selectedFg) {
+        loadBom(selectedFg.id);
+      }
+    } catch (err) {
+      toast.error('Failed to clear some recipes', { id: loadingToast });
+    }
+  };
+
+  // Bulk Ingredients Actions
+  const handleBulkExportBom = () => {
+    const selected = bomBulk.getSelectedItems();
+    let csvContent = 'Ingredient Code,Ingredient Name,Step,Qty Required,Unit,Blend %,Processing Notes\n';
+    
+    selected.forEach(item => {
+      const row = [
+        item.raw_material_code,
+        item.raw_material_name,
+        item.production_step || '',
+        item.qty_required,
+        item.unit,
+        item.blend_pct != null ? `${item.blend_pct}%` : '',
+        item.notes || ''
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+      csvContent += row + '\n';
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `recipe_${selectedFg.code}_ingredients_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${bomBulk.selectedCount} ingredients to CSV`);
+  };
+
+  const handleBulkDeleteBom = async () => {
+    if (!window.confirm(`Are you sure you want to remove ${bomBulk.selectedCount} ingredients from this recipe?`)) return;
+    const loadingToast = toast.loading(`Removing ingredients...`);
+    try {
+      for (const id of bomBulk.selectedIds) {
+        await productsAPI.deleteBom(selectedFg.id, id);
+      }
+      toast.success('Ingredients removed successfully', { id: loadingToast });
+      bomBulk.clearSelection();
+      loadBom(selectedFg.id);
+    } catch (err) {
+      toast.error('Failed to remove some ingredients', { id: loadingToast });
+    }
+  };
+
   return (
     <div className="fade-in">
       <div className="page-header">
@@ -192,6 +312,14 @@ export default function RecipePage() {
               <table>
                 <thead>
                   <tr>
+                    <th style={{ width: 40, textAlign: 'center' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={fgBulk.isAllSelected} 
+                        onChange={fgBulk.toggleSelectAll} 
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </th>
                     <th>Code</th>
                     <th>Name</th>
                     <th>Category</th>
@@ -201,15 +329,24 @@ export default function RecipePage() {
                 <tbody>
                   {finishedGoods.map(p => {
                     const isSelected = selectedFg?.id === p.id;
+                    const isChecked = fgBulk.isSelected(p.id);
                     return (
                       <tr 
                         key={p.id}
                         onClick={() => handleSelectFg(p)}
                         style={{
                           cursor: 'pointer',
-                          background: isSelected ? 'rgba(59, 130, 246, 0.15)' : 'transparent'
+                          background: isChecked ? 'rgba(59, 130, 246, 0.08)' : isSelected ? 'rgba(59, 130, 246, 0.15)' : 'transparent'
                         }}
                       >
+                        <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked} 
+                            onChange={() => fgBulk.toggleSelect(p.id)} 
+                            style={{ cursor: 'pointer' }}
+                          />
+                        </td>
                         <td style={{ fontWeight: 700 }}>{p.code}</td>
                         <td style={{ fontWeight: 600 }}>{p.name}</td>
                         <td>
@@ -285,6 +422,14 @@ export default function RecipePage() {
                     <table>
                       <thead>
                         <tr>
+                          <th style={{ width: 40, textAlign: 'center' }}>
+                            <input 
+                              type="checkbox" 
+                              checked={bomBulk.isAllSelected} 
+                              onChange={bomBulk.toggleSelectAll} 
+                              style={{ cursor: 'pointer' }}
+                            />
+                          </th>
                           <th>Code</th>
                           <th>Ingredient Name</th>
                           <th>Production Step</th>
@@ -296,41 +441,52 @@ export default function RecipePage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {bomItems.map(item => (
-                          <tr key={item.id}>
-                            <td style={{ fontWeight: 700 }}>{item.raw_material_code}</td>
-                            <td style={{ fontWeight: 600 }}>{item.raw_material_name}</td>
-                            <td>
-                              {item.production_step ? (
-                                <span className={`badge ${getStepBadgeClass(item.production_step)}`} style={{ fontSize: 10 }}>
-                                  {item.production_step}
-                                </span>
-                              ) : (
-                                <span style={{ color: 'var(--color-text-muted)' }}>—</span>
-                              )}
-                            </td>
-                            <td style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-primary-light)', textAlign: 'right' }}>
-                              {item.qty_required.toFixed(4)}
-                            </td>
-                            <td>{item.unit}</td>
-                            <td style={{ fontWeight: 600, textAlign: 'right' }}>
-                              {item.blend_pct != null ? `${item.blend_pct}%` : '—'}
-                            </td>
-                            <td style={{ fontSize: 12, color: 'var(--color-text-secondary)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.notes}>
-                              {item.notes || '—'}
-                            </td>
-                            <td style={{ textAlign: 'right' }}>
-                              <div style={{ display: 'inline-flex', gap: 4 }}>
-                                <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleEditBom(item)}>
-                                  <Edit2 size={13} />
-                                </button>
-                                <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={() => handleDeleteBom(item.id)}>
-                                  <Trash2 size={13} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                        {bomItems.map(item => {
+                          const isChecked = bomBulk.isSelected(item.id);
+                          return (
+                            <tr key={item.id} style={{ background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent' }}>
+                              <td style={{ textAlign: 'center' }}>
+                                <input 
+                                  type="checkbox" 
+                                  checked={isChecked} 
+                                  onChange={() => bomBulk.toggleSelect(item.id)} 
+                                  style={{ cursor: 'pointer' }}
+                                />
+                              </td>
+                              <td style={{ fontWeight: 700 }}>{item.raw_material_code}</td>
+                              <td style={{ fontWeight: 600 }}>{item.raw_material_name}</td>
+                              <td>
+                                {item.production_step ? (
+                                  <span className={`badge ${getStepBadgeClass(item.production_step)}`} style={{ fontSize: 10 }}>
+                                    {item.production_step}
+                                  </span>
+                                ) : (
+                                  <span style={{ color: 'var(--color-text-muted)' }}>—</span>
+                                )}
+                              </td>
+                              <td style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-primary-light)', textAlign: 'right' }}>
+                                {item.qty_required.toFixed(4)}
+                              </td>
+                              <td>{item.unit}</td>
+                              <td style={{ fontWeight: 600, textAlign: 'right' }}>
+                                {item.blend_pct != null ? `${item.blend_pct}%` : '—'}
+                              </td>
+                              <td style={{ fontSize: 12, color: 'var(--color-text-secondary)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.notes}>
+                                {item.notes || '—'}
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <div style={{ display: 'inline-flex', gap: 4 }}>
+                                  <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleEditBom(item)}>
+                                    <Edit2 size={13} />
+                                  </button>
+                                  <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={() => handleDeleteBom(item.id)}>
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -434,6 +590,48 @@ export default function RecipePage() {
           </form>
         </div>
       )}
+
+      {/* Floating Action Bar for Left Table (Finished Goods) */}
+      <BulkActionBar 
+        selectedCount={fgBulk.selectedCount}
+        onClear={fgBulk.clearSelection}
+        actions={[
+          {
+            label: 'Export Recipes',
+            icon: <Download size={16} />,
+            onClick: handleBulkExportFg,
+            className: 'btn-secondary'
+          },
+          {
+            label: 'Clear Recipes',
+            icon: <Trash size={16} />,
+            onClick: handleBulkClearFg,
+            className: 'btn-danger text-danger'
+          }
+        ]}
+        style={{ left: '35%', transform: 'translateX(-50%)' }}
+      />
+
+      {/* Floating Action Bar for Right Table (Ingredients BOM) */}
+      <BulkActionBar 
+        selectedCount={bomBulk.selectedCount}
+        onClear={bomBulk.clearSelection}
+        actions={[
+          {
+            label: 'Export Ingredients',
+            icon: <Download size={16} />,
+            onClick: handleBulkExportBom,
+            className: 'btn-secondary'
+          },
+          {
+            label: 'Remove Selected',
+            icon: <Trash2 size={16} />,
+            onClick: handleBulkDeleteBom,
+            className: 'btn-danger text-danger'
+          }
+        ]}
+        style={{ left: '65%', transform: 'translateX(-50%)' }}
+      />
     </div>
   );
 }

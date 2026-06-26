@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { transactionsAPI } from '../api';
 import toast from 'react-hot-toast';
 import { 
-  TrendingUp, AlertTriangle, ShieldCheck, Factory, BarChart3, LineChart, PieChart as PieIcon, Info, History
+  TrendingUp, AlertTriangle, ShieldCheck, Factory, BarChart3, LineChart, PieChart as PieIcon, Info, History, Download
 } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Legend, PieChart, Pie, Cell
 } from 'recharts';
+import useBulkActions from '../hooks/useBulkActions';
+import BulkActionBar from '../components/BulkActionBar';
 
 export default function YieldAnalyticsPage() {
   const [runs, setRuns] = useState([]);
@@ -94,7 +96,6 @@ export default function YieldAnalyticsPage() {
     : 0;
 
   // 2. Chart 1 Data: Yield & Wastage Trend Over Time
-  // Group by transaction_date, sort chronologically
   const trendMap = {};
   filteredRuns.forEach(run => {
     const d = run.transaction_date;
@@ -129,8 +130,10 @@ export default function YieldAnalyticsPage() {
     productMap[key].produced += run.quantity_produced;
   });
 
-  const productData = Object.values(productMap).map(p => ({
-    name: p.name.length > 25 ? p.name.slice(0, 22) + '...' : p.name,
+  const productData = Object.values(productMap).map((p, idx) => ({
+    id: idx, // Adding a local ID for selection hook
+    name: p.name,
+    shortName: p.name.length > 25 ? p.name.slice(0, 22) + '...' : p.name,
     "Avg Wastage %": Math.round((p.wastageSum / p.count) * 10) / 10,
     "Avg Damage %": Math.round((p.damageSum / p.count) * 10) / 10,
     batches: p.count,
@@ -144,6 +147,49 @@ export default function YieldAnalyticsPage() {
     { name: 'Packaging Rejections (Damage)', value: totalDamageKg > 0 ? totalDamageKg : avgDamagePct }
   ];
   const COLORS = ['#f59e0b', '#ef4444'];
+
+  // Bulk Actions Hook
+  const {
+    selectedIds,
+    isSelected,
+    toggleSelect,
+    toggleSelectAll,
+    isAllSelected,
+    clearSelection,
+    getSelectedItems,
+    selectedCount
+  } = useBulkActions(productData, 'id');
+
+  const handleBulkExport = () => {
+    const selected = getSelectedItems();
+    let csvContent = 'Product,Total Batches,Total Produced,Unit,Avg Wastage %,Avg Damage %,Yield Health\n';
+    
+    selected.forEach(item => {
+      const totalLoss = item["Avg Wastage %"] + item["Avg Damage %"];
+      const status = totalLoss > 6 ? 'Critical' : totalLoss > 3 ? 'Warning' : 'Healthy';
+      const row = [
+        item.name,
+        item.batches,
+        item.produced,
+        item.unit,
+        item["Avg Wastage %"],
+        item["Avg Damage %"],
+        status
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+      csvContent += row + '\n';
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `yield_audit_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${selectedCount} audit records to CSV`);
+  };
 
   return (
     <div className="fade-in">
@@ -262,7 +308,7 @@ export default function YieldAnalyticsPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={productData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                    <XAxis dataKey="name" stroke="var(--color-text-muted)" style={{ fontSize: 10 }} />
+                    <XAxis dataKey="shortName" stroke="var(--color-text-muted)" style={{ fontSize: 10 }} />
                     <YAxis stroke="var(--color-text-secondary)" style={{ fontSize: 11 }} unit="%" />
                     <Tooltip 
                       contentStyle={{ 
@@ -297,6 +343,14 @@ export default function YieldAnalyticsPage() {
                 <table>
                   <thead>
                     <tr>
+                      <th style={{ width: 40, textAlign: 'center' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={isAllSelected} 
+                          onChange={toggleSelectAll} 
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </th>
                       <th>Product</th>
                       <th style={{ textAlign: 'center' }}>Total Batches</th>
                       <th style={{ textAlign: 'right' }}>Total Produced</th>
@@ -306,13 +360,22 @@ export default function YieldAnalyticsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {productData.map((item, idx) => {
+                    {productData.map((item) => {
                       const totalLoss = item["Avg Wastage %"] + item["Avg Damage %"];
                       const status = totalLoss > 6 ? 'Critical' : totalLoss > 3 ? 'Warning' : 'Healthy';
                       const badgeClass = status === 'Critical' ? 'badge-red' : status === 'Warning' ? 'badge-orange' : 'badge-green';
+                      const isChecked = isSelected(item.id);
 
                       return (
-                        <tr key={idx}>
+                        <tr key={item.id} style={{ background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent' }}>
+                          <td style={{ textAlign: 'center' }}>
+                            <input 
+                              type="checkbox" 
+                              checked={isChecked} 
+                              onChange={() => toggleSelect(item.id)} 
+                              style={{ cursor: 'pointer' }}
+                            />
+                          </td>
                           <td>
                             <div style={{ fontWeight: 600 }}>{item.name}</div>
                           </td>
@@ -413,6 +476,20 @@ export default function YieldAnalyticsPage() {
           </div>
         </>
       )}
+
+      {/* Floating Bulk Action Bar */}
+      <BulkActionBar 
+        selectedCount={selectedCount}
+        onClear={clearSelection}
+        actions={[
+          {
+            label: 'Export CSV',
+            icon: <Download size={16} />,
+            onClick: handleBulkExport,
+            className: 'btn-secondary'
+          }
+        ]}
+      />
     </div>
   );
 }

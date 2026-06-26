@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import { ordersAPI } from '../api';
 import toast from 'react-hot-toast';
 import { 
-  Users, Search, RefreshCw, ChevronDown, ChevronUp, 
-  Wallet, FileText, CheckCircle2, DollarSign, Printer 
+  Users, Search, RefreshCw, ChevronDown, ChevronUp, Download, Printer 
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import useBulkActions from '../hooks/useBulkActions';
+import BulkActionBar from '../components/BulkActionBar';
 
 function fmtCurrency(val) {
   return '₹' + (val || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -82,6 +83,47 @@ export default function CustomersPage() {
       c.email?.toLowerCase().includes(q);
   });
 
+  // Bulk Actions Hook using customer name as key
+  const {
+    selectedIds,
+    isSelected,
+    toggleSelect,
+    toggleSelectAll,
+    isAllSelected,
+    clearSelection,
+    getSelectedItems,
+    selectedCount
+  } = useBulkActions(filtered, 'name');
+
+  const handleBulkExport = () => {
+    const selected = getSelectedItems();
+    let csvContent = 'Customer Name,Phone,Email,Total Invoices,Total Invoiced,Total Paid,Outstanding Balance\n';
+    
+    selected.forEach(c => {
+      const row = [
+        c.name,
+        c.phone || '',
+        c.email || '',
+        c.invoiceCount,
+        c.totalInvoiced || 0,
+        c.totalPaid || 0,
+        c.balance || 0
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+      csvContent += row + '\n';
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `customers_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${selectedCount} customers to CSV`);
+  };
+
   return (
     <div className="fade-in">
       <div className="page-header">
@@ -141,6 +183,14 @@ export default function CustomersPage() {
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: 40, textAlign: 'center' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={isAllSelected} 
+                      onChange={toggleSelectAll} 
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </th>
                   <th>Customer Name</th>
                   <th>Contact Info</th>
                   <th>Invoices</th>
@@ -153,13 +203,21 @@ export default function CustomersPage() {
               <tbody>
                 {filtered.map(cust => {
                   const isExpanded = expandedName === cust.name;
+                  const isChecked = isSelected(cust.name);
                   return (
-                    <>
+                    <Fragment key={cust.name}>
                       <tr 
-                        key={cust.name} 
-                        style={{ cursor: 'pointer' }} 
+                        style={{ cursor: 'pointer', background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent' }} 
                         onClick={() => setExpandedName(isExpanded ? null : cust.name)}
                       >
+                        <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked} 
+                            onChange={() => toggleSelect(cust.name)} 
+                            style={{ cursor: 'pointer' }}
+                          />
+                        </td>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <div className="sidebar-avatar" style={{ width: 28, height: 28, fontSize: 11, background: 'rgba(139, 92, 246, 0.12)', color: '#a7f3d0' }}>
@@ -191,6 +249,7 @@ export default function CustomersPage() {
                       {/* Expanded Section showing Customer Invoices */}
                       {isExpanded && (
                         <tr>
+                          <td></td>
                           <td colSpan={7} style={{ padding: '12px 24px', background: 'rgba(0,0,0,0.1)' }}>
                             <div className="fade-in">
                               <h5 style={{ margin: '0 0 10px 0', fontSize: 12.5, fontWeight: 700, color: 'var(--color-text-muted)' }}>Invoices Ledger</h5>
@@ -235,7 +294,7 @@ export default function CustomersPage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -243,6 +302,20 @@ export default function CustomersPage() {
           </div>
         )}
       </div>
+
+      {/* Floating Bulk Action Bar */}
+      <BulkActionBar 
+        selectedCount={selectedCount}
+        onClear={clearSelection}
+        actions={[
+          {
+            label: 'Export CSV',
+            icon: <Download size={16} />,
+            onClick: handleBulkExport,
+            className: 'btn-secondary'
+          }
+        ]}
+      />
     </div>
   );
 }

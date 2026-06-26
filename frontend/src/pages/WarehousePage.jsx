@@ -3,6 +3,114 @@ import { warehousesAPI } from '../api';
 import toast from 'react-hot-toast';
 import { Warehouse, Plus, ChevronRight, Edit2, Archive, FolderPlus, QrCode, Download, Printer, X } from 'lucide-react';
 import QRCode from 'qrcode';
+import useBulkActions from '../hooks/useBulkActions';
+import BulkActionBar from '../components/BulkActionBar';
+
+// Bulk QR Label Print Sheet Modal
+function BulkQrModal({ sections, warehouse, onClose }) {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    // Render each section's QR code on its respective canvas
+    sections.forEach(async (sec) => {
+      const canvas = document.getElementById(`bulk-qr-${sec.id}`);
+      if (canvas) {
+        const qrPayload = JSON.stringify({
+          type: 'TTRIMS_SECTION',
+          section_id: sec.id,
+          section_name: sec.name,
+          warehouse_id: sec.warehouse_id,
+          warehouse_name: sec.warehouse_name || warehouse.name,
+          warehouse_location: warehouse.location || ''
+        });
+        await QRCode.toCanvas(canvas, qrPayload, {
+          width: 140,
+          margin: 2,
+          color: { dark: '#111111', light: '#ffffff' }
+        });
+      }
+    });
+  }, [sections, warehouse]);
+
+  const handlePrint = () => {
+    document.body.classList.add('qr-print-mode');
+    window.print();
+    setTimeout(() => document.body.classList.remove('qr-print-mode'), 500);
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} />
+      <div style={{
+        position: 'relative', width: '90vw', maxWidth: 800, maxHeight: '90vh', overflowY: 'auto',
+        background: 'var(--color-surface)', borderRadius: 16,
+        border: '1px solid var(--color-border)',
+        boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
+        display: 'flex', flexDirection: 'column'
+      }}>
+        <div style={{
+          padding: '20px 24px 16px',
+          background: 'linear-gradient(135deg, rgba(59,130,246,0.12), rgba(139,92,246,0.12))',
+          borderBottom: '1px solid var(--color-border)',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+        }}>
+          <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <QrCode size={18} color="var(--color-primary-light)" />
+            <span>Bulk QR Label Sheet ({sections.length} Selected)</span>
+          </h3>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}><X size={16} /></button>
+        </div>
+
+        <div style={{ padding: 24, overflowY: 'auto', flex: 1 }} ref={containerRef}>
+          <div className="qr-print-target bulk-qr-grid" style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+            gap: 20,
+            justifyContent: 'center'
+          }}>
+            {sections.map(sec => (
+              <div key={sec.id} className="qr-label-card" style={{
+                background: '#ffffff',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                padding: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                color: '#111111',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, width: '100%', marginBottom: 4 }}>
+                  <span style={{ fontSize: 14 }}>📦</span>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: '#1d4ed8' }}>TTRIMS IMS</div>
+                </div>
+                <canvas id={`bulk-qr-${sec.id}`} style={{ width: 120, height: 120 }} />
+                <div style={{ fontSize: 11, fontWeight: 800, textAlign: 'center', marginTop: 4, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {warehouse.name}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#111', textAlign: 'center', margin: '2px 0' }}>
+                  📂 {sec.name}
+                </div>
+                <div style={{ fontSize: 9, color: '#9ca3af', textTransform: 'uppercase' }}>
+                  ID: {sec.id.slice(0, 8).toUpperCase()}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="modal-footer" style={{ padding: '16px 24px', borderTop: '1px solid var(--color-border)' }}>
+          <button className="btn btn-secondary" onClick={onClose}>Close</button>
+          <button className="btn btn-primary" onClick={handlePrint} style={{ display: 'flex', gap: 6 }}>
+            <Printer size={15} />
+            Print QR Sheet
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function WarehousePage() {
   const [warehouses, setWarehouses] = useState([]);
@@ -26,6 +134,7 @@ export default function WarehousePage() {
 
   // QR Modal
   const [qrSection, setQrSection] = useState(null); // section being previewed
+  const [showBulkQr, setShowBulkQr] = useState(false);
   const qrCanvasRef = useRef(null);
 
   const loadWarehouses = () => {
@@ -50,6 +159,7 @@ export default function WarehousePage() {
 
   const handleSelectWh = (wh) => {
     setSelectedWh(wh);
+    clearSelection();
     loadSections(wh.id);
   };
 
@@ -138,6 +248,59 @@ export default function WarehousePage() {
       loadSections(selectedWh.id);
     } catch (err) {
       toast.error('Failed to archive section');
+    }
+  };
+
+  // Bulk Actions Hook
+  const {
+    selectedIds,
+    isSelected,
+    toggleSelect,
+    toggleSelectAll,
+    isAllSelected,
+    clearSelection,
+    getSelectedItems,
+    selectedCount
+  } = useBulkActions(sections);
+
+  const handleBulkExport = () => {
+    const selected = getSelectedItems();
+    let csvContent = 'Section Name,Description,Warehouse Name,Location\n';
+    
+    selected.forEach(s => {
+      const row = [
+        s.name,
+        s.description || '',
+        selectedWh?.name || '',
+        selectedWh?.location || ''
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+      csvContent += row + '\n';
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `sections_export_${selectedWh?.name || 'warehouse'}_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${selectedCount} sections to CSV`);
+  };
+
+  const handleBulkArchive = async () => {
+    if (!window.confirm(`Are you sure you want to archive ${selectedCount} sections?`)) return;
+    const loadingToast = toast.loading(`Archiving ${selectedCount} sections...`);
+    try {
+      for (const id of selectedIds) {
+        await warehousesAPI.deleteSection(selectedWh.id, id);
+      }
+      toast.success('Selected sections archived successfully', { id: loadingToast });
+      clearSelection();
+      loadSections(selectedWh.id);
+    } catch (err) {
+      toast.error('Failed to archive some sections', { id: loadingToast });
     }
   };
 
@@ -282,6 +445,14 @@ export default function WarehousePage() {
                     <table>
                       <thead>
                         <tr>
+                          <th style={{ width: 40, textAlign: 'center' }}>
+                            <input 
+                              type="checkbox" 
+                              checked={isAllSelected} 
+                              onChange={toggleSelectAll} 
+                              style={{ cursor: 'pointer' }}
+                            />
+                          </th>
                           <th>Section Name</th>
                           <th>Description</th>
                           <th style={{ textAlign: 'center' }}>QR Label</th>
@@ -289,33 +460,44 @@ export default function WarehousePage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {sections.map(s => (
-                          <tr key={s.id}>
-                            <td style={{ fontWeight: 700 }}>{s.name}</td>
-                            <td>{s.description || '-'}</td>
-                            <td style={{ textAlign: 'center' }}>
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => handleShowQr(s)}
-                                title="View & Print QR Code"
-                                style={{ gap: 5 }}
-                              >
-                                <QrCode size={13} />
-                                QR
-                              </button>
-                            </td>
-                            <td style={{ textAlign: 'right' }}>
-                              <div style={{ display: 'inline-flex', gap: 4 }}>
-                                <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleEditSec(s)}>
-                                  <Edit2 size={13} />
+                        {sections.map(s => {
+                          const isChecked = isSelected(s.id);
+                          return (
+                            <tr key={s.id} style={{ background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent' }}>
+                              <td style={{ textAlign: 'center' }}>
+                                <input 
+                                  type="checkbox" 
+                                  checked={isChecked} 
+                                  onChange={() => toggleSelect(s.id)} 
+                                  style={{ cursor: 'pointer' }}
+                                />
+                              </td>
+                              <td style={{ fontWeight: 700 }}>{s.name}</td>
+                              <td>{s.description || '-'}</td>
+                              <td style={{ textAlign: 'center' }}>
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() => handleShowQr(s)}
+                                  title="View & Print QR Code"
+                                  style={{ gap: 5 }}
+                                >
+                                  <QrCode size={13} />
+                                  QR
                                 </button>
-                                <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={() => handleArchiveSec(s.id)}>
-                                  <Archive size={13} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <div style={{ display: 'inline-flex', gap: 4 }}>
+                                  <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleEditSec(s)}>
+                                    <Edit2 size={13} />
+                                  </button>
+                                  <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={() => handleArchiveSec(s.id)}>
+                                    <Archive size={13} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -407,6 +589,15 @@ export default function WarehousePage() {
         </div>
       )}
 
+      {/* ─── Bulk QR Printable Sheet Modal ────────────────────────────────────── */}
+      {showBulkQr && (
+        <BulkQrModal
+          sections={getSelectedItems()}
+          warehouse={selectedWh}
+          onClose={() => { setShowBulkQr(false); clearSelection(); }}
+        />
+      )}
+
       {/* Warehouse Modal */}
       {showWhModal && (
         <div className="modal-overlay" onClick={() => setShowWhModal(false)}>
@@ -484,6 +675,32 @@ export default function WarehousePage() {
           </form>
         </div>
       )}
+
+      {/* Floating Bulk Action Bar */}
+      <BulkActionBar 
+        selectedCount={selectedCount}
+        onClear={clearSelection}
+        actions={[
+          {
+            label: 'Export CSV',
+            icon: <Download size={16} />,
+            onClick: handleBulkExport,
+            className: 'btn-secondary'
+          },
+          {
+            label: 'Print QR Labels',
+            icon: <Printer size={16} />,
+            onClick: () => setShowBulkQr(true),
+            className: 'btn-primary'
+          },
+          {
+            label: 'Archive Selected',
+            icon: <Archive size={16} />,
+            onClick: handleBulkArchive,
+            className: 'btn-danger text-danger'
+          }
+        ]}
+      />
     </div>
   );
 }
