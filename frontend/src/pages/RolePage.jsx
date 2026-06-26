@@ -358,13 +358,13 @@ export default function RolePage() {
                       const cat = rCategory.toLowerCase();
                       if (cat === 'super admin') return true;
                       if (cat === 'warehouse') {
-                        return ['stock', 'transactions', 'warehouses'].includes(module.toLowerCase());
+                        return ['stock', 'transactions', 'warehouses', 'sections', 'products', 'reports'].includes(module.toLowerCase());
                       }
                       if (cat === 'production') {
-                        return ['stock', 'transactions', 'bom', 'production'].includes(module.toLowerCase());
+                        return ['stock', 'transactions', 'bom', 'production', 'production_orders', 'products', 'warehouses', 'sections', 'reports'].includes(module.toLowerCase());
                       }
                       if (cat === 'sales') {
-                        return ['orders', 'sales'].includes(module.toLowerCase());
+                        return ['orders', 'sales', 'products', 'reports'].includes(module.toLowerCase());
                       }
                       return true;
                     })
