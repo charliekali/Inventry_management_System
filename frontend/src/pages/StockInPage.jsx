@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { productsAPI, warehousesAPI, transactionsAPI } from '../api';
+import { productsAPI, warehousesAPI, transactionsAPI, productCategoriesAPI } from '../api';
 import toast from 'react-hot-toast';
 import { ArrowDownCircle, Save, Camera, MapPin, CheckCircle, X, SlidersHorizontal } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -34,6 +34,18 @@ export default function StockInPage() {
   const [customFieldsData, setCustomFieldsData] = useState({});
   const [stockType, setStockType] = useState('ALL');
 
+  // Quick Add Product states
+  const [showQuickAddModal, setShowQuickAddModal] = useState(false);
+  const [quickCode, setQuickCode] = useState('');
+  const [quickName, setQuickName] = useState('');
+  const [quickType, setQuickType] = useState('FINISHED_GOOD');
+  const [quickUnit, setQuickUnit] = useState('PCS');
+  const [quickMinStock, setQuickMinStock] = useState('0');
+  const [quickCategory, setQuickCategory] = useState('');
+  const [quickDesc, setQuickDesc] = useState('');
+  const [quickSubmitting, setQuickSubmitting] = useState(false);
+  const [categories, setCategories] = useState([]);
+
   // QR Scanner state
   const [showScanner, setShowScanner] = useState(false);
   const [scannedLocation, setScannedLocation] = useState(null);
@@ -49,6 +61,10 @@ export default function StockInPage() {
     warehousesAPI.list()
       .then(r => setWarehouses(r.data.data))
       .catch(() => toast.error('Failed to load warehouses'));
+
+    productCategoriesAPI.list()
+      .then(r => setCategories(r.data.data))
+      .catch(() => {});
   }, []);
 
   // Fetch sections when warehouse changes
@@ -145,6 +161,35 @@ export default function StockInPage() {
     );
   }
 
+  const handleQuickAddSubmit = async (e) => {
+    e.preventDefault();
+    if (!quickCode.trim() || !quickName.trim()) {
+      return toast.error('Product Code and Name are required');
+    }
+    setQuickSubmitting(true);
+    try {
+      const payload = {
+        code: quickCode.toUpperCase().trim(),
+        name: quickName.trim(),
+        type: quickType,
+        unit: quickUnit,
+        min_stock: parseFloat(quickMinStock) || 0,
+        description: quickDesc,
+        category: quickCategory
+      };
+      const res = await productsAPI.create(payload);
+      const newProd = res.data.data;
+      setProducts(prev => [...prev, newProd]);
+      setProductId(newProd.id);
+      toast.success('Product created and selected successfully!');
+      setShowQuickAddModal(false);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to create product');
+    } finally {
+      setQuickSubmitting(false);
+    }
+  };
+
   const filteredProducts = products.filter(p => stockType === 'ALL' || p.type === stockType);
 
   return (
@@ -222,9 +267,25 @@ export default function StockInPage() {
 
             {isVisible('product_id') && (
               <div className="form-group">
-                <label className="form-label">
-                  {getLabel('product_id', 'Product')}
-                  {isRequired('product_id') && <span> *</span>}
+                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>{getLabel('product_id', 'Product')}{isRequired('product_id') && <span> *</span>}</span>
+                  <button 
+                    type="button" 
+                    className="btn btn-link btn-sm" 
+                    onClick={() => {
+                      setQuickCode('');
+                      setQuickName('');
+                      setQuickType(stockType === 'ALL' ? 'FINISHED_GOOD' : stockType);
+                      setQuickUnit('PCS');
+                      setQuickMinStock('0');
+                      setQuickCategory('');
+                      setQuickDesc('');
+                      setShowQuickAddModal(true);
+                    }}
+                    style={{ padding: 0, fontSize: 11.5, height: 'auto', textDecoration: 'none' }}
+                  >
+                    + Quick Add Product
+                  </button>
                 </label>
                 <SearchableSelect
                   options={filteredProducts.map(p => ({ value: p.id, label: `[${p.code}] ${p.name} (${getTypeLabel(p.type)})` }))}
@@ -386,6 +447,128 @@ export default function StockInPage() {
 
       {showScanner && (
         <QRScannerModal onScanned={handleQrScanned} onClose={() => setShowScanner(false)} />
+      )}
+
+      {/* Quick Add Product Modal */}
+      {showQuickAddModal && (
+        <div className="modal-overlay" onClick={() => setShowQuickAddModal(false)}>
+          <form 
+            className="modal" 
+            onSubmit={handleQuickAddSubmit} 
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: 500 }}
+          >
+            <div className="modal-header">
+              <h3 className="modal-title">Quick Add Product</h3>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowQuickAddModal(false)}>×</button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="form-group">
+                <label className="form-label">Product Code *</label>
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  value={quickCode} 
+                  onChange={e => setQuickCode(e.target.value.toUpperCase())} 
+                  placeholder="e.g. RM-PEPPER"
+                  required 
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Product Name *</label>
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  value={quickName} 
+                  onChange={e => setQuickName(e.target.value)} 
+                  placeholder="e.g. Black Pepper Whole"
+                  required 
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Type</label>
+                  <select 
+                    className="form-control" 
+                    value={quickType} 
+                    onChange={e => setQuickType(e.target.value)}
+                  >
+                    <option value="FINISHED_GOOD">Finished Good (FG)</option>
+                    <option value="RAW_MATERIAL">Raw Material (RM)</option>
+                    <option value="BLEND">Blend</option>
+                    <option value="TOOL">Tools</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Unit of Measure</label>
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    value={quickUnit} 
+                    onChange={e => setQuickUnit(e.target.value)} 
+                    placeholder="PCS"
+                    required 
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Min Stock Level</label>
+                  <input 
+                    type="number" 
+                    step="any"
+                    className="form-control" 
+                    value={quickMinStock} 
+                    onChange={e => setQuickMinStock(e.target.value)} 
+                    placeholder="0"
+                    required 
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Category</label>
+                  <select 
+                    className="form-control" 
+                    value={quickCategory} 
+                    onChange={e => setQuickCategory(e.target.value)}
+                  >
+                    <option value="">Select Category...</option>
+                    {categories.map(c => (
+                      <optgroup key={c.category} label={c.category}>
+                        {c.subcategories.map(sub => (
+                          <option key={sub} value={`${c.category} - ${sub}`}>{c.category} - ${sub}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Description</label>
+                <textarea 
+                  className="form-control" 
+                  value={quickDesc} 
+                  onChange={e => setQuickDesc(e.target.value)} 
+                  placeholder="Enter product description (optional)"
+                  style={{ minHeight: 60 }}
+                />
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={() => setShowQuickAddModal(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={quickSubmitting}>
+                {quickSubmitting ? 'Creating...' : 'Create & Select Product'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
     </div>
   );
