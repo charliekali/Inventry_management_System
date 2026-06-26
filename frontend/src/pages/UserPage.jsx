@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { usersAPI, rolesAPI, warehousesAPI } from '../api';
 import toast from 'react-hot-toast';
-import { Users, Plus, Edit2, Archive, Check, X, Download } from 'lucide-react';
+import { Users, Plus, Edit2, Archive, Check, X, Download, RotateCcw, Trash2 } from 'lucide-react';
 import useBulkActions from '../hooks/useBulkActions';
 import BulkActionBar from '../components/BulkActionBar';
 
@@ -118,6 +118,28 @@ export default function UserPage() {
       loadData();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to deactivate account');
+    }
+  };
+
+  const handleRestoreUser = async (id) => {
+    if (!window.confirm('Are you sure you want to restore/reactivate this user?')) return;
+    try {
+      await usersAPI.update(id, { is_active: true });
+      toast.success('User account reactivated successfully');
+      loadData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to reactivate account');
+    }
+  };
+
+  const handleDeletePermanentUser = async (id) => {
+    if (!window.confirm('WARNING: Are you sure you want to PERMANENTLY delete this user account? This action cannot be undone.')) return;
+    try {
+      await usersAPI.delete(id, { permanent: true });
+      toast.success('User account permanently deleted');
+      loadData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to permanently delete account');
     }
   };
 
@@ -260,13 +282,22 @@ export default function UserPage() {
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: 4 }}>
-                          <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleEditUser(u)}>
+                          <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleEditUser(u)} title="Edit User">
                             <Edit2 size={13} />
                           </button>
-                          {u.is_active && (
-                            <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={() => handleDeactivate(u.id)}>
+                          {u.is_active ? (
+                            <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={() => handleDeactivate(u.id)} title="Deactivate User">
                               <Archive size={13} />
                             </button>
+                          ) : (
+                            <>
+                              <button className="btn btn-ghost btn-icon btn-sm text-success" onClick={() => handleRestoreUser(u.id)} title="Restore/Reactivate User">
+                                <RotateCcw size={13} />
+                              </button>
+                              <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={() => handleDeletePermanentUser(u.id)} title="Permanently Delete User">
+                                <Trash2 size={13} />
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>

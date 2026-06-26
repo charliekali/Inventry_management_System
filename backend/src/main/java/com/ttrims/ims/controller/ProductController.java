@@ -24,15 +24,20 @@ public class ProductController {
 
     @GetMapping
     public ResponseEntity<?> list(@RequestParam(required = false) String type,
-                                   @RequestParam(required = false) String search) {
+                                   @RequestParam(required = false) String search,
+                                   @RequestParam(required = false, defaultValue = "true") boolean active) {
         auth.requirePermission("PRODUCTS:VIEW");
         List<Product> products;
         if (search != null && !search.isBlank()) {
-            products = productRepo.search(search);
+            products = productRepo.search(search, active);
         } else if (type != null) {
-            products = productRepo.findByTypeAndActiveTrueOrderByName(Product.Type.valueOf(type));
+            products = active 
+                ? productRepo.findByTypeAndActiveTrueOrderByName(Product.Type.valueOf(type))
+                : productRepo.findByTypeAndActiveFalseOrderByName(Product.Type.valueOf(type));
         } else {
-            products = productRepo.findByActiveTrueOrderByTypeAscNameAsc();
+            products = active
+                ? productRepo.findByActiveTrueOrderByTypeAscNameAsc()
+                : productRepo.findByActiveFalseOrderByTypeAscNameAsc();
         }
         return ok(products.stream().map(this::toDto).collect(Collectors.toList()));
     }
@@ -103,10 +108,19 @@ public class ProductController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(@PathVariable String id) {
+    public ResponseEntity<?> delete(@PathVariable String id, @RequestParam(required = false, defaultValue = "false") boolean permanent) {
         auth.requirePermission("PRODUCTS:DELETE");
-        productRepo.findById(id).ifPresent(p -> { p.setActive(false); productRepo.save(p); });
-        return ok("Product archived");
+        if (permanent) {
+            try {
+                productRepo.deleteById(id);
+                return ok("Product permanently deleted");
+            } catch (Exception e) {
+                return bad("Cannot permanently delete this product because it is referenced in historical records (e.g. orders, stock balances, or recipes). Please keep it archived instead.");
+            }
+        } else {
+            productRepo.findById(id).ifPresent(p -> { p.setActive(false); productRepo.save(p); });
+            return ok("Product archived");
+        }
     }
 
     // ─── BOM ──────────────────────────────────────────────────────────────────

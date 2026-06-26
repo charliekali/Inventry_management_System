@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { productsAPI, productCategoriesAPI } from '../api';
 import toast from 'react-hot-toast';
-import { Plus, Edit2, Archive, Package, Download } from 'lucide-react';
+import { Plus, Edit2, Archive, Package, Download, RotateCcw, Trash2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import useBulkActions from '../hooks/useBulkActions';
 import BulkActionBar from '../components/BulkActionBar';
@@ -24,6 +24,7 @@ export default function ProductPage() {
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showArchived, setShowArchived] = useState(false);
 
   // Bulk Actions Hook
   const {
@@ -57,9 +58,9 @@ export default function ProductPage() {
   const [pBatchSizeKg, setPBatchSizeKg] = useState('');
   const [pProcessNotes, setPProcessNotes] = useState('');
 
-  const loadProducts = () => {
+  const loadProducts = (archived = showArchived) => {
     setLoading(true);
-    productsAPI.list()
+    productsAPI.list({ active: !archived })
       .then(r => setProducts(r.data.data))
       .catch(() => toast.error('Failed to load products'))
       .finally(() => setLoading(false));
@@ -72,7 +73,11 @@ export default function ProductPage() {
   };
 
   useEffect(() => {
-    loadProducts();
+    loadProducts(showArchived);
+    clearSelection();
+  }, [showArchived]);
+
+  useEffect(() => {
     loadCategories();
   }, []);
 
@@ -155,7 +160,7 @@ export default function ProductPage() {
   };
 
   const handleArchiveProduct = async (id, e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     if (!window.confirm('Are you sure you want to archive this product?')) return;
     try {
       await productsAPI.delete(id);
@@ -163,6 +168,30 @@ export default function ProductPage() {
       loadProducts();
     } catch (err) {
       toast.error('Failed to archive product');
+    }
+  };
+
+  const handleRestoreProduct = async (id, e) => {
+    if (e) e.stopPropagation();
+    if (!window.confirm('Are you sure you want to restore this product?')) return;
+    try {
+      await productsAPI.update(id, { is_active: true });
+      toast.success('Product restored successfully');
+      loadProducts();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to restore product');
+    }
+  };
+
+  const handleDeletePermanentProduct = async (id, e) => {
+    if (e) e.stopPropagation();
+    if (!window.confirm('WARNING: Are you sure you want to PERMANENTLY delete this product? This action cannot be undone.')) return;
+    try {
+      await productsAPI.delete(id, { permanent: true });
+      toast.success('Product permanently deleted');
+      loadProducts();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to permanently delete product');
     }
   };
 
@@ -176,6 +205,32 @@ export default function ProductPage() {
       loadProducts();
     } catch (err) {
       toast.error('Failed to archive some products', { id: loadingToast });
+    }
+  };
+
+  const handleBulkRestore = async () => {
+    if (!window.confirm(`Are you sure you want to restore ${selectedCount} products?`)) return;
+    const loadingToast = toast.loading(`Restoring ${selectedCount} products...`);
+    try {
+      await Promise.all(selectedIds.map(id => productsAPI.update(id, { is_active: true })));
+      toast.success('Selected products restored successfully', { id: loadingToast });
+      clearSelection();
+      loadProducts();
+    } catch (err) {
+      toast.error('Failed to restore some products', { id: loadingToast });
+    }
+  };
+
+  const handleBulkDeletePermanent = async () => {
+    if (!window.confirm(`WARNING: Are you sure you want to PERMANENTLY delete ${selectedCount} products? This action cannot be undone.`)) return;
+    const loadingToast = toast.loading(`Deleting ${selectedCount} products permanently...`);
+    try {
+      await Promise.all(selectedIds.map(id => productsAPI.delete(id, { permanent: true })));
+      toast.success('Selected products permanently deleted', { id: loadingToast });
+      clearSelection();
+      loadProducts();
+    } catch (err) {
+      toast.error('Failed to permanently delete some products. They may be referenced in records.', { id: loadingToast });
     }
   };
 
@@ -215,7 +270,23 @@ export default function ProductPage() {
           <h2>Product Catalog</h2>
           <p>Manage raw material inputs, finished goods, and Bill of Material (BOM) recipes</p>
         </div>
-        <div className="page-header-right">
+        <div className="page-header-right" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div style={{ display: 'flex', background: 'var(--color-bg-card)', padding: 4, borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
+            <button 
+              className={`btn btn-sm ${!showArchived ? 'btn-primary' : 'btn-ghost'}`} 
+              onClick={() => { setShowArchived(false); }}
+              style={{ padding: '6px 12px', fontSize: 12 }}
+            >
+              Active
+            </button>
+            <button 
+              className={`btn btn-sm ${showArchived ? 'btn-primary' : 'btn-ghost'}`} 
+              onClick={() => { setShowArchived(true); }}
+              style={{ padding: '6px 12px', fontSize: 12 }}
+            >
+              Archived
+            </button>
+          </div>
           <button className="btn btn-primary" onClick={() => { resetProductForm(); setShowProductModal(true); }}>
             <Plus size={16} />
             Add Product
@@ -225,7 +296,7 @@ export default function ProductPage() {
 
       <div className="card">
         <div className="card-header">
-          <div className="card-title">Products catalog</div>
+          <div className="card-title">{showArchived ? 'Archived Products' : 'Products Catalog'}</div>
         </div>
 
         {loading ? (
@@ -233,7 +304,7 @@ export default function ProductPage() {
         ) : products.length === 0 ? (
           <div className="empty-state">
             <Package size={32} />
-            <p>No products created yet</p>
+            <p>{showArchived ? 'No archived products found' : 'No products created yet'}</p>
           </div>
         ) : (
           <div className="table-wrapper">
@@ -294,12 +365,25 @@ export default function ProductPage() {
                       {isSuperAdmin && <td>₹{(p.cost_price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>}
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: 4 }}>
-                          <button className="btn btn-ghost btn-icon btn-sm" onClick={(e) => handleEditProduct(p, e)}>
-                            <Edit2 size={13} />
-                          </button>
-                          <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={(e) => handleArchiveProduct(p.id, e)}>
-                            <Archive size={13} />
-                          </button>
+                          {!showArchived ? (
+                            <>
+                              <button className="btn btn-ghost btn-icon btn-sm" onClick={(e) => handleEditProduct(p, e)} title="Edit Product">
+                                <Edit2 size={13} />
+                              </button>
+                              <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={(e) => handleArchiveProduct(p.id, e)} title="Archive Product">
+                                <Archive size={13} />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button className="btn btn-ghost btn-icon btn-sm text-success" onClick={(e) => handleRestoreProduct(p.id, e)} title="Restore Product">
+                                <RotateCcw size={13} />
+                              </button>
+                              <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={(e) => handleDeletePermanentProduct(p.id, e)} title="Permanently Delete">
+                                <Trash2 size={13} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -505,7 +589,7 @@ export default function ProductPage() {
       <BulkActionBar 
         selectedCount={selectedCount}
         onClear={clearSelection}
-        actions={[
+        actions={!showArchived ? [
           {
             label: 'Export CSV',
             icon: <Download size={16} />,
@@ -516,6 +600,25 @@ export default function ProductPage() {
             label: 'Archive Selected',
             icon: <Archive size={16} />,
             onClick: handleBulkArchive,
+            className: 'btn-danger text-danger'
+          }
+        ] : [
+          {
+            label: 'Export CSV',
+            icon: <Download size={16} />,
+            onClick: handleBulkExport,
+            className: 'btn-secondary'
+          },
+          {
+            label: 'Restore Selected',
+            icon: <RotateCcw size={16} />,
+            onClick: handleBulkRestore,
+            className: 'btn-success text-success'
+          },
+          {
+            label: 'Permanently Delete Selected',
+            icon: <Trash2 size={16} />,
+            onClick: handleBulkDeletePermanent,
             className: 'btn-danger text-danger'
           }
         ]}

@@ -9,11 +9,13 @@ import java.util.Optional;
 
 public interface ProductRepository extends JpaRepository<Product, String> {
     List<Product> findByActiveTrueOrderByTypeAscNameAsc();
+    List<Product> findByActiveFalseOrderByTypeAscNameAsc();
     List<Product> findByTypeAndActiveTrueOrderByName(Product.Type type);
+    List<Product> findByTypeAndActiveFalseOrderByName(Product.Type type);
     boolean existsByCode(String code);
     Optional<Product> findByCodeAndActiveTrue(String code);
     Optional<Product> findByCode(String code);
 
-    @Query("SELECT p FROM Product p WHERE p.active = true AND (LOWER(p.name) LIKE LOWER(CONCAT('%',:q,'%')) OR LOWER(p.code) LIKE LOWER(CONCAT('%',:q,'%')))")
-    List<Product> search(@Param("q") String query);
+    @Query("SELECT p FROM Product p WHERE p.active = :active AND (LOWER(p.name) LIKE LOWER(CONCAT('%',:q,'%')) OR LOWER(p.code) LIKE LOWER(CONCAT('%',:q,'%')))")
+    List<Product> search(@Param("q") String query, @Param("active") boolean active);
 }

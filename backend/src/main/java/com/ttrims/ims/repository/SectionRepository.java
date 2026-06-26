@@ -7,5 +7,6 @@ import java.util.List;
 
 public interface SectionRepository extends JpaRepository<Section, String> {
     List<Section> findByWarehouseAndActiveTrueOrderByName(Warehouse warehouse);
+    List<Section> findByWarehouseAndActiveFalseOrderByName(Warehouse warehouse);
     List<Section> findByWarehouseId(String warehouseId);
 }

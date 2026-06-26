@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { warehousesAPI } from '../api';
 import toast from 'react-hot-toast';
-import { Warehouse, Plus, ChevronRight, Edit2, Archive, FolderPlus, QrCode, Download, Printer, X } from 'lucide-react';
+import { Warehouse, Plus, ChevronRight, Edit2, Archive, FolderPlus, QrCode, Download, Printer, X, RotateCcw, Trash2 } from 'lucide-react';
 import QRCode from 'qrcode';
 import useBulkActions from '../hooks/useBulkActions';
 import BulkActionBar from '../components/BulkActionBar';
@@ -120,6 +120,8 @@ export default function WarehousePage() {
   const [selectedWh, setSelectedWh] = useState(null);
   const [sections, setSections] = useState([]);
   const [sectionsLoading, setSectionsLoading] = useState(false);
+  const [showArchivedWh, setShowArchivedWh] = useState(false);
+  const [showArchivedSec, setShowArchivedSec] = useState(false);
 
   // Modal States
   const [showWhModal, setShowWhModal] = useState(false);
@@ -137,25 +139,34 @@ export default function WarehousePage() {
   const [showBulkQr, setShowBulkQr] = useState(false);
   const qrCanvasRef = useRef(null);
 
-  const loadWarehouses = () => {
+  const loadWarehouses = (archived = showArchivedWh) => {
     setLoading(true);
-    warehousesAPI.list()
+    warehousesAPI.list({ active: !archived })
       .then(r => setWarehouses(r.data.data))
       .catch(() => toast.error('Failed to load warehouses'))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    loadWarehouses();
-  }, []);
+    loadWarehouses(showArchivedWh);
+    setSelectedWh(null);
+    setSections([]);
+  }, [showArchivedWh]);
 
-  const loadSections = (whId) => {
+  const loadSections = (whId, archived = showArchivedSec) => {
     setSectionsLoading(true);
-    warehousesAPI.sections(whId)
+    warehousesAPI.sections(whId, { active: !archived })
       .then(r => setSections(r.data.data))
       .catch(() => toast.error('Failed to load sections'))
       .finally(() => setSectionsLoading(false));
   };
+
+  useEffect(() => {
+    if (selectedWh) {
+      loadSections(selectedWh.id, showArchivedSec);
+      clearSelection();
+    }
+  }, [showArchivedSec]);
 
   const handleSelectWh = (wh) => {
     setSelectedWh(wh);
@@ -196,7 +207,7 @@ export default function WarehousePage() {
   };
 
   const handleArchiveWh = async (id, e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     if (!window.confirm('Are you sure you want to archive this warehouse?')) return;
     try {
       await warehousesAPI.delete(id);
@@ -205,6 +216,31 @@ export default function WarehousePage() {
       loadWarehouses();
     } catch (err) {
       toast.error('Failed to archive warehouse');
+    }
+  };
+
+  const handleRestoreWh = async (id, e) => {
+    if (e) e.stopPropagation();
+    if (!window.confirm('Are you sure you want to restore this warehouse?')) return;
+    try {
+      await warehousesAPI.update(id, { is_active: true });
+      toast.success('Warehouse restored successfully');
+      loadWarehouses();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to restore warehouse');
+    }
+  };
+
+  const handleDeletePermanentWh = async (id, e) => {
+    if (e) e.stopPropagation();
+    if (!window.confirm('WARNING: Are you sure you want to PERMANENTLY delete this warehouse? This action cannot be undone.')) return;
+    try {
+      await warehousesAPI.delete(id, { permanent: true });
+      toast.success('Warehouse permanently deleted');
+      if (selectedWh?.id === id) setSelectedWh(null);
+      loadWarehouses();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to permanently delete warehouse');
     }
   };
 
@@ -248,6 +284,28 @@ export default function WarehousePage() {
       loadSections(selectedWh.id);
     } catch (err) {
       toast.error('Failed to archive section');
+    }
+  };
+
+  const handleRestoreSec = async (id) => {
+    if (!window.confirm('Are you sure you want to restore this section?')) return;
+    try {
+      await warehousesAPI.updateSection(selectedWh.id, id, { is_active: true });
+      toast.success('Section restored successfully');
+      loadSections(selectedWh.id);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to restore section');
+    }
+  };
+
+  const handleDeletePermanentSec = async (id) => {
+    if (!window.confirm('WARNING: Are you sure you want to PERMANENTLY delete this section? This action cannot be undone.')) return;
+    try {
+      await warehousesAPI.deleteSection(selectedWh.id, id, { permanent: true });
+      toast.success('Section permanently deleted');
+      loadSections(selectedWh.id);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to permanently delete section');
     }
   };
 
@@ -304,6 +362,36 @@ export default function WarehousePage() {
     }
   };
 
+  const handleBulkRestore = async () => {
+    if (!window.confirm(`Are you sure you want to restore ${selectedCount} sections?`)) return;
+    const loadingToast = toast.loading(`Restoring ${selectedCount} sections...`);
+    try {
+      for (const id of selectedIds) {
+        await warehousesAPI.updateSection(selectedWh.id, id, { is_active: true });
+      }
+      toast.success('Selected sections restored successfully', { id: loadingToast });
+      clearSelection();
+      loadSections(selectedWh.id);
+    } catch (err) {
+      toast.error('Failed to restore some sections', { id: loadingToast });
+    }
+  };
+
+  const handleBulkDeletePermanent = async () => {
+    if (!window.confirm(`WARNING: Are you sure you want to PERMANENTLY delete ${selectedCount} sections? This action cannot be undone.`)) return;
+    const loadingToast = toast.loading(`Deleting ${selectedCount} sections permanently...`);
+    try {
+      for (const id of selectedIds) {
+        await warehousesAPI.deleteSection(selectedWh.id, id, { permanent: true });
+      }
+      toast.success('Selected sections permanently deleted', { id: loadingToast });
+      clearSelection();
+      loadSections(selectedWh.id);
+    } catch (err) {
+      toast.error('Failed to permanently delete some sections. They may be referenced in records.', { id: loadingToast });
+    }
+  };
+
   // ─── QR Code Logic ────────────────────────────────────────────────────────────
 
   const buildQrPayload = (section) => JSON.stringify({
@@ -350,7 +438,23 @@ export default function WarehousePage() {
           <h2>Warehouses & Sections</h2>
           <p>Configure storage centers and section locations inside them</p>
         </div>
-        <div className="page-header-right">
+        <div className="page-header-right" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div style={{ display: 'flex', background: 'var(--color-bg-card)', padding: 4, borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
+            <button 
+              className={`btn btn-sm ${!showArchivedWh ? 'btn-primary' : 'btn-ghost'}`} 
+              onClick={() => { setShowArchivedWh(false); }}
+              style={{ padding: '6px 12px', fontSize: 12 }}
+            >
+              Active
+            </button>
+            <button 
+              className={`btn btn-sm ${showArchivedWh ? 'btn-primary' : 'btn-ghost'}`} 
+              onClick={() => { setShowArchivedWh(true); }}
+              style={{ padding: '6px 12px', fontSize: 12 }}
+            >
+              Archived
+            </button>
+          </div>
           <button className="btn btn-primary" onClick={() => { setEditingWhId(null); setWhName(''); setWhLocation(''); setShowWhModal(true); }}>
             <Plus size={16} />
             Add Warehouse
@@ -363,7 +467,7 @@ export default function WarehousePage() {
         {/* Warehouse list */}
         <div className="card">
           <div className="card-header">
-            <div className="card-title">Warehouses</div>
+            <div className="card-title">{showArchivedWh ? 'Archived Warehouses' : 'Warehouses'}</div>
           </div>
 
           {loading ? (
@@ -371,7 +475,7 @@ export default function WarehousePage() {
           ) : warehouses.length === 0 ? (
             <div className="empty-state">
               <Warehouse size={32} />
-              <p>No warehouses created yet</p>
+              <p>{showArchivedWh ? 'No archived warehouses found' : 'No warehouses created yet'}</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -381,12 +485,13 @@ export default function WarehousePage() {
                   <div 
                     key={wh.id}
                     className={`nav-item`}
-                    onClick={() => handleSelectWh(wh)}
+                    onClick={() => !showArchivedWh && handleSelectWh(wh)}
                     style={{
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                       background: isSelected ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255,255,255,0.02)',
                       border: '1px solid var(--color-border)',
-                      borderRadius: 'var(--radius-md)', padding: '14px 16px', color: 'var(--color-text-primary)'
+                      borderRadius: 'var(--radius-md)', padding: '14px 16px', color: 'var(--color-text-primary)',
+                      cursor: showArchivedWh ? 'default' : 'pointer'
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -399,13 +504,26 @@ export default function WarehousePage() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn btn-ghost btn-icon" onClick={(e) => handleEditWh(wh, e)}>
-                        <Edit2 size={13} />
-                      </button>
-                      <button className="btn btn-ghost btn-icon text-danger" onClick={(e) => handleArchiveWh(wh.id, e)}>
-                        <Archive size={13} />
-                      </button>
-                      <ChevronRight size={16} color="var(--color-text-muted)" style={{ alignSelf: 'center', marginLeft: 4 }} />
+                      {!showArchivedWh ? (
+                        <>
+                          <button className="btn btn-ghost btn-icon" onClick={(e) => handleEditWh(wh, e)} title="Edit Warehouse">
+                            <Edit2 size={13} />
+                          </button>
+                          <button className="btn btn-ghost btn-icon text-danger" onClick={(e) => handleArchiveWh(wh.id, e)} title="Archive Warehouse">
+                            <Archive size={13} />
+                          </button>
+                          <ChevronRight size={16} color="var(--color-text-muted)" style={{ alignSelf: 'center', marginLeft: 4 }} />
+                        </>
+                      ) : (
+                        <>
+                          <button className="btn btn-ghost btn-icon text-success" onClick={(e) => handleRestoreWh(wh.id, e)} title="Restore Warehouse">
+                            <RotateCcw size={13} />
+                          </button>
+                          <button className="btn btn-ghost btn-icon text-danger" onClick={(e) => handleDeletePermanentWh(wh.id, e)} title="Permanently Delete">
+                            <Trash2 size={13} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 );
@@ -418,18 +536,38 @@ export default function WarehousePage() {
         <div className="card">
           {selectedWh ? (
             <div>
-              <div className="card-header" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: 16 }}>
+              <div className="card-header" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div className="card-title">Sections in "{selectedWh.name}"</div>
+                  <div className="card-title">{showArchivedSec ? `Archived Sections in "${selectedWh.name}"` : `Sections in "${selectedWh.name}"`}</div>
                   <div className="card-subtitle">{selectedWh.location || 'No location configured'}</div>
                 </div>
-                <button 
-                  className="btn btn-secondary btn-sm" 
-                  onClick={() => { setEditingSecId(null); setSecName(''); setSecDesc(''); setShowSecModal(true); }}
-                >
-                  <FolderPlus size={14} />
-                  Add Section
-                </button>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', background: 'var(--color-bg-card)', padding: 4, borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
+                    <button 
+                      className={`btn btn-sm ${!showArchivedSec ? 'btn-primary' : 'btn-ghost'}`} 
+                      onClick={() => { setShowArchivedSec(false); }}
+                      style={{ padding: '4px 8px', fontSize: 11 }}
+                    >
+                      Active
+                    </button>
+                    <button 
+                      className={`btn btn-sm ${showArchivedSec ? 'btn-primary' : 'btn-ghost'}`} 
+                      onClick={() => { setShowArchivedSec(true); }}
+                      style={{ padding: '4px 8px', fontSize: 11 }}
+                    >
+                      Archived
+                    </button>
+                  </div>
+                  {!showArchivedSec && (
+                    <button 
+                      className="btn btn-secondary btn-sm" 
+                      onClick={() => { setEditingSecId(null); setSecName(''); setSecDesc(''); setShowSecModal(true); }}
+                    >
+                      <FolderPlus size={14} />
+                      Add Section
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div style={{ marginTop: 20 }}>
@@ -438,7 +576,7 @@ export default function WarehousePage() {
                 ) : sections.length === 0 ? (
                   <div className="empty-state">
                     <FolderPlus size={36} />
-                    <p>No storage sections defined in this warehouse.</p>
+                    <p>{showArchivedSec ? 'No archived sections found.' : 'No storage sections defined in this warehouse.'}</p>
                   </div>
                 ) : (
                   <div className="table-wrapper">
@@ -470,7 +608,7 @@ export default function WarehousePage() {
                                   checked={isChecked} 
                                   onChange={() => toggleSelect(s.id)} 
                                   style={{ cursor: 'pointer' }}
-                                />
+                               />
                               </td>
                               <td style={{ fontWeight: 700 }}>{s.name}</td>
                               <td>{s.description || '-'}</td>
@@ -480,6 +618,7 @@ export default function WarehousePage() {
                                   onClick={() => handleShowQr(s)}
                                   title="View & Print QR Code"
                                   style={{ gap: 5 }}
+                                  disabled={showArchivedSec}
                                 >
                                   <QrCode size={13} />
                                   QR
@@ -487,12 +626,25 @@ export default function WarehousePage() {
                               </td>
                               <td style={{ textAlign: 'right' }}>
                                 <div style={{ display: 'inline-flex', gap: 4 }}>
-                                  <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleEditSec(s)}>
-                                    <Edit2 size={13} />
-                                  </button>
-                                  <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={() => handleArchiveSec(s.id)}>
-                                    <Archive size={13} />
-                                  </button>
+                                  {!showArchivedSec ? (
+                                    <>
+                                      <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleEditSec(s)} title="Edit Section">
+                                        <Edit2 size={13} />
+                                      </button>
+                                      <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={() => handleArchiveSec(s.id)} title="Archive Section">
+                                        <Archive size={13} />
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button className="btn btn-ghost btn-icon btn-sm text-success" onClick={() => handleRestoreSec(s.id)} title="Restore Section">
+                                        <RotateCcw size={13} />
+                                      </button>
+                                      <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={() => handleDeletePermanentSec(s.id)} title="Permanently Delete">
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -680,7 +832,7 @@ export default function WarehousePage() {
       <BulkActionBar 
         selectedCount={selectedCount}
         onClear={clearSelection}
-        actions={[
+        actions={!showArchivedSec ? [
           {
             label: 'Export CSV',
             icon: <Download size={16} />,
@@ -697,6 +849,25 @@ export default function WarehousePage() {
             label: 'Archive Selected',
             icon: <Archive size={16} />,
             onClick: handleBulkArchive,
+            className: 'btn-danger text-danger'
+          }
+        ] : [
+          {
+            label: 'Export CSV',
+            icon: <Download size={16} />,
+            onClick: handleBulkExport,
+            className: 'btn-secondary'
+          },
+          {
+            label: 'Restore Selected',
+            icon: <RotateCcw size={16} />,
+            onClick: handleBulkRestore,
+            className: 'btn-success text-success'
+          },
+          {
+            label: 'Permanently Delete Selected',
+            icon: <Trash2 size={16} />,
+            onClick: handleBulkDeletePermanent,
             className: 'btn-danger text-danger'
           }
         ]}

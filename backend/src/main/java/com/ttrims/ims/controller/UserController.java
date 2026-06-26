@@ -90,11 +90,20 @@ public class UserController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(@PathVariable String id) {
+    public ResponseEntity<?> delete(@PathVariable String id, @RequestParam(required = false, defaultValue = "false") boolean permanent) {
         auth.requirePermission("USERS:DELETE");
-        if (auth.currentUser().getId().equals(id)) return bad("Cannot deactivate your own account");
-        userRepo.findById(id).ifPresent(u -> { u.setActive(false); userRepo.save(u); });
-        return ok("User deactivated");
+        if (auth.currentUser().getId().equals(id)) return bad("Cannot deactivate or delete your own account");
+        if (permanent) {
+            try {
+                userRepo.deleteById(id);
+                return ok("User account permanently deleted");
+            } catch (Exception e) {
+                return bad("Cannot permanently delete this user account because they are referenced in historical transactions, production runs, or orders. Please keep them archived instead.");
+            }
+        } else {
+            userRepo.findById(id).ifPresent(u -> { u.setActive(false); userRepo.save(u); });
+            return ok("User deactivated");
+        }
     }
 
     private Map<String, Object> toDto(User u) {

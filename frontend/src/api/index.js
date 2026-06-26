@@ -61,10 +61,10 @@ export const authAPI = {
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 export const usersAPI = {
-  list: () => api.get('/users'),
+  list: (params) => api.get('/users', { params }),
   create: (data) => api.post('/users', data),
   update: (id, data) => api.patch(`/users/${id}`, data),
-  delete: (id) => api.delete(`/users/${id}`),
+  delete: (id, params) => api.delete(`/users/${id}`, { params }),
 };
 
 // ─── Roles ────────────────────────────────────────────────────────────────────
@@ -78,14 +78,14 @@ export const rolesAPI = {
 
 // ─── Warehouses ───────────────────────────────────────────────────────────────
 export const warehousesAPI = {
-  list: () => api.get('/warehouses'),
+  list: (params) => api.get('/warehouses', { params }),
   create: (data) => api.post('/warehouses', data),
   update: (id, data) => api.patch(`/warehouses/${id}`, data),
-  delete: (id) => api.delete(`/warehouses/${id}`),
-  sections: (warehouseId) => api.get(`/warehouses/${warehouseId}/sections`),
+  delete: (id, params) => api.delete(`/warehouses/${id}`, { params }),
+  sections: (warehouseId, params) => api.get(`/warehouses/${warehouseId}/sections`, { params }),
   createSection: (warehouseId, data) => api.post(`/warehouses/${warehouseId}/sections`, data),
   updateSection: (warehouseId, id, data) => api.patch(`/warehouses/${warehouseId}/sections/${id}`, data),
-  deleteSection: (warehouseId, id) => api.delete(`/warehouses/${warehouseId}/sections/${id}`),
+  deleteSection: (warehouseId, id, params) => api.delete(`/warehouses/${warehouseId}/sections/${id}`, { params }),
 };
 
 // ─── Products ─────────────────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ export const productsAPI = {
   get: (id) => api.get(`/products/${id}`),
   create: (data) => api.post('/products', data),
   update: (id, data) => api.patch(`/products/${id}`, data),
-  delete: (id) => api.delete(`/products/${id}`),
+  delete: (id, params) => api.delete(`/products/${id}`, { params }),
   getBom: (id) => api.get(`/products/${id}/bom`),
   addBom: (id, data) => api.post(`/products/${id}/bom`, data),
   updateBom: (id, bomId, data) => api.patch(`/products/${id}/bom/${bomId}`, data),
@@ -162,10 +162,10 @@ export const formSettingsAPI = {
 // ─── Product Categories ────────────────────────────────────────────────────────
 export const productCategoriesAPI = {
   list: () => api.get('/product-categories'),           // grouped (for dropdowns)
-  flat: () => api.get('/product-categories/flat'),       // flat list (for admin)
+  flat: (params) => api.get('/product-categories/flat', { params }),       // flat list (for admin)
   create: (data) => api.post('/product-categories', data),
   update: (id, data) => api.patch(`/product-categories/${id}`, data),
-  delete: (id) => api.delete(`/product-categories/${id}`),
+  delete: (id, params) => api.delete(`/product-categories/${id}`, { params }),
 };
 
 // ─── Postgres Instances ───────────────────────────────────────────────────────

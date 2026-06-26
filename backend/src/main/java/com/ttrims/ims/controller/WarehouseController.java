@@ -23,12 +23,17 @@ public class WarehouseController {
     }
 
     @GetMapping
-    public ResponseEntity<?> list() {
+    public ResponseEntity<?> list(@RequestParam(required = false, defaultValue = "true") boolean active) {
         auth.requirePermission("WAREHOUSES:VIEW");
-        var whs = warehouseRepo.findByActiveTrueOrderByName().stream()
+        List<Warehouse> list = active 
+            ? warehouseRepo.findByActiveTrueOrderByName()
+            : warehouseRepo.findByActiveFalseOrderByName();
+        var whs = list.stream()
             .map(w -> {
                 Map<String, Object> m = toDto(w);
-                m.put("section_count", sectionRepo.findByWarehouseAndActiveTrueOrderByName(w).size());
+                m.put("section_count", active 
+                    ? sectionRepo.findByWarehouseAndActiveTrueOrderByName(w).size()
+                    : sectionRepo.findByWarehouseAndActiveFalseOrderByName(w).size());
                 return m;
             }).collect(Collectors.toList());
         return ok(whs);
@@ -59,21 +64,33 @@ public class WarehouseController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(@PathVariable String id) {
+    public ResponseEntity<?> delete(@PathVariable String id, @RequestParam(required = false, defaultValue = "false") boolean permanent) {
         auth.requirePermission("WAREHOUSES:DELETE");
-        warehouseRepo.findById(id).ifPresent(w -> { w.setActive(false); warehouseRepo.save(w); });
-        return ok("Warehouse archived");
+        if (permanent) {
+            try {
+                warehouseRepo.deleteById(id);
+                return ok("Warehouse permanently deleted");
+            } catch (Exception e) {
+                return bad("Cannot permanently delete this warehouse because it is referenced by stock balances, transactions, or users. Please keep it archived instead.");
+            }
+        } else {
+            warehouseRepo.findById(id).ifPresent(w -> { w.setActive(false); warehouseRepo.save(w); });
+            return ok("Warehouse archived");
+        }
     }
 
     // ─── Sections ─────────────────────────────────────────────────────────────
 
     @GetMapping("/{warehouseId}/sections")
     @Transactional(readOnly = true)
-    public ResponseEntity<?> listSections(@PathVariable String warehouseId) {
+    public ResponseEntity<?> listSections(@PathVariable String warehouseId, @RequestParam(required = false, defaultValue = "true") boolean active) {
         auth.requirePermission("SECTIONS:VIEW");
         Warehouse wh = warehouseRepo.findById(warehouseId).orElse(null);
         if (wh == null) return ResponseEntity.status(404).body(err("Warehouse not found"));
-        var sections = sectionRepo.findByWarehouseAndActiveTrueOrderByName(wh).stream()
+        var list = active 
+            ? sectionRepo.findByWarehouseAndActiveTrueOrderByName(wh)
+            : sectionRepo.findByWarehouseAndActiveFalseOrderByName(wh);
+        var sections = list.stream()
             .map(this::sectionDto).collect(Collectors.toList());
         return ok(sections);
     }
@@ -106,10 +123,19 @@ public class WarehouseController {
     }
 
     @DeleteMapping("/{warehouseId}/sections/{id}")
-    public ResponseEntity<?> deleteSection(@PathVariable String warehouseId, @PathVariable String id) {
+    public ResponseEntity<?> deleteSection(@PathVariable String warehouseId, @PathVariable String id, @RequestParam(required = false, defaultValue = "false") boolean permanent) {
         auth.requirePermission("SECTIONS:DELETE");
-        sectionRepo.findById(id).ifPresent(s -> { s.setActive(false); sectionRepo.save(s); });
-        return ok("Section archived");
+        if (permanent) {
+            try {
+                sectionRepo.deleteById(id);
+                return ok("Section permanently deleted");
+            } catch (Exception e) {
+                return bad("Cannot permanently delete this section because it is referenced in stock balances or transactions. Please keep it archived instead.");
+            }
+        } else {
+            sectionRepo.findById(id).ifPresent(s -> { s.setActive(false); sectionRepo.save(s); });
+            return ok("Section archived");
+        }
     }
 
     private Map<String, Object> toDto(Warehouse w) {

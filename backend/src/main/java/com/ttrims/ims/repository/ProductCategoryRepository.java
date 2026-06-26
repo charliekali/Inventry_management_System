@@ -6,5 +6,6 @@ import java.util.List;
 
 public interface ProductCategoryRepository extends JpaRepository<ProductCategory, String> {
     List<ProductCategory> findByActiveTrueOrderByCategoryNameAscSortOrderAscSubcategoryNameAsc();
+    List<ProductCategory> findByActiveFalseOrderByCategoryNameAscSortOrderAscSubcategoryNameAsc();
     boolean existsByCategoryNameAndSubcategoryName(String categoryName, String subcategoryName);
 }

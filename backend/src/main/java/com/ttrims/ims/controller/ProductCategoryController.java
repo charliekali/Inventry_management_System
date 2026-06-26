@@ -52,11 +52,13 @@ public class ProductCategoryController {
      * Returns raw list of all entries (for admin management page)
      */
     @GetMapping("/flat")
-    public ResponseEntity<?> flat() {
+    public ResponseEntity<?> flat(@RequestParam(required = false, defaultValue = "true") boolean active) {
         auth.requirePermission("ROLES:VIEW");
-        List<Map<String, Object>> result = categoryRepo
-            .findByActiveTrueOrderByCategoryNameAscSortOrderAscSubcategoryNameAsc()
-            .stream().map(this::toDto)
+        List<ProductCategory> list = active 
+            ? categoryRepo.findByActiveTrueOrderByCategoryNameAscSortOrderAscSubcategoryNameAsc()
+            : categoryRepo.findByActiveFalseOrderByCategoryNameAscSortOrderAscSubcategoryNameAsc();
+        List<Map<String, Object>> result = list.stream()
+            .map(this::toDto)
             .collect(Collectors.toList());
         return ok(result);
     }
@@ -113,10 +115,19 @@ public class ProductCategoryController {
      * Soft-delete — Super Admin only
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(@PathVariable String id) {
+    public ResponseEntity<?> delete(@PathVariable String id, @RequestParam(required = false, defaultValue = "false") boolean permanent) {
         auth.requirePermission("ROLES:VIEW");
-        categoryRepo.findById(id).ifPresent(pc -> { pc.setActive(false); categoryRepo.save(pc); });
-        return ok("Subcategory deleted");
+        if (permanent) {
+            try {
+                categoryRepo.deleteById(id);
+                return ok("Subcategory permanently deleted");
+            } catch (Exception e) {
+                return bad("Cannot permanently delete this subcategory because it is referenced by existing products. Please keep it archived instead.");
+            }
+        } else {
+            categoryRepo.findById(id).ifPresent(pc -> { pc.setActive(false); categoryRepo.save(pc); });
+            return ok("Subcategory deleted");
+        }
     }
 
     private Map<String, Object> toDto(ProductCategory pc) {

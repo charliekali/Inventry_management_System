@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { productCategoriesAPI } from '../api';
 import toast from 'react-hot-toast';
-import { Plus, Pencil, Trash2, Tag, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, Tag, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
 
 export default function CategoryPage() {
   const [items, setItems] = useState([]);      // flat list from /flat
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState({}); // { categoryName: bool }
+  const [showArchived, setShowArchived] = useState(false);
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -16,9 +17,9 @@ export default function CategoryPage() {
   const [mSortOrder, setMSortOrder] = useState('0');
   const [useExisting, setUseExisting] = useState(true); // toggle between existing or new category name
 
-  const load = () => {
+  const load = (archived = showArchived) => {
     setLoading(true);
-    productCategoriesAPI.flat()
+    productCategoriesAPI.flat({ active: !archived })
       .then(r => {
         setItems(r.data.data);
         // auto-expand all groups on first load
@@ -30,7 +31,9 @@ export default function CategoryPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load(showArchived);
+  }, [showArchived]);
 
   // Group flat items by category_name
   const grouped = items.reduce((acc, item) => {
@@ -92,6 +95,28 @@ export default function CategoryPage() {
     }
   };
 
+  const handleRestore = async (id, name) => {
+    if (!window.confirm(`Restore subcategory "${name}"?`)) return;
+    try {
+      await productCategoriesAPI.update(id, { is_active: true });
+      toast.success('Subcategory restored successfully');
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to restore');
+    }
+  };
+
+  const handleDeletePermanent = async (id, name) => {
+    if (!window.confirm(`WARNING: Are you sure you want to PERMANENTLY delete subcategory "${name}"? This action cannot be undone.`)) return;
+    try {
+      await productCategoriesAPI.delete(id, { permanent: true });
+      toast.success('Subcategory permanently deleted');
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to permanently delete subcategory');
+    }
+  };
+
   const toggleExpand = (cat) => {
     setExpanded(prev => ({ ...prev, [cat]: !prev[cat] }));
   };
@@ -103,18 +128,40 @@ export default function CategoryPage() {
           <h2>Product Categories</h2>
           <p>Manage category groups and subcategories used in the product catalog</p>
         </div>
-        <div className="page-header-right">
-          <button className="btn btn-primary" id="add-category-btn" onClick={openAdd}>
-            <Plus size={16} />
-            Add Subcategory
-          </button>
+        <div className="page-header-right" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div style={{ display: 'flex', background: 'var(--color-bg-card)', padding: 4, borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
+            <button 
+              className={`btn btn-sm ${!showArchived ? 'btn-primary' : 'btn-ghost'}`} 
+              onClick={() => { setShowArchived(false); }}
+              style={{ padding: '6px 12px', fontSize: 12 }}
+            >
+              Active
+            </button>
+            <button 
+              className={`btn btn-sm ${showArchived ? 'btn-primary' : 'btn-ghost'}`} 
+              onClick={() => { setShowArchived(true); }}
+              style={{ padding: '6px 12px', fontSize: 12 }}
+            >
+              Archived
+            </button>
+          </div>
+          {!showArchived && (
+            <button className="btn btn-primary" id="add-category-btn" onClick={openAdd}>
+              <Plus size={16} />
+              Add Subcategory
+            </button>
+          )}
         </div>
       </div>
 
       <div className="card">
         <div className="card-header">
-          <div className="card-title">Category Tree</div>
-          <div className="card-subtitle">{items.length} subcategories across {uniqueCategories.length} groups</div>
+          <div className="card-title">{showArchived ? 'Archived Categories' : 'Category Tree'}</div>
+          <div className="card-subtitle">
+            {showArchived 
+              ? `${items.length} archived subcategories across ${uniqueCategories.length} groups`
+              : `${items.length} subcategories across ${uniqueCategories.length} groups`}
+          </div>
         </div>
 
         {loading ? (
@@ -122,7 +169,7 @@ export default function CategoryPage() {
         ) : uniqueCategories.length === 0 ? (
           <div className="empty-state">
             <Tag size={36} />
-            <p>No categories found. Add your first one!</p>
+            <p>{showArchived ? 'No archived categories found' : 'No categories found. Add your first one!'}</p>
           </div>
         ) : (
           <div style={{ padding: '8px 0' }}>
@@ -153,22 +200,24 @@ export default function CategoryPage() {
                     <Tag size={15} style={{ color: 'var(--color-primary-light)' }} />
                     <span style={{ fontWeight: 700, fontSize: 14, flex: 1 }}>{cat}</span>
                     <span className="badge badge-gray">{subs.length} subcategories</span>
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      style={{ fontSize: 12 }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingId(null);
-                        setMCategory(cat);
-                        setMSubcategory('');
-                        setMSortOrder('0');
-                        setUseExisting(false);
-                        setShowModal(true);
-                      }}
-                      title={`Add subcategory to "${cat}"`}
-                    >
-                      <Plus size={13} /> Add
-                    </button>
+                    {!showArchived && (
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        style={{ fontSize: 12 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingId(null);
+                          setMCategory(cat);
+                          setMSubcategory('');
+                          setMSortOrder('0');
+                          setUseExisting(false);
+                          setShowModal(true);
+                        }}
+                        title={`Add subcategory to "${cat}"`}
+                      >
+                        <Plus size={13} /> Add
+                      </button>
+                    )}
                   </div>
 
                   {/* Subcategory rows */}
@@ -199,20 +248,41 @@ export default function CategoryPage() {
                             <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>order: {item.sort_order}</span>
                           )}
                           <div style={{ display: 'inline-flex', gap: 4 }}>
-                            <button
-                              className="btn btn-ghost btn-icon btn-sm"
-                              onClick={() => openEdit(item)}
-                              title="Edit"
-                            >
-                              <Pencil size={12} />
-                            </button>
-                            <button
-                              className="btn btn-ghost btn-icon btn-sm text-danger"
-                              onClick={() => handleDelete(item.id, item.subcategory_name)}
-                              title="Delete"
-                            >
-                              <Trash2 size={12} />
-                            </button>
+                            {!showArchived ? (
+                              <>
+                                <button
+                                  className="btn btn-ghost btn-icon btn-sm"
+                                  onClick={() => openEdit(item)}
+                                  title="Edit"
+                                >
+                                  <Pencil size={12} />
+                                </button>
+                                <button
+                                  className="btn btn-ghost btn-icon btn-sm text-danger"
+                                  onClick={() => handleDelete(item.id, item.subcategory_name)}
+                                  title="Archive"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  className="btn btn-ghost btn-icon btn-sm text-success"
+                                  onClick={() => handleRestore(item.id, item.subcategory_name)}
+                                  title="Restore"
+                                >
+                                  <RotateCcw size={12} />
+                                </button>
+                                <button
+                                  className="btn btn-ghost btn-icon btn-sm text-danger"
+                                  onClick={() => handleDeletePermanent(item.id, item.subcategory_name)}
+                                  title="Permanently Delete"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                       ))}
