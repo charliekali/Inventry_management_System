@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "products")
 public class Product {
-    public enum Type { FINISHED_GOOD, RAW_MATERIAL }
+    public enum Type { FINISHED_GOOD, RAW_MATERIAL, BLEND, TOOL }
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

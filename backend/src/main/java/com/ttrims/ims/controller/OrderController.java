@@ -1001,9 +1001,9 @@ public class OrderController {
             rmDetails.put(rmId, detail);
         }
 
-        // For each finished good that has a BOM using any of these RMs, compute max producible units
+        // For each finished good or blend that has a BOM using any of these RMs, compute max producible units
         List<Product> allFGs = productRepo.findByActiveTrueOrderByTypeAscNameAsc()
-            .stream().filter(p -> p.getType() == Product.Type.FINISHED_GOOD)
+            .stream().filter(p -> p.getType() == Product.Type.FINISHED_GOOD || p.getType() == Product.Type.BLEND)
             .collect(Collectors.toList());
 
         List<Map<String, Object>> yieldResults = new ArrayList<>();

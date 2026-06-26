@@ -18,6 +18,26 @@ const getStepBadgeClass = (step) => {
   }
 };
 
+const getTypeBadgeClass = (type) => {
+  switch (type) {
+    case 'FINISHED_GOOD': return 'badge-blue';
+    case 'RAW_MATERIAL': return 'badge-purple';
+    case 'BLEND': return 'badge-cyan';
+    case 'TOOL': return 'badge-gray';
+    default: return 'badge-gray';
+  }
+};
+
+const getTypeLabel = (type) => {
+  switch (type) {
+    case 'FINISHED_GOOD': return 'FG';
+    case 'RAW_MATERIAL': return 'RM';
+    case 'BLEND': return 'BLEND';
+    case 'TOOL': return 'TOOL';
+    default: return type;
+  }
+};
+
 export default function ProductPage() {
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'Super Admin';
@@ -356,8 +376,8 @@ export default function ProductPage() {
                         )}
                       </td>
                       <td>
-                        <span className={`badge ${isFG ? 'badge-blue' : 'badge-purple'}`}>
-                          {p.type === 'FINISHED_GOOD' ? 'FG' : 'RM'}
+                        <span className={`badge ${getTypeBadgeClass(p.type)}`}>
+                          {getTypeLabel(p.type)}
                         </span>
                       </td>
                       <td>{p.min_stock}</td>
@@ -441,6 +461,8 @@ export default function ProductPage() {
                   >
                     <option value="FINISHED_GOOD">Finished Good (FG)</option>
                     <option value="RAW_MATERIAL">Raw Material (RM)</option>
+                    <option value="BLEND">Blend</option>
+                    <option value="TOOL">Tools</option>
                   </select>
                 </div>
                 

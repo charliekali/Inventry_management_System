@@ -676,7 +676,11 @@ export default function OrderPage() {
                               <td style={{ fontWeight: 700 }}>{item.product_code}</td>
                               <td style={{ fontWeight: 600 }}>{item.product_name}</td>
                               <td>
-                                <span className={`badge ${item.product_type === 'FINISHED_GOOD' ? 'badge-blue' : 'badge-purple'}`}>
+                                <span className={`badge ${
+                                  item.product_type === 'FINISHED_GOOD' ? 'badge-blue' :
+                                  item.product_type === 'BLEND' ? 'badge-cyan' :
+                                  item.product_type === 'RAW_MATERIAL' ? 'badge-purple' : 'badge-gray'
+                                }`}>
                                   {item.product_type}
                                 </span>
                               </td>

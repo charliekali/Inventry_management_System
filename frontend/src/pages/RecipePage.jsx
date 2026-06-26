@@ -157,8 +157,8 @@ export default function RecipePage() {
     }
   };
 
-  // Filter finished goods / blends (only finished goods can have BOM)
-  const finishedGoods = products.filter(p => p.type === 'FINISHED_GOOD');
+  // Filter finished goods / blends (both finished goods and blends can have BOM recipes)
+  const finishedGoods = products.filter(p => p.type === 'FINISHED_GOOD' || p.type === 'BLEND');
 
   // List eligible ingredients (filter out self-reference)
   const rawMaterials = products.filter(p => !selectedFg || p.id !== selectedFg.id);

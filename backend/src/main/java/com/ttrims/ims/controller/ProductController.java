@@ -62,7 +62,7 @@ public class ProductController {
         String type = (String) body.get("type");
 
         if (code.isEmpty() || name == null || type == null) return bad("code, name, and type are required");
-        if (!Set.of("FINISHED_GOOD","RAW_MATERIAL").contains(type)) return bad("type must be FINISHED_GOOD or RAW_MATERIAL");
+        if (!Set.of("FINISHED_GOOD","RAW_MATERIAL","BLEND","TOOL").contains(type)) return bad("type must be FINISHED_GOOD, RAW_MATERIAL, BLEND, or TOOL");
         if (productRepo.existsByCode(code)) return bad("Product code already exists");
 
         Product p = new Product();
@@ -161,7 +161,7 @@ public class ProductController {
     public ResponseEntity<?> addBom(@PathVariable String id, @RequestBody Map<String, Object> body) {
         auth.requirePermission("BOM:CREATE");
         Product fg = productRepo.findById(id).orElse(null);
-        if (fg == null || fg.getType() != Product.Type.FINISHED_GOOD) return bad("Finished Good not found");
+        if (fg == null || (fg.getType() != Product.Type.FINISHED_GOOD && fg.getType() != Product.Type.BLEND)) return bad("Finished Good or Blend not found");
         String rmId = (String) body.get("raw_material_id");
         if (id.equals(rmId)) return bad("A product cannot be an ingredient of itself");
         Product rm = productRepo.findById(rmId).orElse(null);
