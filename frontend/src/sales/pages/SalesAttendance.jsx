@@ -1,11 +1,12 @@
 /**
  * SalesAttendance.jsx
  * GPS Attendance tracking for Sales staff.
- * - "Start" button: clocks in + starts 30-second GPS ping interval.
- * - "Stop" button:  clocks out + clears the interval.
- * - Shows live elapsed timer, GPS status indicator, and daily log.
- * - Uses @capacitor/geolocation on Android for proper runtime permission prompting.
- * - Falls back to navigator.geolocation on web.
+ * - "Start": clocks in, requests location permission, starts watchPosition.
+ * - watchPosition fires on every ≥1-metre movement (distanceFilter) AND
+ *   a 60-sec heartbeat keeps stationary users live on the admin map.
+ * - "Stop":  clocks out and clears all watchers.
+ * - Uses @capacitor/geolocation on Android (runtime permission dialog).
+ * - Falls back to navigator.geolocation.watchPosition on web.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
@@ -14,7 +15,9 @@ import { attendanceAPI } from '../../api';
 import toast from 'react-hot-toast';
 import { MapPin, Clock, Play, Square } from 'lucide-react';
 
-const PING_INTERVAL_MS = 30_000; // 30 seconds
+const HEARTBEAT_MS = 60_000;          // 60-second stationary heartbeat
+const MIN_PING_GAP_MS = 3_000;        // debounce: min gap between backend pings
+const DISTANCE_FILTER_M = 1;          // record on every 1-metre movement
 
 /** Format seconds as HH:MM:SS */
 function formatElapsed(seconds) {
@@ -53,8 +56,11 @@ export default function SalesAttendance() {
   const [elapsed, setElapsed] = useState(0);
 
   // Refs for cleanup
-  const pingIntervalRef = useRef(null);
-  const timerIntervalRef = useRef(null);
+  const watchIdRef      = useRef(null);   // Geolocation.watchPosition ID
+  const heartbeatRef    = useRef(null);   // 60-sec stationary heartbeat interval
+  const timerIntervalRef = useRef(null);  // elapsed-time display interval
+  const lastPingTsRef   = useRef(0);      // timestamp of last backend ping (debounce)
+  const sessionIdRef    = useRef(null);   // current session ID accessible inside callbacks
 
   // ─── Unified GPS: Capacitor plugin on Android, browser API on web ───────────
   const requestGpsPermission = async () => {
@@ -115,8 +121,9 @@ export default function SalesAttendance() {
       const active = list.find(s => s.status === 'ACTIVE');
       if (active) {
         setActiveSession(active);
+        sessionIdRef.current = active.id;
         startTimer(active.clock_in_at);
-        startPingLoop(active.id);
+        startWatching(active.id);
         setGpsStatus('active');
       }
     } catch {
@@ -129,7 +136,7 @@ export default function SalesAttendance() {
   useEffect(() => {
     loadSessions();
     return () => {
-      clearInterval(pingIntervalRef.current);
+      stopWatching();
       clearInterval(timerIntervalRef.current);
     };
   }, []); // eslint-disable-line
@@ -145,25 +152,78 @@ export default function SalesAttendance() {
     timerIntervalRef.current = setInterval(tick, 1000);
   };
 
-  // ─── Ping loop ───────────────────────────────────────────────────────────────
-  const startPingLoop = (sessionId) => {
-    clearInterval(pingIntervalRef.current);
-    const sendPing = async () => {
-      try {
-        setGpsStatus('acquiring');
-        const pos = await getCurrentPosition();
-        const { latitude, longitude, accuracy } = pos.coords;
-        await attendanceAPI.ping(sessionId, latitude, longitude, accuracy);
-        setLastPingAt(new Date());
-        setLastAccuracy(Math.round(accuracy));
-        setGpsStatus('active');
-      } catch (err) {
-        setGpsStatus('error');
-        console.warn('GPS ping failed:', err);
+  // ─── Stop watching (cleanup helper) ─────────────────────────────────────────
+  const stopWatching = () => {
+    if (watchIdRef.current !== null) {
+      if (Capacitor.isNativePlatform()) {
+        Geolocation.clearWatch({ id: watchIdRef.current }).catch(() => {});
+      } else {
+        navigator.geolocation?.clearWatch(watchIdRef.current);
       }
+      watchIdRef.current = null;
+    }
+    clearInterval(heartbeatRef.current);
+    heartbeatRef.current = null;
+    lastPingTsRef.current = 0;
+  };
+
+  // ─── Send a ping to the backend (debounced) ──────────────────────────────────
+  const sendPing = async (latitude, longitude, accuracy) => {
+    const sid = sessionIdRef.current;
+    if (!sid) return;
+    const now = Date.now();
+    if (now - lastPingTsRef.current < MIN_PING_GAP_MS) return; // debounce
+    lastPingTsRef.current = now;
+    try {
+      await attendanceAPI.ping(sid, latitude, longitude, accuracy);
+      setLastPingAt(new Date());
+      setLastAccuracy(Math.round(accuracy ?? 0));
+      setGpsStatus('active');
+    } catch (err) {
+      console.warn('GPS ping failed:', err);
+    }
+  };
+
+  // ─── Start movement-based watching ──────────────────────────────────────────
+  // Uses watchPosition with distanceFilter:1 so every ≥1 m movement fires a callback.
+  // A 60-sec heartbeat also runs for stationary users so the admin map stays fresh.
+  const startWatching = (sessionId) => {
+    stopWatching();
+    sessionIdRef.current = sessionId;
+
+    const onPosition = (pos) => {
+      const { latitude, longitude, accuracy } = pos.coords;
+      sendPing(latitude, longitude, accuracy);
+    };
+    const onError = (err) => {
+      setGpsStatus('error');
+      console.warn('watchPosition error:', err);
     };
 
-    pingIntervalRef.current = setInterval(sendPing, PING_INTERVAL_MS);
+    if (Capacitor.isNativePlatform()) {
+      Geolocation.watchPosition(
+        { enableHighAccuracy: true, timeout: 10000 },
+        (pos, err) => {
+          if (err) { onError(err); return; }
+          if (pos) onPosition(pos);
+        }
+      ).then(id => { watchIdRef.current = id; }).catch(onError);
+    } else {
+      if (navigator.geolocation) {
+        watchIdRef.current = navigator.geolocation.watchPosition(
+          onPosition, onError,
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      }
+    }
+
+    // Heartbeat: if stationary for >60s, re-read position and ping anyway
+    heartbeatRef.current = setInterval(async () => {
+      try {
+        const pos = await getCurrentPosition();
+        sendPing(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+      } catch { /* silent */ }
+    }, HEARTBEAT_MS);
   };
 
   // ─── Start Attendance ────────────────────────────────────────────────────────
@@ -204,7 +264,7 @@ export default function SalesAttendance() {
       setGpsStatus(gps ? 'active' : 'error');
 
       startTimer(session.clock_in_at);
-      startPingLoop(session.id);
+      startWatching(session.id);
 
       toast.success('Attendance started! GPS tracking active.');
     } catch (err) {
@@ -225,10 +285,10 @@ export default function SalesAttendance() {
       const res = await attendanceAPI.stop(activeSession.id);
       const updated = res.data.data;
 
-      clearInterval(pingIntervalRef.current);
+      stopWatching();
       clearInterval(timerIntervalRef.current);
-      pingIntervalRef.current = null;
       timerIntervalRef.current = null;
+      sessionIdRef.current = null;
 
       setActiveSession(null);
       setGpsStatus('idle');
@@ -412,7 +472,7 @@ export default function SalesAttendance() {
       <div style={{ margin: '0 16px', padding: '12px 14px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         <MapPin size={15} color="#3b82f6" style={{ marginTop: 1, flexShrink: 0 }} />
         <div style={{ fontSize: 11.5, color: 'var(--s-text-3)', lineHeight: 1.5 }}>
-          Your live location is sent to the admin every 30 seconds while attendance is active. GPS runs only while this app is open.
+          Your location is recorded every time you move ≥1 metre, and at least once per minute while stationary. GPS runs only while this app is open.
         </div>
       </div>
 
