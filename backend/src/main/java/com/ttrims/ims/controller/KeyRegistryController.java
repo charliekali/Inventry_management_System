@@ -160,11 +160,16 @@ public class KeyRegistryController {
         if (auth.isSuperAdmin()) {
             // Admin logs directly (bypasses queue)
             String takenByName = (String) body.get("taken_by_name");
-            if (takenByName == null || takenByName.isBlank()) return bad("taken_by_name is required");
-
-            log.setTakenByName(takenByName.trim());
-            log.setTakenByEmail((String) body.get("taken_by_email"));
-            log.setTakenById((String) body.get("taken_by_id"));
+            if (takenByName == null || takenByName.isBlank()) {
+                // If not provided (e.g. from APK), default to the Super Admin themselves
+                log.setTakenByName(currentUser.getName());
+                log.setTakenByEmail(currentUser.getEmail());
+                log.setTakenById(currentUser.getId());
+            } else {
+                log.setTakenByName(takenByName.trim());
+                log.setTakenByEmail((String) body.get("taken_by_email"));
+                log.setTakenById((String) body.get("taken_by_id"));
+            }
             log.setRecordedById(currentUser.getId());
             log.setRecordedByName(currentUser.getName());
             log.setStatus("CHECKED_OUT");
