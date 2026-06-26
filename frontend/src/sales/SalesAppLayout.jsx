@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import {
   Home, PhoneCall, Wallet, ShoppingBag, Zap, User,
-  LogOut, Clock
+  LogOut, Clock, KeyRound
 } from 'lucide-react';
 
 const ALL_TABS = [
@@ -19,6 +19,7 @@ const ALL_TABS = [
   { path: '/sales/orders',      label: 'Orders',   Icon: ShoppingBag, key: 'orders',      perm: 'ORDERS:VIEW' },
   { path: '/sales/pos',         label: 'POS',      Icon: Zap,         key: 'pos',         perm: 'ORDERS:CREATE' },
   { path: '/sales/attendance',  label: 'Attend',   Icon: Clock,       key: 'attendance',  perm: null },
+  { path: '/sales/key-registry', label: 'Keys',     Icon: KeyRound,    key: 'keys',        perm: null },
   { path: '/sales/profile',     label: 'Me',       Icon: User,        key: 'profile',     perm: null },
 ];
 

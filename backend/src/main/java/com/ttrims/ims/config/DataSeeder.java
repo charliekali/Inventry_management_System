@@ -175,6 +175,55 @@ public class DataSeeder implements CommandLineRunner {
         } catch (Exception e) {
             log.warn("Schema migration: could not drop constraint production_orders_status_check — {}", e.getMessage());
         }
+
+        // Key Registry tables
+        try {
+            jdbc.execute(
+                "CREATE TABLE IF NOT EXISTS factory_keys (" +
+                "  id VARCHAR(36) PRIMARY KEY, " +
+                "  name VARCHAR(255) NOT NULL, " +
+                "  description VARCHAR(500), " +
+                "  key_number VARCHAR(100), " +
+                "  status VARCHAR(20) NOT NULL DEFAULT 'AVAILABLE', " +
+                "  created_at TIMESTAMP, " +
+                "  updated_at TIMESTAMP" +
+                ")");
+            log.info("Schema migration: factory_keys table ensured");
+        } catch (Exception e) {
+            log.warn("Schema migration: factory_keys table — {}", e.getMessage());
+        }
+
+        try {
+            jdbc.execute(
+                "CREATE TABLE IF NOT EXISTS key_logs (" +
+                "  id VARCHAR(36) PRIMARY KEY, " +
+                "  key_id VARCHAR(36) NOT NULL, " +
+                "  key_name VARCHAR(255), " +
+                "  key_number VARCHAR(100), " +
+                "  taken_by_id VARCHAR(36), " +
+                "  taken_by_name VARCHAR(255) NOT NULL, " +
+                "  taken_by_email VARCHAR(255), " +
+                "  reason TEXT NOT NULL, " +
+                "  taken_at TIMESTAMP NOT NULL, " +
+                "  returned_at TIMESTAMP, " +
+                "  return_notes TEXT, " +
+                "  recorded_by_id VARCHAR(36), " +
+                "  recorded_by_name VARCHAR(255), " +
+                "  status VARCHAR(30) NOT NULL DEFAULT 'PENDING_CHECKOUT', " +
+                "  created_at TIMESTAMP" +
+                ")");
+            log.info("Schema migration: key_logs table ensured");
+        } catch (Exception e) {
+            log.warn("Schema migration: key_logs table — {}", e.getMessage());
+        }
+
+        try {
+            jdbc.execute("ALTER TABLE key_logs ADD COLUMN status VARCHAR(30) NOT NULL DEFAULT 'CHECKED_OUT'");
+            log.info("Schema migration: added status column to key_logs");
+        } catch (Exception e) {
+            // This is expected if the column already exists
+            log.debug("Schema migration: key_logs status column alter query — {}", e.getMessage());
+        }
     }
 
     private void seedPermissions() {

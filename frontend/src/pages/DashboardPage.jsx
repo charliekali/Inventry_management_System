@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Capacitor } from '@capacitor/core';
-import { Warehouse, Package, TrendingUp, TrendingDown, AlertTriangle, Activity, Factory, ShoppingBag, ChevronRight } from 'lucide-react';
+import { Warehouse, Package, TrendingUp, TrendingDown, AlertTriangle, Activity, Factory, ShoppingBag, ChevronRight, KeyRound } from 'lucide-react';
 
 function fmtCurrency(val) {
   return '₹' + (val || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -156,6 +156,30 @@ export default function DashboardPage() {
             <div style={{ flex: 1 }}>
               <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)' }}>Sales App</h4>
               <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>View POS orders, invoices, collections & CRM</p>
+            </div>
+            <ChevronRight size={18} color="var(--color-text-muted)" style={{ flexShrink: 0 }} />
+          </div>
+
+          {/* Key Registry Card */}
+          <div 
+            onClick={() => navigate('/key-registry')}
+            className="kpi-card orange"
+            style={{ 
+              flexDirection: 'row', 
+              alignItems: 'center', 
+              gap: 16, 
+              padding: '18px 16px', 
+              cursor: 'pointer',
+              border: '1px solid var(--color-border)',
+              margin: 0
+            }}
+          >
+            <div className="kpi-icon orange" style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, margin: 0 }}>
+              <KeyRound size={22} color="#f59e0b" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)' }}>Key Registry</h4>
+              <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>Approve key checkouts, returns & view catalogue</p>
             </div>
             <ChevronRight size={18} color="var(--color-text-muted)" style={{ flexShrink: 0 }} />
           </div>

@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Home, Camera, ArrowDownCircle, ArrowUpCircle, BarChart3, MapPin, User } from 'lucide-react';
+import { Home, Camera, ArrowDownCircle, ArrowUpCircle, BarChart3, MapPin, User, KeyRound } from 'lucide-react';
 
 const ALL_TABS = [
   { path: '/warehouse',           label: 'Home',     Icon: Home,            key: 'home',      perm: null },
@@ -9,6 +9,7 @@ const ALL_TABS = [
   { path: '/warehouse/stock-out', label: 'Out',      Icon: ArrowUpCircle,   key: 'stock-out', perm: 'TRANSACTIONS:STOCK_OUT' },
   { path: '/warehouse/balance',   label: 'Balance',  Icon: BarChart3,       key: 'balance',   perm: 'STOCK:VIEW' },
   { path: '/warehouse/find',      label: 'Find',     Icon: MapPin,          key: 'find',      perm: 'STOCK:LOCATE' },
+  { path: '/warehouse/key-registry', label: 'Keys',   Icon: KeyRound,        key: 'keys',      perm: null },
   { path: '/warehouse/profile',   label: 'Me',       Icon: User,            key: 'profile',   perm: null },
 ];
 

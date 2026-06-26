@@ -8,7 +8,7 @@ import {
   ArrowUpCircle, BarChart3, MapPin, ShieldCheck, Users,
   Settings, LogOut, ClipboardList, BookOpen, SlidersHorizontal, Tags,
   Factory, ListPlus, History, LineChart, Database, ShoppingBag, FileText,
-  PhoneCall, Target, Wifi, Radio
+  PhoneCall, Target, Wifi, Radio, KeyRound
 } from 'lucide-react';
 import ServerSettings from './ServerSettings';
 
@@ -51,6 +51,7 @@ const NAV_ITEMS = [
     { path: '/form-settings', label: 'Form Settings', icon: SlidersHorizontal, perm: 'ROLES:VIEW' },
     { path: '/invoice-designer', label: 'Invoice Designer', icon: FileText, perm: 'ROLES:VIEW' },
     { path: '/attendance-tracking', label: 'Live Tracking', icon: Radio, perm: null },
+    { path: '/key-registry', label: 'Key Registry', icon: KeyRound, perm: null },
     { path: '/postgres-provisioner', label: 'Postgres Databases', icon: Database, perm: 'INFRASTRUCTURE:VIEW' },
   ]},
 ];

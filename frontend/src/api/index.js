@@ -202,4 +202,32 @@ export const attendanceAPI = {
   history: () => api.get('/attendance/history'),
 };
 
+// ─── Key Registry ─────────────────────────────────────────────────────────────
+export const keyRegistryAPI = {
+  /** List all factory keys (master catalogue) */
+  keys: ()                   => api.get('/key-registry/keys'),
+  /** Add a new physical key */
+  addKey: (data)             => api.post('/key-registry/keys', data),
+  /** Update key name / description / number */
+  updateKey: (id, data)      => api.patch(`/key-registry/keys/${id}`, data),
+  /** Delete a key (only if AVAILABLE) */
+  deleteKey: (id)            => api.delete(`/key-registry/keys/${id}`),
+  /** Full checkout/return history */
+  logs: ()                   => api.get('/key-registry/logs'),
+  /** Currently checked-out keys only */
+  activeLogs: ()             => api.get('/key-registry/logs/active'),
+  /** List logged-in user's checkout requests and history */
+  myLogs: ()                 => api.get('/key-registry/logs/my'),
+  /** List all pending checkout/return requests (Super Admin) */
+  pendingRequests: ()        => api.get('/key-registry/requests/pending'),
+  /** Log a key checkout or submit checkout request */
+  checkout: (data)           => api.post('/key-registry/logs', data),
+  /** Mark a key as returned or submit return request */
+  returnKey: (id, notes)     => api.patch(`/key-registry/logs/${id}/return`, { return_notes: notes }),
+  /** Approve a pending request (Super Admin) */
+  approveRequest: (id)       => api.post(`/key-registry/requests/${id}/approve`, {}),
+  /** Reject a pending request (Super Admin) */
+  rejectRequest: (id)        => api.post(`/key-registry/requests/${id}/reject`, {}),
+};
+
 export default api;

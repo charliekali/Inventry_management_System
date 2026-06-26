@@ -16,6 +16,7 @@ import './SalesApp.css';
 
 // We import SalesCRM as well
 import SalesCRMComponent from './pages/SalesCRM';
+import MobileKeyRegistry from '../components/MobileKeyRegistry';
 
 export default function SalesApp() {
   return (
@@ -27,6 +28,7 @@ export default function SalesApp() {
         <Route path="orders" element={<SalesOrders />} />
         <Route path="pos" element={<SalesPOS />} />
         <Route path="attendance" element={<SalesAttendance />} />
+        <Route path="key-registry" element={<MobileKeyRegistry />} />
         <Route path="profile" element={<SalesProfile />} />
         {/* Redirect unknown routes back to home */}
         <Route path="*" element={<Navigate to="" replace />} />

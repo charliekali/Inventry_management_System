@@ -5,6 +5,7 @@ import ProductionRuns from './pages/ProductionRuns';
 import ProductionHistory from './pages/ProductionHistory';
 import ProductionRecipes from './pages/ProductionRecipes';
 import ProductionProfile from './pages/ProductionProfile';
+import MobileKeyRegistry from '../components/MobileKeyRegistry';
 import './ProductionApp.css';
 
 export default function ProductionApp() {
@@ -16,6 +17,7 @@ export default function ProductionApp() {
         <Route path="history" element={<ProductionHistory />} />
         <Route path="recipes" element={<ProductionRecipes />} />
         <Route path="profile" element={<ProductionProfile />} />
+        <Route path="key-registry" element={<MobileKeyRegistry />} />
         {/* Redirect unknown routes back to home */}
         <Route path="*" element={<Navigate to="" replace />} />
       </Routes>

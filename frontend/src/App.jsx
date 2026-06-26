@@ -41,6 +41,8 @@ import SalesCRMDashboard from './pages/SalesCRMDashboard';
 import NewLeadsPage from './pages/NewLeadsPage';
 import CustomersPage from './pages/CustomersPage';
 import AttendanceTrackingPage from './pages/AttendanceTrackingPage';
+import KeyRegistryPage from './pages/KeyRegistryPage';
+import MobileKeyRegistry from './components/MobileKeyRegistry';
 import SalesApp from './sales/SalesApp';
 import ProductionApp from './production/ProductionApp';
 import WarehouseApp from './warehouse/WarehouseApp';
@@ -559,6 +561,14 @@ function App() {
             <ProtectedRoute>
               <AuthenticatedLayout>
                 <AttendanceTrackingPage />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/key-registry" element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                {Capacitor.isNativePlatform() ? <MobileKeyRegistry /> : <KeyRegistryPage />}
               </AuthenticatedLayout>
             </ProtectedRoute>
           } />

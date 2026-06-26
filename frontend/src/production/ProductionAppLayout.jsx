@@ -1,13 +1,14 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { Home, Factory, History, ListPlus, User } from 'lucide-react';
+import { Home, Factory, History, ListPlus, User, KeyRound } from 'lucide-react';
 
 const ALL_TABS = [
   { path: '/production',          label: 'Home',    Icon: Home,     key: 'home',    perm: null },
   { path: '/production/runs',     label: 'Runs',    Icon: Factory,  key: 'runs',    perm: 'PRODUCTION:RUN' },
   { path: '/production/history',  label: 'History', Icon: History,  key: 'history', perm: 'PRODUCTION:HISTORY' },
   { path: '/production/recipes',  label: 'Recipes', Icon: ListPlus, key: 'recipes', perm: 'BOM:VIEW' },
+  { path: '/production/key-registry', label: 'Keys',   Icon: KeyRound, key: 'keys',    perm: null },
   { path: '/production/profile',  label: 'Me',      Icon: User,     key: 'profile', perm: null },
 ];
 
