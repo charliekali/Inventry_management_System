@@ -183,4 +183,23 @@ export const invoiceSettingsAPI = {
   save: (data) => api.put('/invoice-settings', data),
 };
 
+// ─── Attendance / GPS Tracking ────────────────────────────────────────────────
+export const attendanceAPI = {
+  /** Sales: clock in and start a session (optionally include initial GPS). */
+  start: (gps = null) => api.post('/attendance/start', gps || {}),
+  /** Sales: send a GPS breadcrumb for an active session. */
+  ping: (id, latitude, longitude, accuracy) =>
+    api.post(`/attendance/${id}/ping`, { latitude, longitude, accuracy }),
+  /** Sales: clock out and end the session. */
+  stop: (id) => api.post(`/attendance/${id}/stop`),
+  /** Sales: get own attendance sessions (daily log). */
+  my: () => api.get('/attendance/my'),
+  /** Admin: get all currently ACTIVE sessions with latest GPS coordinates. */
+  active: () => api.get('/attendance/active'),
+  /** Admin: get full GPS breadcrumb trail for a session. */
+  trail: (id) => api.get(`/attendance/${id}/trail`),
+  /** Admin: get all historical sessions. */
+  history: () => api.get('/attendance/history'),
+};
+
 export default api;

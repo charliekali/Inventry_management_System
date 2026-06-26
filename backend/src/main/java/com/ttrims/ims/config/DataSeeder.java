@@ -72,7 +72,8 @@ public class DataSeeder implements CommandLineRunner {
             { "SALES", "CRM" }, { "SALES", "COLLECT" },
             { "PRODUCTION", "RUN" }, { "PRODUCTION", "HISTORY" },
             { "SALES", "ADD_LEAD" }, { "SALES", "LOG_FOLLOWUP" },
-            { "SALES", "LEADS" }, { "SALES", "CUSTOMERS" }
+            { "SALES", "LEADS" }, { "SALES", "CUSTOMERS" },
+            { "ATTENDANCE", "VIEW" }, { "ATTENDANCE", "TRACK" }
     };
 
     @Override
@@ -128,6 +129,43 @@ public class DataSeeder implements CommandLineRunner {
             } catch (Exception e) {
                 log.warn("Schema migration: could not drop {}.{} — {}", drop[0], drop[1], e.getMessage());
             }
+        }
+
+        // Create attendance tables if they don't already exist (idempotent)
+        try {
+            jdbc.execute(
+                "CREATE TABLE IF NOT EXISTS attendance (" +
+                "  id VARCHAR(36) PRIMARY KEY, " +
+                "  user_id VARCHAR(36) NOT NULL, " +
+                "  user_name VARCHAR(255), " +
+                "  user_email VARCHAR(255), " +
+                "  status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE', " +
+                "  clock_in_at TIMESTAMP, " +
+                "  clock_out_at TIMESTAMP, " +
+                "  last_lat DOUBLE PRECISION, " +
+                "  last_lng DOUBLE PRECISION, " +
+                "  last_ping_at TIMESTAMP, " +
+                "  ping_count INTEGER DEFAULT 0, " +
+                "  created_at TIMESTAMP" +
+                ")");
+            log.info("Schema migration: attendance table ensured");
+        } catch (Exception e) {
+            log.warn("Schema migration: attendance table — {}", e.getMessage());
+        }
+
+        try {
+            jdbc.execute(
+                "CREATE TABLE IF NOT EXISTS attendance_locations (" +
+                "  id VARCHAR(36) PRIMARY KEY, " +
+                "  attendance_id VARCHAR(36) NOT NULL, " +
+                "  latitude DOUBLE PRECISION NOT NULL, " +
+                "  longitude DOUBLE PRECISION NOT NULL, " +
+                "  accuracy DOUBLE PRECISION, " +
+                "  recorded_at TIMESTAMP" +
+                ")");
+            log.info("Schema migration: attendance_locations table ensured");
+        } catch (Exception e) {
+            log.warn("Schema migration: attendance_locations table — {}", e.getMessage());
         }
 
         // Drop status check constraint to support PARTIAL status

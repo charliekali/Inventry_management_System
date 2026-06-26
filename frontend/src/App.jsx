@@ -40,6 +40,7 @@ import BillingPage from './pages/BillingPage';
 import SalesCRMDashboard from './pages/SalesCRMDashboard';
 import NewLeadsPage from './pages/NewLeadsPage';
 import CustomersPage from './pages/CustomersPage';
+import AttendanceTrackingPage from './pages/AttendanceTrackingPage';
 import SalesApp from './sales/SalesApp';
 import ProductionApp from './production/ProductionApp';
 import WarehouseApp from './warehouse/WarehouseApp';
@@ -551,6 +552,14 @@ function App() {
           <Route path="/warehouse/*" element={
             <ProtectedRoute perm="STOCK:VIEW">
               <WarehouseApp />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/attendance-tracking" element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <AttendanceTrackingPage />
+              </AuthenticatedLayout>
             </ProtectedRoute>
           } />
 

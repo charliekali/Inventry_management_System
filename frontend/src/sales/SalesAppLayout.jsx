@@ -9,16 +9,17 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import {
   Home, PhoneCall, Wallet, ShoppingBag, Zap, User,
-  LogOut
+  LogOut, Clock
 } from 'lucide-react';
 
 const ALL_TABS = [
-  { path: '/sales',            label: 'Home',       Icon: Home,        key: 'home',        perm: null },
-  { path: '/sales/crm',        label: 'CRM',        Icon: PhoneCall,   key: 'crm',         perm: 'SALES:CRM' },
-  { path: '/sales/collections',label: 'Collect',    Icon: Wallet,      key: 'collections', perm: 'SALES:COLLECT' },
-  { path: '/sales/orders',     label: 'Orders',     Icon: ShoppingBag, key: 'orders',      perm: 'ORDERS:VIEW' },
-  { path: '/sales/pos',        label: 'POS',        Icon: Zap,         key: 'pos',         perm: 'ORDERS:CREATE' },
-  { path: '/sales/profile',    label: 'Me',         Icon: User,        key: 'profile',     perm: null },
+  { path: '/sales',              label: 'Home',     Icon: Home,        key: 'home',        perm: null },
+  { path: '/sales/crm',         label: 'CRM',      Icon: PhoneCall,   key: 'crm',         perm: 'SALES:CRM' },
+  { path: '/sales/collections', label: 'Collect',  Icon: Wallet,      key: 'collections', perm: 'SALES:COLLECT' },
+  { path: '/sales/orders',      label: 'Orders',   Icon: ShoppingBag, key: 'orders',      perm: 'ORDERS:VIEW' },
+  { path: '/sales/pos',         label: 'POS',      Icon: Zap,         key: 'pos',         perm: 'ORDERS:CREATE' },
+  { path: '/sales/attendance',  label: 'Attend',   Icon: Clock,       key: 'attendance',  perm: null },
+  { path: '/sales/profile',     label: 'Me',       Icon: User,        key: 'profile',     perm: null },
 ];
 
 export default function SalesAppLayout({ children, crmBadge = 0, collectionBadge = 0 }) {
