@@ -4,6 +4,7 @@ import { productsAPI, warehousesAPI, transactionsAPI, productCategoriesAPI } fro
 import toast from 'react-hot-toast';
 import { ArrowDownCircle, Save, Warehouse } from 'lucide-react';
 import SearchableSelect from '../../components/SearchableSelect';
+import { useAuth } from '../../context/AuthContext';
 
 const getTypeLabel = (type) => {
   switch (type) {
@@ -18,6 +19,7 @@ const getTypeLabel = (type) => {
 export default function WarehouseStockIn() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { hasPermission } = useAuth();
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [sections, setSections] = useState([]);
@@ -226,23 +228,25 @@ export default function WarehouseStockIn() {
             <div className="w-form-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <label className="w-label" style={{ marginBottom: 0 }}>Select Product *</label>
-                <button 
-                  type="button" 
-                  className="w-btn ghost sm" 
-                  onClick={() => {
-                    setQuickCode('');
-                    setQuickName('');
-                    setQuickType(stockType === 'ALL' ? 'FINISHED_GOOD' : stockType);
-                    setQuickUnit('PCS');
-                    setQuickMinStock('0');
-                    setQuickCategory('');
-                    setQuickDesc('');
-                    setShowQuickAddModal(true);
-                  }}
-                  style={{ padding: '3px 8px', fontSize: 10.5, borderRadius: 'var(--w-radius-sm)', border: '1px dashed var(--w-border)' }}
-                >
-                  + Quick Add Product
-                </button>
+                {hasPermission('PRODUCTS:CREATE') && (
+                  <button 
+                    type="button" 
+                    className="w-btn ghost sm" 
+                    onClick={() => {
+                      setQuickCode('');
+                      setQuickName('');
+                      setQuickType(stockType === 'ALL' ? 'FINISHED_GOOD' : stockType);
+                      setQuickUnit('PCS');
+                      setQuickMinStock('0');
+                      setQuickCategory('');
+                      setQuickDesc('');
+                      setShowQuickAddModal(true);
+                    }}
+                    style={{ padding: '3px 8px', fontSize: 10.5, borderRadius: 'var(--w-radius-sm)', border: '1px dashed var(--w-border)' }}
+                  >
+                    + Quick Add Product
+                  </button>
+                )}
               </div>
               <SearchableSelect
                 options={filteredProducts.map(p => ({ value: p.id, label: `[${p.code}] ${p.name} (${getTypeLabel(p.type)})` }))}

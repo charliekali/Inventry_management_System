@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import QRScannerModal from '../components/QRScannerModal';
 import useFormSettings from '../hooks/useFormSettings';
 import SearchableSelect from '../components/SearchableSelect';
+import { useAuth } from '../context/AuthContext';
 
 const getTypeLabel = (type) => {
   switch (type) {
@@ -18,6 +19,7 @@ const getTypeLabel = (type) => {
 };
 
 export default function StockInPage() {
+  const { hasPermission } = useAuth();
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [sections, setSections] = useState([]);
@@ -269,23 +271,25 @@ export default function StockInPage() {
               <div className="form-group">
                 <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>{getLabel('product_id', 'Product')}{isRequired('product_id') && <span> *</span>}</span>
-                  <button 
-                    type="button" 
-                    className="btn btn-link btn-sm" 
-                    onClick={() => {
-                      setQuickCode('');
-                      setQuickName('');
-                      setQuickType(stockType === 'ALL' ? 'FINISHED_GOOD' : stockType);
-                      setQuickUnit('PCS');
-                      setQuickMinStock('0');
-                      setQuickCategory('');
-                      setQuickDesc('');
-                      setShowQuickAddModal(true);
-                    }}
-                    style={{ padding: 0, fontSize: 11.5, height: 'auto', textDecoration: 'none' }}
-                  >
-                    + Quick Add Product
-                  </button>
+                  {hasPermission('PRODUCTS:CREATE') && (
+                    <button 
+                      type="button" 
+                      className="btn btn-link btn-sm" 
+                      onClick={() => {
+                        setQuickCode('');
+                        setQuickName('');
+                        setQuickType(stockType === 'ALL' ? 'FINISHED_GOOD' : stockType);
+                        setQuickUnit('PCS');
+                        setQuickMinStock('0');
+                        setQuickCategory('');
+                        setQuickDesc('');
+                        setShowQuickAddModal(true);
+                      }}
+                      style={{ padding: 0, fontSize: 11.5, height: 'auto', textDecoration: 'none' }}
+                    >
+                      + Quick Add Product
+                    </button>
+                  )}
                 </label>
                 <SearchableSelect
                   options={filteredProducts.map(p => ({ value: p.id, label: `[${p.code}] ${p.name} (${getTypeLabel(p.type)})` }))}
