@@ -6,7 +6,7 @@
       "destination": "https://ttrims-backend-4xho.onrender.com/api/:path*"
     },
     {
-      "source": "/:path*",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
