@@ -174,22 +174,11 @@ function CheckoutModal({ availableKeys, users, onClose, onSave }) {
     reason: '',
     taken_at: new Date().toISOString().slice(0, 16),
   });
-  const [userSearch, setUserSearch] = useState('');
   const [saving, setSaving] = useState(false);
-
-  const filteredUsers = users.filter(u =>
-    u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
-    (u.email || '').toLowerCase().includes(userSearch.toLowerCase())
-  ).slice(0, 6);
-
-  const selectUser = (u) => {
-    setForm(p => ({ ...p, taken_by_name: u.name, taken_by_email: u.email, taken_by_id: u.id }));
-    setUserSearch('');
-  };
 
   const handleCheckout = async () => {
     if (!form.key_id) { toast.error('Please select a key'); return; }
-    if (!form.taken_by_name.trim()) { toast.error('Person name is required'); return; }
+    if (!form.taken_by_id) { toast.error('Taken By User is required'); return; }
     if (!form.reason.trim()) { toast.error('Reason is required'); return; }
     setSaving(true);
     try {
@@ -226,30 +215,28 @@ function CheckoutModal({ availableKeys, users, onClose, onSave }) {
           )}
         </div>
 
-        {/* Person — search users or type name */}
+        {/* User selector */}
         <div>
-          <label className="form-label">Taken By *</label>
-          <input className="form-input" placeholder="Search users or type name…"
-            value={userSearch || form.taken_by_name}
-            onChange={e => { setUserSearch(e.target.value); setForm(p => ({ ...p, taken_by_name: e.target.value, taken_by_id: '', taken_by_email: '' })); }} />
-          {userSearch && filteredUsers.length > 0 && (
-            <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, marginTop: 4, overflow: 'hidden', background: 'var(--color-bg-card)' }}>
-              {filteredUsers.map(u => (
-                <div key={u.id}
-                  onClick={() => selectUser(u)}
-                  style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, display: 'flex', gap: 8, alignItems: 'center' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--color-bg-hover)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <User size={14} />
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{u.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{u.email}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <label className="form-label">Taken By User *</label>
+          <select 
+            className="form-select" 
+            value={form.taken_by_id}
+            onChange={e => {
+              const u = users.find(usr => usr.id === e.target.value);
+              if (u) {
+                setForm(p => ({ ...p, taken_by_id: u.id, taken_by_name: u.name, taken_by_email: u.email }));
+              } else {
+                setForm(p => ({ ...p, taken_by_id: '', taken_by_name: '', taken_by_email: '' }));
+              }
+            }}
+          >
+            <option value="">— Select registered user —</option>
+            {users.map(u => (
+              <option key={u.id} value={u.id}>
+                {u.name} ({u.email || u.username || 'No email'})
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>
