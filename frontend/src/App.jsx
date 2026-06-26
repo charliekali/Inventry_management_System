@@ -1,5 +1,5 @@
 // Main Application Routing Shell
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, NavLink } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, NavLink, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { Toaster } from 'react-hot-toast';
@@ -126,13 +126,14 @@ function ProtectedRoute({ children, perm }) {
 }
 
 import { useState, useEffect } from 'react';
-import { Menu, LayoutDashboard, ArrowDownCircle, ArrowUpCircle, MapPin } from 'lucide-react';
+import { Menu, LayoutDashboard, ArrowDownCircle, ArrowUpCircle, MapPin, ArrowLeft } from 'lucide-react';
 
 // Layout Shell for Authenticated Users
 function AuthenticatedLayout({ children }) {
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   const ADMIN_TABS = [
     { path: '/dashboard', label: 'Home', Icon: LayoutDashboard },
@@ -140,10 +141,37 @@ function AuthenticatedLayout({ children }) {
     { path: '/stock-out', label: 'Stock OUT', Icon: ArrowUpCircle },
     { path: '/locate', label: 'Finder', Icon: MapPin },
   ];
+
+  const isHome = location.pathname === '/dashboard' || location.pathname === '/';
   
   if (Capacitor.isNativePlatform()) {
+    const showHeader = !isHome && location.pathname !== '/login';
     return (
       <div className="app-layout native-layout" style={{ display: 'block' }}>
+        {showHeader && (
+          <header className="mobile-native-header" style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: '12px 16px',
+            background: 'var(--color-bg-card)',
+            borderBottom: '1px solid var(--color-border)',
+            position: 'sticky',
+            top: 0,
+            zIndex: 100,
+            gap: 12
+          }}>
+            <button 
+              className="btn btn-ghost btn-icon" 
+              onClick={() => navigate(-1)}
+              style={{ padding: 8, minWidth: 'auto', display: 'flex', alignItems: 'center', background: 'transparent', border: 'none', color: 'var(--color-text-primary)', cursor: 'pointer' }}
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <span style={{ fontWeight: 600, fontSize: 17, color: 'var(--color-text-primary)' }}>
+              Back
+            </span>
+          </header>
+        )}
         <main className="main-content" style={{ marginLeft: 0, paddingTop: 0 }}>
           <div className="page-content" style={{ padding: '16px 12px', marginTop: 0 }}>
             {children}
@@ -161,9 +189,21 @@ function AuthenticatedLayout({ children }) {
       )}
       <main className="main-content">
         <header className="topbar">
-          <button className="btn btn-ghost btn-icon mobile-menu-btn" onClick={() => setSidebarOpen(true)}>
-            <Menu size={20} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button className="btn btn-ghost btn-icon mobile-menu-btn" onClick={() => setSidebarOpen(true)}>
+              <Menu size={20} />
+            </button>
+            {!isHome && (
+              <button 
+                className="btn btn-ghost btn-icon back-btn" 
+                onClick={() => navigate(-1)}
+                title="Go Back"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <ArrowLeft size={20} />
+              </button>
+            )}
+          </div>
           <div className="topbar-title">
             <h1>TTRIMS Inventory Console</h1>
             <p>Welcome back, {user?.name || 'User'} (Role: {user?.role || 'Staff'})</p>
