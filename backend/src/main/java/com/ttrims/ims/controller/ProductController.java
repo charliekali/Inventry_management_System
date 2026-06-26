@@ -114,15 +114,18 @@ public class ProductController {
         auth.requirePermission("PRODUCTS:DELETE");
         if (permanent) {
             try {
-                // Safely clear transient records associated with this product
-                bomRepo.deleteByProductId(id);
-                stockBalanceRepo.deleteByProductId(id);
+                // Cascaded force delete across all referencing tables
+                productRepo.deleteBomByProductId(id);
+                productRepo.deleteStockBalanceByProductId(id);
+                productRepo.deleteStockTransactionByProductId(id);
+                productRepo.deleteProductionOrderItemByProductId(id);
+                productRepo.deleteOrderItemByProductId(id);
 
                 // Now delete the product itself
                 productRepo.deleteById(id);
                 return ok("Product permanently deleted");
             } catch (Exception e) {
-                return bad("Cannot permanently delete this product because it is referenced in historical records (e.g. orders or stock transactions). Please keep it archived instead.");
+                return bad("Failed to permanently delete product: " + e.getMessage());
             }
         } else {
             productRepo.findById(id).ifPresent(p -> { p.setActive(false); productRepo.save(p); });
