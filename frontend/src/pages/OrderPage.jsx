@@ -13,6 +13,7 @@ export default function OrderPage() {
   const { hasPermission, user } = useAuth();
   const [activeTab, setActiveTab] = useState('sales');
   const [orders, setOrders] = useState([]);
+  const [productionOrders, setProductionOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -21,7 +22,6 @@ export default function OrderPage() {
   const bulkProduction = useBulkActions(productionOrders);
 
   // Production Orders state
-  const [productionOrders, setProductionOrders] = useState([]);
   const [loadingPo, setLoadingPo] = useState(false);
   const [showCreatePoModal, setShowCreatePoModal] = useState(false);
   const [poRemarks, setPoRemarks] = useState('');
