@@ -11,6 +11,8 @@ import java.util.Optional;
 public interface OrderRepository extends JpaRepository<Order, String> {
     List<Order> findAllByOrderByCreatedAtDesc();
 
+    List<Order> findByAssignedToIdOrderByCreatedAtDesc(String userId);
+
     Optional<Order> findFirstByInvoiceNumberStartingWithOrderByInvoiceNumberDesc(String prefix);
 
     @Query("SELECT COALESCE(SUM(o.grandTotal), 0.0) FROM Order o WHERE o.status = 'FULFILLED' AND o.invoiceDate >= :start AND o.invoiceDate <= :end")

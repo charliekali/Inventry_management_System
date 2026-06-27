@@ -24,8 +24,9 @@ public class OrderController {
     private final ProductionOrderRepository poRepo;
     private final PaymentTransactionRepository paymentTxRepo;
     private final OrderFollowUpRepository orderFollowUpRepo;
+    private final UserRepository userRepo;
 
-    public OrderController(OrderRepository orderRepo, ProductRepository productRepo, BomRepository bomRepo, StockBalanceRepository balanceRepo, AuthHelper auth, ProductionOrderRepository poRepo, PaymentTransactionRepository paymentTxRepo, OrderFollowUpRepository orderFollowUpRepo) {
+    public OrderController(OrderRepository orderRepo, ProductRepository productRepo, BomRepository bomRepo, StockBalanceRepository balanceRepo, AuthHelper auth, ProductionOrderRepository poRepo, PaymentTransactionRepository paymentTxRepo, OrderFollowUpRepository orderFollowUpRepo, UserRepository userRepo) {
         this.orderRepo = orderRepo;
         this.productRepo = productRepo;
         this.bomRepo = bomRepo;
@@ -34,6 +35,7 @@ public class OrderController {
         this.poRepo = poRepo;
         this.paymentTxRepo = paymentTxRepo;
         this.orderFollowUpRepo = orderFollowUpRepo;
+        this.userRepo = userRepo;
     }
 
     @GetMapping
@@ -191,6 +193,14 @@ public class OrderController {
         Map<String, String> customFields = (Map<String, String>) body.get("custom_fields");
         if (customFields != null) {
             order.setCustomFields(customFields);
+        }
+
+        if (body.containsKey("assigned_to_id")) {
+            String assignedToId = (String) body.get("assigned_to_id");
+            if (assignedToId != null && !assignedToId.trim().isEmpty() && !"null".equalsIgnoreCase(assignedToId)) {
+                User assignedTo = userRepo.findById(assignedToId).orElse(null);
+                order.setAssignedTo(assignedTo);
+            }
         }
 
         double subtotal = 0.0;
@@ -478,6 +488,47 @@ public class OrderController {
         orderRepo.save(order);
 
         return ok(Map.of("success", true, "message", "Custom fields updated", "custom_fields", current));
+    }
+
+    @GetMapping("/my-assigned")
+    @Transactional(readOnly = true)
+    public ResponseEntity<?> listMyAssigned() {
+        User me = auth.currentUser();
+        List<Map<String, Object>> result = orderRepo.findByAssignedToIdOrderByCreatedAtDesc(me.getId()).stream()
+            .map(o -> {
+                double paid = o.getPaidAmount() != null ? o.getPaidAmount() : 0.0;
+                double balance = Math.round((o.getGrandTotal() - paid) * 100.0) / 100.0;
+                Map<String, Object> entry = new LinkedHashMap<>(toDto(o));
+                if (o.getInvoiceNumber() == null) {
+                    entry.put("invoice_number", o.getOrderNumber());
+                    entry.put("invoice_date", o.getCreatedAt().toString());
+                }
+                entry.put("balance", balance);
+                return entry;
+            })
+            .collect(Collectors.toList());
+        return ok(result);
+    }
+
+    @PatchMapping("/{id}/assign")
+    @Transactional
+    public ResponseEntity<?> assignOrder(@PathVariable String id, @RequestBody Map<String, String> body) {
+        if (!auth.hasPermission("SALES:CRM") && !auth.hasPermission("ORDERS:EDIT")) {
+            auth.requirePermission("ORDERS:EDIT");
+        }
+        Order order = orderRepo.findById(id).orElse(null);
+        if (order == null) return ResponseEntity.status(404).body(err("Order/Lead not found"));
+
+        String userId = body.get("user_id");
+        if (userId == null || userId.trim().isEmpty() || "null".equalsIgnoreCase(userId)) {
+            order.setAssignedTo(null);
+        } else {
+            User user = userRepo.findById(userId).orElse(null);
+            if (user == null) return ResponseEntity.status(404).body(err("User not found"));
+            order.setAssignedTo(user);
+        }
+        orderRepo.save(order);
+        return ok(Map.of("success", true, "message", "Order/Lead assigned successfully"));
     }
 
     @GetMapping("/outstanding")
@@ -1133,6 +1184,8 @@ public class OrderController {
         m.put("remarks", o.getRemarks());
         m.put("created_by_name", o.getCreatedBy() != null ? o.getCreatedBy().getName() : "");
         m.put("created_at", o.getCreatedAt() != null ? o.getCreatedAt().toString() : "");
+        m.put("assigned_to_id", o.getAssignedTo() != null ? o.getAssignedTo().getId() : null);
+        m.put("assigned_to_name", o.getAssignedTo() != null ? o.getAssignedTo().getName() : null);
         m.put("item_count", o.getItems().size());
         m.put("custom_fields", o.getCustomFields());
         m.put("invoice_number", o.getInvoiceNumber());

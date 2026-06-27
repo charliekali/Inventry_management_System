@@ -12,6 +12,7 @@ import SalesOrders from './pages/SalesOrders';
 import SalesPOS from './pages/SalesPOS';
 import SalesProfile from './pages/SalesProfile';
 import SalesAttendance from './pages/SalesAttendance';
+import SalesRoute from './pages/SalesRoute';
 import './SalesApp.css';
 
 // We import SalesCRM as well
@@ -28,6 +29,7 @@ export default function SalesApp() {
         <Route path="orders" element={<SalesOrders />} />
         <Route path="pos" element={<SalesPOS />} />
         <Route path="attendance" element={<SalesAttendance />} />
+        <Route path="route" element={<SalesRoute />} />
         <Route path="key-registry" element={<MobileKeyRegistry />} />
         <Route path="profile" element={<SalesProfile />} />
         {/* Redirect unknown routes back to home */}

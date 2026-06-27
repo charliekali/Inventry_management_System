@@ -1,12 +1,38 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
-import { ordersAPI, productsAPI, productionOrdersAPI } from '../api';
+import { ordersAPI, productsAPI, productionOrdersAPI, usersAPI } from '../api';
 import toast from 'react-hot-toast';
-import { BookOpen, Plus, Trash2, Eye, ShieldCheck, Clipboard, Factory, Upload, Download, FileText, Printer, Check, X } from 'lucide-react';
+import { BookOpen, Plus, Trash2, Eye, ShieldCheck, Clipboard, Factory, Upload, Download, FileText, Printer, Check, X, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import useFormSettings from '../hooks/useFormSettings';
 import { useAuth } from '../context/AuthContext';
 import useBulkActions from '../hooks/useBulkActions';
 import BulkActionBar from '../components/BulkActionBar';
+import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix default marker icon issues in Leaflet
+const defaultMarkerIcon = L.icon({
+  iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+});
+
+// Map click event helper
+function MapEvents({ onClick }) {
+  const map = useMap();
+  useEffect(() => {
+    const handleMapClick = (e) => {
+      onClick(e.latlng.lat, e.latlng.lng);
+    };
+    map.on('click', handleMapClick);
+    return () => {
+      map.off('click', handleMapClick);
+    };
+  }, [map, onClick]);
+  return null;
+}
 
 export default function OrderPage() {
   const navigate = useNavigate();
@@ -46,6 +72,15 @@ export default function OrderPage() {
 
   // Creation Form
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showAssignLocationModal, setShowAssignLocationModal] = useState(false);
+  
+  // Assign Location Form State
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskAssignedTo, setTaskAssignedTo] = useState('');
+  const [taskRemarks, setTaskRemarks] = useState('');
+  const [taskLat, setTaskLat] = useState('');
+  const [taskLng, setTaskLng] = useState('');
+
   const [customer, setCustomer] = useState('');
   const [remarks, setRemarks] = useState('');
   const [itemsList, setItemsList] = useState([]); // Array of { product_id, qty_required, unit, unit_price, discount }
@@ -83,11 +118,16 @@ export default function OrderPage() {
       .finally(() => setLoadingPo(false));
   };
 
+  const [usersList, setUsersList] = useState([]);
+
   useEffect(() => {
     loadOrders();
     loadProductionOrders();
     productsAPI.list()
       .then(r => setProducts(r.data.data))
+      .catch(() => {});
+    usersAPI.list()
+      .then(r => setUsersList(r.data.data || []))
       .catch(() => {});
   }, []);
 
@@ -419,6 +459,37 @@ export default function OrderPage() {
     }
   };
 
+  const handleAssignLocationSubmit = async (e) => {
+    e.preventDefault();
+    if (!taskTitle.trim()) return toast.error('Location Name / Title is required');
+    if (!taskAssignedTo) return toast.error('Please assign a Sales Person');
+    if (!taskLat || !taskLng) return toast.error('Please select a location on the map');
+
+    try {
+      await ordersAPI.create({
+        customer: taskTitle.trim(),
+        remarks: taskRemarks.trim(),
+        is_lead: true,
+        assigned_to_id: taskAssignedTo,
+        custom_fields: {
+          latitude: taskLat.toString(),
+          longitude: taskLng.toString(),
+          is_task: "true"
+        }
+      });
+      toast.success('Random location assigned successfully!');
+      setShowAssignLocationModal(false);
+      setTaskTitle('');
+      setTaskAssignedTo('');
+      setTaskRemarks('');
+      setTaskLat('');
+      setTaskLng('');
+      loadOrders();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to assign location');
+    }
+  };
+
   const handleUpdateStatus = async (orderId, status) => {
     try {
       await ordersAPI.updateStatus(orderId, status);
@@ -465,6 +536,10 @@ export default function OrderPage() {
               <button className="btn btn-secondary" onClick={() => navigate('/feasibility')}>
                 <ShieldCheck size={16} />
                 Quick Feasibility Check
+              </button>
+              <button className="btn btn-secondary" onClick={() => setShowAssignLocationModal(true)}>
+                <MapPin size={16} />
+                Assign Location
               </button>
               <button className="btn btn-primary" onClick={handleOpenCreateModal}>
                 <Plus size={16} />
@@ -633,6 +708,40 @@ export default function OrderPage() {
                   <span className="form-label" style={{ fontSize: 10 }}>Recorded By</span>
                   <div style={{ fontWeight: 600, fontSize: 14, marginTop: 4 }}>{selectedOrder.created_by_name}</div>
                 </div>
+                <div>
+                  <span className="form-label" style={{ fontSize: 10 }}>Assigned To (Sales Person)</span>
+                  {hasPermission('ORDERS:EDIT') ? (
+                    <select
+                      className="form-control"
+                      style={{ marginTop: 4, padding: '4px 8px', fontSize: 13, height: 'auto', background: 'var(--color-bg-card)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}
+                      value={selectedOrder.assigned_to_id || ''}
+                      onChange={async (e) => {
+                        const newUserId = e.target.value;
+                        try {
+                          await ordersAPI.assignOrder(selectedOrder.id, newUserId);
+                          toast.success('Assignment updated successfully!');
+                          setSelectedOrder(prev => ({
+                            ...prev,
+                            assigned_to_id: newUserId,
+                            assigned_to_name: usersList.find(u => u.id === newUserId)?.name || null
+                          }));
+                          loadOrders();
+                        } catch (err) {
+                          toast.error('Failed to update assignment');
+                        }
+                      }}
+                    >
+                      <option value="">Unassigned</option>
+                      {usersList.map(u => (
+                        <option key={u.id} value={u.id}>{u.name} ({u.role?.name || 'No Role'})</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div style={{ fontWeight: 600, fontSize: 14, marginTop: 4 }}>
+                      {selectedOrder.assigned_to_name || 'Unassigned'}
+                    </div>
+                  )}
+                </div>
                 {selectedOrder.custom_fields && Object.entries(selectedOrder.custom_fields).map(([key, val]) => (
                   <div key={key}>
                     <span className="form-label" style={{ fontSize: 10 }}>{getFieldLabel(key)}</span>
@@ -774,6 +883,112 @@ export default function OrderPage() {
               <button className="btn btn-secondary" onClick={() => setSelectedOrder(null)}>Close</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Assign Random Location Modal */}
+      {showAssignLocationModal && (
+        <div className="modal-overlay" onClick={() => setShowAssignLocationModal(false)}>
+          <form className="modal modal-lg" onSubmit={handleAssignLocationSubmit} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Assign Random Location Task</h3>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowAssignLocationModal(false)}>×</button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="form-row" style={{ marginBottom: 16 }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Location Name / Task Title *</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="e.g. Visit Competitor Shop, Check Site X"
+                    value={taskTitle}
+                    onChange={e => setTaskTitle(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Assign To (Sales Person) *</label>
+                  <select
+                    className="form-control"
+                    value={taskAssignedTo}
+                    onChange={e => setTaskAssignedTo(e.target.value)}
+                    required
+                  >
+                    <option value="">Select Sales Person</option>
+                    {usersList.map(u => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.role?.name || 'No Role'})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label className="form-label">Instructions / Remarks</label>
+                <textarea
+                  className="form-control"
+                  rows={2}
+                  placeholder="Enter any instructions for the sales person..."
+                  value={taskRemarks}
+                  onChange={e => setTaskRemarks(e.target.value)}
+                />
+              </div>
+
+              <div className="form-row" style={{ marginBottom: 12 }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Latitude *</label>
+                  <input
+                    type="number"
+                    step="any"
+                    className="form-control"
+                    value={taskLat}
+                    onChange={e => setTaskLat(parseFloat(e.target.value) || '')}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Longitude *</label>
+                  <input
+                    type="number"
+                    step="any"
+                    className="form-control"
+                    value={taskLng}
+                    onChange={e => setTaskLng(parseFloat(e.target.value) || '')}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                📍 Click anywhere on the map below to select coordinates.
+              </div>
+
+              <div style={{ height: 250, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+                <MapContainer
+                  center={[9.9252, 78.1198]}
+                  zoom={12}
+                  style={{ height: '100%', width: '100%' }}
+                >
+                  <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                  <MapEvents onClick={(lat, lng) => {
+                    setTaskLat(lat);
+                    setTaskLng(lng);
+                  }} />
+                  {taskLat && taskLng && (
+                    <Marker position={[taskLat, taskLng]} icon={defaultMarkerIcon} />
+                  )}
+                </MapContainer>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={() => setShowAssignLocationModal(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary">Assign Location</button>
+            </div>
+          </form>
         </div>
       )}
 

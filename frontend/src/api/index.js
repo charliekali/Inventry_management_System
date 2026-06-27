@@ -139,6 +139,8 @@ export const ordersAPI = {
   getFollowUps: (id) => api.get(`/orders/${id}/followups`),
   addFollowUp: (id, data) => api.post(`/orders/${id}/followups`, data),
   updateCustomFields: (id, fields) => api.patch(`/orders/${id}/custom-fields`, fields),
+  listMyAssigned: () => api.get('/orders/my-assigned'),
+  assignOrder: (id, userId) => api.patch(`/orders/${id}/assign`, { user_id: userId }),
 };
 
 // ─── Production Orders ────────────────────────────────────────────────────────

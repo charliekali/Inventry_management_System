@@ -9,11 +9,12 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import {
   Home, PhoneCall, Wallet, ShoppingBag, Zap, User,
-  LogOut, Clock, KeyRound
+  LogOut, Clock, KeyRound, Navigation
 } from 'lucide-react';
 
 const ALL_TABS = [
   { path: '/sales',              label: 'Home',     Icon: Home,        key: 'home',        perm: null },
+  { path: '/sales/route',        label: 'Route',    Icon: Navigation,  key: 'route',       perm: null },
   { path: '/sales/crm',         label: 'CRM',      Icon: PhoneCall,   key: 'crm',         perm: 'SALES:CRM' },
   { path: '/sales/collections', label: 'Collect',  Icon: Wallet,      key: 'collections', perm: 'SALES:COLLECT' },
   { path: '/sales/orders',      label: 'Orders',   Icon: ShoppingBag, key: 'orders',      perm: 'ORDERS:VIEW' },
