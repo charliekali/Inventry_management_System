@@ -9,10 +9,12 @@
  * - Falls back to navigator.geolocation.watchPosition on web.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Capacitor } from '@capacitor/core';
+import { registerPlugin, Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
-import { attendanceAPI } from '../../api';
+import { attendanceAPI, getApiBase } from '../../api';
 import toast from 'react-hot-toast';
+
+const Tracking = registerPlugin('Tracking');
 import { MapPin, Clock, Play, Square, CheckCircle } from 'lucide-react';
 
 const HEARTBEAT_MS = 60_000;          // 60-second stationary heartbeat
@@ -133,7 +135,23 @@ export default function SalesAttendance() {
         setActiveSession(active);
         sessionIdRef.current = active.id;
         startTimer(active.clock_in_at);
-        startWatching(active.id);
+        if (Capacitor.isNativePlatform()) {
+          const token = localStorage.getItem('accessToken');
+          const baseUrl = getApiBase();
+          try {
+            await Tracking.startTracking({
+              sessionId: active.id,
+              token: token,
+              apiUrl: baseUrl,
+              interval: 30000,
+              distance: 1
+            });
+          } catch (nativeErr) {
+            console.warn('Native startTracking on load failed:', nativeErr);
+          }
+        } else {
+          startWatching(active.id);
+        }
         setGpsStatus('active');
       }
     } catch {
@@ -296,7 +314,23 @@ export default function SalesAttendance() {
       setGpsStatus(gps ? 'active' : 'error');
 
       startTimer(session.clock_in_at);
-      startWatching(session.id);
+      if (Capacitor.isNativePlatform()) {
+        const token = localStorage.getItem('accessToken');
+        const baseUrl = getApiBase();
+        try {
+          await Tracking.startTracking({
+            sessionId: session.id,
+            token: token,
+            apiUrl: baseUrl,
+            interval: 30000,
+            distance: 1
+          });
+        } catch (nativeErr) {
+          console.warn('Native startTracking failed:', nativeErr);
+        }
+      } else {
+        startWatching(session.id);
+      }
 
       toast.success('Attendance started! GPS tracking active.');
     } catch (err) {
@@ -317,7 +351,15 @@ export default function SalesAttendance() {
       const res = await attendanceAPI.stop(activeSession.id);
       const updated = res.data.data;
 
-      stopWatching();
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await Tracking.stopTracking();
+        } catch (nativeErr) {
+          console.warn('Native stopTracking failed:', nativeErr);
+        }
+      } else {
+        stopWatching();
+      }
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
       sessionIdRef.current = null;
