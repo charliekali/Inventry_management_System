@@ -6,12 +6,12 @@
  * and draws their GPS breadcrumb trail as a polyline.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { attendanceAPI } from '../api';
 import toast from 'react-hot-toast';
-import { MapPin, Users, Clock, Wifi, WifiOff, RefreshCw, History, Activity, ChevronRight } from 'lucide-react';
+import { MapPin, Users, Clock, Wifi, WifiOff, RefreshCw, History, Activity, ChevronRight, Loader2 } from 'lucide-react';
 
 // Fix Leaflet's default icon path issue with bundlers
 delete L.Icon.Default.prototype._getIconUrl;
@@ -95,11 +95,72 @@ function fmtDateTime(iso) {
     d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+/** Snap coordinates to roads using OSRM Match API */
+async function snapToRoads(points) {
+  if (!points || points.length < 2) return points;
+
+  // Filter out consecutive duplicate or extremely close coordinates (within ~2 meters)
+  const filteredPoints = [];
+  for (const pt of points) {
+    if (filteredPoints.length === 0) {
+      filteredPoints.push(pt);
+    } else {
+      const last = filteredPoints[filteredPoints.length - 1];
+      const latDiff = Math.abs(pt[0] - last[0]);
+      const lngDiff = Math.abs(pt[1] - last[1]);
+      if (latDiff > 0.00002 || lngDiff > 0.00002) {
+        filteredPoints.push(pt);
+      }
+    }
+  }
+
+  if (filteredPoints.length < 2) return filteredPoints;
+
+  // OSRM demo server has a limit of 100 points per request.
+  // We chunk the points with a 1-point overlap to keep the path continuous.
+  const maxChunkSize = 90;
+  const chunks = [];
+  for (let i = 0; i < filteredPoints.length; i += maxChunkSize - 1) {
+    const chunk = filteredPoints.slice(i, i + maxChunkSize);
+    chunks.push(chunk);
+    if (i + maxChunkSize >= filteredPoints.length) break;
+  }
+
+  const snappedPaths = [];
+
+  for (const chunk of chunks) {
+    if (chunk.length < 2) continue;
+    // OSRM expects coordinates in lng,lat format
+    const coordString = chunk.map(p => `${p[1]},${p[0]}`).join(';');
+    const url = `https://router.project-osrm.org/match/v1/driving/${coordString}?overview=full&geometries=geojson`;
+
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data.code === 'Ok' && data.matchings && data.matchings.length > 0) {
+        const matchedCoords = data.matchings.flatMap(m =>
+          m.geometry.coordinates.map(c => [c[1], c[0]]) // convert [lng, lat] back to [lat, lng]
+        );
+        snappedPaths.push(...matchedCoords);
+      } else {
+        snappedPaths.push(...chunk);
+      }
+    } catch (err) {
+      console.warn('OSRM Match API failed, falling back to raw coordinates:', err);
+      snappedPaths.push(...chunk);
+    }
+  }
+
+  return snappedPaths;
+}
+
 export default function AttendanceTrackingPage() {
   const [activeSessions, setActiveSessions] = useState([]);
   const [history, setHistory] = useState([]);
   const [selectedSession, setSelectedSession] = useState(null);
   const [trail, setTrail] = useState([]);
+  const [rawTrail, setRawTrail] = useState([]);
+  const [snapping, setSnapping] = useState(false);
   const [tab, setTab] = useState('live'); // 'live' | 'history'
   const [lastRefresh, setLastRefresh] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -141,14 +202,24 @@ export default function AttendanceTrackingPage() {
   useEffect(() => {
     if (!selectedSession) {
       setTrail([]);
+      setRawTrail([]);
       return;
     }
+    setSnapping(true);
     attendanceAPI.trail(selectedSession.id)
-      .then(res => {
+      .then(async res => {
         const pts = (res.data.data || []).map(p => [p.lat, p.lng]);
-        setTrail(pts);
+        setRawTrail(pts);
+        const snapped = await snapToRoads(pts);
+        setTrail(snapped);
       })
-      .catch(() => setTrail([]));
+      .catch(() => {
+        setTrail([]);
+        setRawTrail([]);
+      })
+      .finally(() => {
+        setSnapping(false);
+      });
   }, [selectedSession]);
 
   // ─── Select a session — fly map + load trail ───────────────────────────────
@@ -320,14 +391,43 @@ export default function AttendanceTrackingPage() {
 
               {/* Path trail polyline for selected user */}
               {trail.length > 1 && (
-                <Polyline
-                  positions={trail}
-                  color={selectedColor}
-                  weight={3}
-                  opacity={0.8}
-                  dashArray="6 4"
-                />
+                <>
+                  {/* Clean snapped road line (thick glow) */}
+                  <Polyline
+                    positions={trail}
+                    color={selectedColor}
+                    weight={6}
+                    opacity={0.3}
+                  />
+                  {/* Clean snapped road line (solid path) */}
+                  <Polyline
+                    positions={trail}
+                    color={selectedColor}
+                    weight={3.5}
+                    opacity={0.95}
+                  />
+                </>
               )}
+
+              {/* Raw GPS ping markers (professional tiny dots) */}
+              {rawTrail.length > 0 && rawTrail.map((pt, idx) => (
+                <CircleMarker
+                  key={`raw-${idx}`}
+                  center={pt}
+                  radius={3.5}
+                  fillColor={selectedColor}
+                  color="#ffffff"
+                  weight={1.5}
+                  fillOpacity={0.85}
+                  opacity={0.9}
+                >
+                  <Popup>
+                    <div style={{ fontFamily: 'system-ui, sans-serif', fontSize: 11 }}>
+                      <strong>GPS Ping #{idx + 1}</strong>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              ))}
 
               {/* Staff markers */}
               {activeSessions.map((session, idx) => {
@@ -369,17 +469,27 @@ export default function AttendanceTrackingPage() {
               })}
             </MapContainer>
 
-            {/* Live pulse indicator overlay */}
+            {/* Live pulse / Snapping indicator overlay */}
             <div style={{
               position: 'absolute', top: 12, right: 12, zIndex: 999,
-              background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
+              background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)',
               border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
-              padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6,
+              padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: 4,
             }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', animation: 'live-pulse 1.5s infinite' }} />
-              <span style={{ color: '#fff', fontSize: 11, fontWeight: 600 }}>
-                LIVE · Refreshes every 15s
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', animation: 'live-pulse 1.5s infinite' }} />
+                <span style={{ color: '#fff', fontSize: 11, fontWeight: 600 }}>
+                  LIVE · Refreshes every 15s
+                </span>
+              </div>
+              {snapping && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 4, marginTop: 2 }}>
+                  <Loader2 size={11} className="spin-icon" color="#3b82f6" />
+                  <span style={{ color: '#3b82f6', fontSize: 10, fontWeight: 600 }}>
+                    Snapping path to roads...
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* No GPS data message */}
@@ -464,6 +574,12 @@ export default function AttendanceTrackingPage() {
         @keyframes live-ring {
           0% { transform: scale(1); opacity: 0.6; }
           100% { transform: scale(2.2); opacity: 0; }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        .spin-icon {
+          animation: spin 1s linear infinite;
         }
         .leaflet-container {
           background: #1a1a2e;
