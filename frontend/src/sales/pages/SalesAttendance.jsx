@@ -13,7 +13,7 @@ import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { attendanceAPI } from '../../api';
 import toast from 'react-hot-toast';
-import { MapPin, Clock, Play, Square } from 'lucide-react';
+import { MapPin, Clock, Play, Square, CheckCircle } from 'lucide-react';
 
 const HEARTBEAT_MS = 60_000;          // 60-second stationary heartbeat
 const MIN_PING_GAP_MS = 3_000;        // debounce: min gap between backend pings
