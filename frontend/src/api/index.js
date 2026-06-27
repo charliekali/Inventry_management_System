@@ -188,8 +188,15 @@ export const attendanceAPI = {
   /** Sales: clock in and start a session (optionally include initial GPS). */
   start: (gps = null) => api.post('/attendance/start', gps || {}),
   /** Sales: send a GPS breadcrumb for an active session. */
-  ping: (id, latitude, longitude, accuracy, speed = null) =>
-    api.post(`/attendance/${id}/ping`, { latitude, longitude, accuracy, speed }),
+  ping: (id, latitude, longitude, accuracy, speed = null, distanceFromLast = null, cumulativeDistance = null) =>
+    api.post(`/attendance/${id}/ping`, {
+      latitude,
+      longitude,
+      accuracy,
+      speed,
+      distance_from_last: distanceFromLast,
+      cumulative_distance: cumulativeDistance
+    }),
   /** Sales: clock out and end the session. */
   stop: (id) => api.post(`/attendance/${id}/stop`),
   /** Sales: get own attendance sessions (daily log). */

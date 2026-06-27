@@ -21,12 +21,29 @@ const HEARTBEAT_MS = 60_000;          // 60-second stationary heartbeat
 const MIN_PING_GAP_MS = 3_000;        // debounce: min gap between backend pings
 const DISTANCE_FILTER_M = 1;          // record on every 1-metre movement
 
+/** Haversine formula to compute distance in KM on client side */
+function calculateHaversine(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 /** Format seconds as HH:MM:SS */
 function formatElapsed(seconds) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
-  return [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
+  return [
+    h.toString().padStart(2, '0'),
+    m.toString().padStart(2, '0'),
+    s.toString().padStart(2, '0'),
+  ].join(':');
 }
 
 /** Format ISO datetime to a short time string */
@@ -62,6 +79,8 @@ export default function SalesAttendance() {
   const heartbeatRef    = useRef(null);   // 60-sec stationary heartbeat interval
   const timerIntervalRef = useRef(null);  // elapsed-time display interval
   const lastPingTsRef   = useRef(0);      // timestamp of last backend ping (debounce)
+  const lastPositionRef = useRef(null);
+  const cumulativeDistanceRef = useRef(0.0);
   const sessionIdRef    = useRef(null);   // current session ID accessible inside callbacks
 
   // ─── Unified GPS: Capacitor plugin on Android, browser API on web ───────────
@@ -135,6 +154,13 @@ export default function SalesAttendance() {
         setActiveSession(active);
         sessionIdRef.current = active.id;
         startTimer(active.clock_in_at);
+
+        // Initialize client-side JS metrics refs
+        cumulativeDistanceRef.current = active.distance_km || 0.0;
+        if (active.last_lat && active.last_lng) {
+          lastPositionRef.current = { latitude: active.last_lat, longitude: active.last_lng };
+        }
+
         if (Capacitor.isNativePlatform()) {
           const token = localStorage.getItem('accessToken');
           const baseUrl = getApiBase();
@@ -143,6 +169,9 @@ export default function SalesAttendance() {
               sessionId: active.id,
               token: token,
               apiUrl: baseUrl,
+              distanceKm: active.distance_km || 0.0,
+              lastLatitude: active.last_lat || 0.0,
+              lastLongitude: active.last_lng || 0.0,
               interval: 30000,
               distance: 1
             });
@@ -202,8 +231,41 @@ export default function SalesAttendance() {
     const now = Date.now();
     if (now - lastPingTsRef.current < MIN_PING_GAP_MS) return; // debounce
     lastPingTsRef.current = now;
+
+    let distFromLast = 0.0;
+    let cumulativeDistance = cumulativeDistanceRef.current;
+    let speedKmph = speed >= 0 ? speed * 3.6 : 0.0;
+
+    // Haversine calculation for browser/React fallback
+    if (accuracy <= 30.0) {
+      if (lastPositionRef.current) {
+        distFromLast = calculateHaversine(
+          lastPositionRef.current.latitude,
+          lastPositionRef.current.longitude,
+          latitude,
+          longitude
+        );
+
+        // Drift filter: ignore movements less than 5 meters
+        if (distFromLast < 0.005) {
+          distFromLast = 0.0;
+        }
+        // Jump filter: ignore unrealistic jumps over 2.0 km
+        if (distFromLast > 2.0) {
+          distFromLast = 0.0;
+        }
+      }
+
+      if (!lastPositionRef.current || distFromLast > 0.0) {
+        lastPositionRef.current = { latitude, longitude };
+      }
+
+      cumulativeDistanceRef.current += distFromLast;
+      cumulativeDistance = cumulativeDistanceRef.current;
+    }
+
     try {
-      const res = await attendanceAPI.ping(sid, latitude, longitude, accuracy, speed);
+      const res = await attendanceAPI.ping(sid, latitude, longitude, accuracy, speedKmph, distFromLast, cumulativeDistance);
       if (res.data && res.data.session) {
         setActiveSession(res.data.session);
         setSessions(prev => prev.map(s => s.id === res.data.session.id ? res.data.session : s));
@@ -313,6 +375,14 @@ export default function SalesAttendance() {
       setLastPingAt(new Date());
       setGpsStatus(gps ? 'active' : 'error');
 
+      // Initialize client-side distance refs
+      cumulativeDistanceRef.current = 0.0;
+      if (gps) {
+        lastPositionRef.current = { latitude: gps.latitude, longitude: gps.longitude };
+      } else {
+        lastPositionRef.current = null;
+      }
+
       startTimer(session.clock_in_at);
       if (Capacitor.isNativePlatform()) {
         const token = localStorage.getItem('accessToken');
@@ -322,6 +392,9 @@ export default function SalesAttendance() {
             sessionId: session.id,
             token: token,
             apiUrl: baseUrl,
+            distanceKm: 0.0,
+            lastLatitude: gps?.latitude || 0.0,
+            lastLongitude: gps?.longitude || 0.0,
             interval: 30000,
             distance: 1
           });

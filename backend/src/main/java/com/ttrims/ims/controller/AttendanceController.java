@@ -88,50 +88,61 @@ public class AttendanceController {
         double distFromLast = 0.0;
         double calculatedSpeed = 0.0;
 
-        if (body.get("latitude") instanceof Number latNum && body.get("longitude") instanceof Number lngNum) {
-            double currentLat = latNum.doubleValue();
-            double currentLng = lngNum.doubleValue();
+        if (body.get("cumulative_distance") instanceof Number clientCumDist) {
+            session.setDistanceKm(clientCumDist.doubleValue());
+            if (body.get("distance_from_last") instanceof Number clientDistLast) {
+                distFromLast = clientDistLast.doubleValue();
+            }
+            if (body.get("speed") instanceof Number clientSpeed) {
+                calculatedSpeed = clientSpeed.doubleValue();
+            }
+        } else {
+            // Server-side fallback calculation (for compatibility/older clients)
+            if (body.get("latitude") instanceof Number latNum && body.get("longitude") instanceof Number lngNum) {
+                double currentLat = latNum.doubleValue();
+                double currentLng = lngNum.doubleValue();
 
-            if (lastLocOpt.isPresent()) {
-                AttendanceLocation lastLoc = lastLocOpt.get();
-                distFromLast = calculateHaversineDistance(lastLoc.getLatitude(), lastLoc.getLongitude(), currentLat, currentLng);
+                if (lastLocOpt.isPresent()) {
+                    AttendanceLocation lastLoc = lastLocOpt.get();
+                    distFromLast = calculateHaversineDistance(lastLoc.getLatitude(), lastLoc.getLongitude(), currentLat, currentLng);
 
-                // GPS Drift Filter: ignore changes smaller than 5 meters to prevent distance inflation when stationary
-                if (distFromLast < 0.005) {
-                    distFromLast = 0.0;
-                }
-
-                // Speed calculation: check if client provides speed from GPS sensor (m/s) or estimate from time difference
-                if (body.get("speed") instanceof Number clientSpeed) {
-                    double mps = clientSpeed.doubleValue();
-                    if (mps >= 0) {
-                        calculatedSpeed = mps * 3.6; // convert m/s to km/h
+                    // GPS Drift Filter: ignore changes smaller than 5 meters to prevent distance inflation when stationary
+                    if (distFromLast < 0.005) {
+                        distFromLast = 0.0;
                     }
-                } else if (lastLoc.getRecordedAt() != null) {
-                    long seconds = Duration.between(lastLoc.getRecordedAt(), LocalDateTime.now()).getSeconds();
-                    if (seconds > 1 && distFromLast > 0) {
-                        calculatedSpeed = (distFromLast / seconds) * 3600.0; // km/sec to km/h
+
+                    // Speed calculation: check if client provides speed from GPS sensor (m/s) or estimate from time difference
+                    if (body.get("speed") instanceof Number clientSpeed) {
+                        double mps = clientSpeed.doubleValue();
+                        if (mps >= 0) {
+                            calculatedSpeed = mps * 3.6; // convert m/s to km/h
+                        }
+                    } else if (lastLoc.getRecordedAt() != null) {
+                        long seconds = Duration.between(lastLoc.getRecordedAt(), LocalDateTime.now()).getSeconds();
+                        if (seconds > 1 && distFromLast > 0) {
+                            calculatedSpeed = (distFromLast / seconds) * 3600.0; // km/sec to km/h
+                        }
                     }
-                }
-            } else {
-                if (body.get("speed") instanceof Number clientSpeed) {
-                    double mps = clientSpeed.doubleValue();
-                    if (mps >= 0) {
-                        calculatedSpeed = mps * 3.6;
+                } else {
+                    if (body.get("speed") instanceof Number clientSpeed) {
+                        double mps = clientSpeed.doubleValue();
+                        if (mps >= 0) {
+                            calculatedSpeed = mps * 3.6;
+                        }
                     }
                 }
             }
+
+            if (Double.isNaN(calculatedSpeed) || Double.isInfinite(calculatedSpeed) || calculatedSpeed < 0) {
+                calculatedSpeed = 0.0;
+            }
+            if (calculatedSpeed > 200.0) {
+                calculatedSpeed = 200.0; // cap extreme GPS jumps
+            }
+
+            session.setDistanceKm((session.getDistanceKm() != null ? session.getDistanceKm() : 0.0) + distFromLast);
         }
 
-        if (Double.isNaN(calculatedSpeed) || Double.isInfinite(calculatedSpeed) || calculatedSpeed < 0) {
-            calculatedSpeed = 0.0;
-        }
-        if (calculatedSpeed > 200.0) {
-            calculatedSpeed = 200.0; // cap extreme GPS jumps
-        }
-
-        // Update session stats
-        session.setDistanceKm((session.getDistanceKm() != null ? session.getDistanceKm() : 0.0) + distFromLast);
         session.setCurrentSpeedKmph(calculatedSpeed);
         applyGpsToSession(session, body);
         session.setPingCount(session.getPingCount() + 1);
