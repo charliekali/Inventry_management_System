@@ -10,7 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -36,6 +36,11 @@ public class AttendanceController {
     public ResponseEntity<?> start(@RequestBody(required = false) Map<String, Object> body) {
         User me = auth.currentUser();
 
+        // Enforce GPS tracking on start
+        if (body == null || body.get("latitude") == null || body.get("longitude") == null) {
+            return bad("GPS tracking must be active to start attendance");
+        }
+
         // Prevent duplicate active sessions for the same user
         Optional<Attendance> existing = attendanceRepo.findByUserIdAndStatus(me.getId(), "ACTIVE");
         if (existing.isPresent()) {
@@ -48,19 +53,15 @@ public class AttendanceController {
         session.setUserName(me.getName());
         session.setUserEmail(me.getEmail());
         session.setStatus("ACTIVE");
-        session.setClockInAt(LocalDateTime.now());
+        session.setClockInAt(Instant.now());
 
-        // Capture initial GPS if provided
-        if (body != null) {
-            applyGpsToSession(session, body);
-        }
+        // Capture initial GPS
+        applyGpsToSession(session, body);
 
         attendanceRepo.save(session);
 
-        // If we have a starting GPS fix, save it as first location ping
-        if (session.getLastLat() != null && body != null) {
-            saveLocationPing(session.getId(), body);
-        }
+        // Save it as the first location ping
+        saveLocationPing(session.getId(), body);
 
         return ResponseEntity.status(201)
             .body(Map.of("success", true, "data", toDto(session),
@@ -118,7 +119,7 @@ public class AttendanceController {
                             calculatedSpeed = mps * 3.6; // convert m/s to km/h
                         }
                     } else if (lastLoc.getRecordedAt() != null) {
-                        long seconds = Duration.between(lastLoc.getRecordedAt(), LocalDateTime.now()).getSeconds();
+                        long seconds = Duration.between(lastLoc.getRecordedAt(), Instant.now()).getSeconds();
                         if (seconds > 1 && distFromLast > 0) {
                             calculatedSpeed = (distFromLast / seconds) * 3600.0; // km/sec to km/h
                         }
@@ -162,7 +163,7 @@ public class AttendanceController {
         }
         loc.setSpeedKmph(calculatedSpeed);
         loc.setDistanceFromLastKm(distFromLast);
-        loc.setRecordedAt(LocalDateTime.now());
+        loc.setRecordedAt(Instant.now());
         locationRepo.save(loc);
 
         return ResponseEntity.ok(Map.of(
@@ -186,7 +187,7 @@ public class AttendanceController {
         }
 
         session.setStatus("ENDED");
-        session.setClockOutAt(LocalDateTime.now());
+        session.setClockOutAt(session.getLastPingAt() != null ? session.getLastPingAt() : Instant.now());
         session.setCurrentSpeedKmph(0.0); // Reset speed to 0 on checkout
         attendanceRepo.save(session);
 
@@ -258,7 +259,7 @@ public class AttendanceController {
         if (body.get("longitude") instanceof Number lng) {
             session.setLastLng(((Number) lng).doubleValue());
         }
-        session.setLastPingAt(LocalDateTime.now());
+        session.setLastPingAt(Instant.now());
     }
 
     private AttendanceLocation saveLocationPing(String attendanceId, Map<String, Object> body) {
@@ -273,7 +274,7 @@ public class AttendanceController {
         if (body.get("accuracy") instanceof Number acc) {
             loc.setAccuracy(((Number) acc).doubleValue());
         }
-        loc.setRecordedAt(LocalDateTime.now());
+        loc.setRecordedAt(Instant.now());
         return locationRepo.save(loc);
     }
 
@@ -296,7 +297,8 @@ public class AttendanceController {
 
         // Compute duration in minutes
         if (a.getClockInAt() != null) {
-            LocalDateTime end = a.getClockOutAt() != null ? a.getClockOutAt() : LocalDateTime.now();
+            Instant end = a.getClockOutAt() != null ? a.getClockOutAt() : 
+                          (a.getLastPingAt() != null ? a.getLastPingAt() : Instant.now());
             long mins = Duration.between(a.getClockInAt(), end).toMinutes();
             m.put("duration_minutes", mins);
         }

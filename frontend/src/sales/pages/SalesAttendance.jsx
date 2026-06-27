@@ -363,9 +363,18 @@ export default function SalesAttendance() {
           speed: pos.coords.speed,
         };
         setLastAccuracy(Math.round(pos.coords.accuracy));
-      } catch {
-        // GPS optional for start — session still created
-        toast('GPS fix unavailable right now. Attendance started — location will update on next ping.', { icon: '⚠️' });
+      } catch (gpsErr) {
+        toast.error('GPS tracking must be active to start attendance. Please ensure GPS is enabled.');
+        setGpsStatus('error');
+        setStarting(false);
+        return;
+      }
+
+      if (!gps || gps.latitude == null || gps.longitude == null) {
+        toast.error('GPS tracking must be active to start attendance. Please ensure GPS is enabled.');
+        setGpsStatus('error');
+        setStarting(false);
+        return;
       }
 
       const res = await attendanceAPI.start(gps);

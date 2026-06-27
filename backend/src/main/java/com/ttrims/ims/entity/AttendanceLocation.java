@@ -1,7 +1,7 @@
 package com.ttrims.ims.entity;
 
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(name = "attendance_locations")
@@ -25,7 +25,7 @@ public class AttendanceLocation {
     private Double accuracy;
 
     @Column(name = "recorded_at")
-    private LocalDateTime recordedAt;
+    private Instant recordedAt;
 
     @Column(name = "speed_kmph")
     private Double speedKmph = 0.0;
@@ -35,7 +35,7 @@ public class AttendanceLocation {
 
     @PrePersist
     void prePersist() {
-        if (recordedAt == null) recordedAt = LocalDateTime.now();
+        if (recordedAt == null) recordedAt = Instant.now();
         if (speedKmph == null) speedKmph = 0.0;
         if (distanceFromLastKm == null) distanceFromLastKm = 0.0;
     }
@@ -55,6 +55,6 @@ public class AttendanceLocation {
     public void setSpeedKmph(Double speedKmph) { this.speedKmph = speedKmph; }
     public Double getDistanceFromLastKm() { return distanceFromLastKm != null ? distanceFromLastKm : 0.0; }
     public void setDistanceFromLastKm(Double distanceFromLastKm) { this.distanceFromLastKm = distanceFromLastKm; }
-    public LocalDateTime getRecordedAt() { return recordedAt; }
-    public void setRecordedAt(LocalDateTime recordedAt) { this.recordedAt = recordedAt; }
+    public Instant getRecordedAt() { return recordedAt; }
+    public void setRecordedAt(Instant recordedAt) { this.recordedAt = recordedAt; }
 }
