@@ -27,9 +27,17 @@ public class AttendanceLocation {
     @Column(name = "recorded_at")
     private LocalDateTime recordedAt;
 
+    @Column(name = "speed_kmph")
+    private Double speedKmph = 0.0;
+
+    @Column(name = "distance_from_last_km")
+    private Double distanceFromLastKm = 0.0;
+
     @PrePersist
     void prePersist() {
         if (recordedAt == null) recordedAt = LocalDateTime.now();
+        if (speedKmph == null) speedKmph = 0.0;
+        if (distanceFromLastKm == null) distanceFromLastKm = 0.0;
     }
 
     // ─── Getters & Setters ────────────────────────────────────────────────────
@@ -43,6 +51,10 @@ public class AttendanceLocation {
     public void setLongitude(Double longitude) { this.longitude = longitude; }
     public Double getAccuracy() { return accuracy; }
     public void setAccuracy(Double accuracy) { this.accuracy = accuracy; }
+    public Double getSpeedKmph() { return speedKmph != null ? speedKmph : 0.0; }
+    public void setSpeedKmph(Double speedKmph) { this.speedKmph = speedKmph; }
+    public Double getDistanceFromLastKm() { return distanceFromLastKm != null ? distanceFromLastKm : 0.0; }
+    public void setDistanceFromLastKm(Double distanceFromLastKm) { this.distanceFromLastKm = distanceFromLastKm; }
     public LocalDateTime getRecordedAt() { return recordedAt; }
     public void setRecordedAt(LocalDateTime recordedAt) { this.recordedAt = recordedAt; }
 }

@@ -83,16 +83,83 @@ public class AttendanceController {
             return bad("Session is no longer active");
         }
 
-        // Update the denormalised last-known position on the session
+        // Get the last recorded position to calculate distance and speed
+        Optional<AttendanceLocation> lastLocOpt = locationRepo.findFirstByAttendanceIdOrderByRecordedAtDesc(id);
+        double distFromLast = 0.0;
+        double calculatedSpeed = 0.0;
+
+        if (body.get("latitude") instanceof Number latNum && body.get("longitude") instanceof Number lngNum) {
+            double currentLat = latNum.doubleValue();
+            double currentLng = lngNum.doubleValue();
+
+            if (lastLocOpt.isPresent()) {
+                AttendanceLocation lastLoc = lastLocOpt.get();
+                distFromLast = calculateHaversineDistance(lastLoc.getLatitude(), lastLoc.getLongitude(), currentLat, currentLng);
+
+                // GPS Drift Filter: ignore changes smaller than 5 meters to prevent distance inflation when stationary
+                if (distFromLast < 0.005) {
+                    distFromLast = 0.0;
+                }
+
+                // Speed calculation: check if client provides speed from GPS sensor (m/s) or estimate from time difference
+                if (body.get("speed") instanceof Number clientSpeed) {
+                    double mps = clientSpeed.doubleValue();
+                    if (mps >= 0) {
+                        calculatedSpeed = mps * 3.6; // convert m/s to km/h
+                    }
+                } else if (lastLoc.getRecordedAt() != null) {
+                    long seconds = Duration.between(lastLoc.getRecordedAt(), LocalDateTime.now()).getSeconds();
+                    if (seconds > 1 && distFromLast > 0) {
+                        calculatedSpeed = (distFromLast / seconds) * 3600.0; // km/sec to km/h
+                    }
+                }
+            } else {
+                if (body.get("speed") instanceof Number clientSpeed) {
+                    double mps = clientSpeed.doubleValue();
+                    if (mps >= 0) {
+                        calculatedSpeed = mps * 3.6;
+                    }
+                }
+            }
+        }
+
+        if (Double.isNaN(calculatedSpeed) || Double.isInfinite(calculatedSpeed) || calculatedSpeed < 0) {
+            calculatedSpeed = 0.0;
+        }
+        if (calculatedSpeed > 200.0) {
+            calculatedSpeed = 200.0; // cap extreme GPS jumps
+        }
+
+        // Update session stats
+        session.setDistanceKm((session.getDistanceKm() != null ? session.getDistanceKm() : 0.0) + distFromLast);
+        session.setCurrentSpeedKmph(calculatedSpeed);
         applyGpsToSession(session, body);
         session.setPingCount(session.getPingCount() + 1);
         attendanceRepo.save(session);
 
-        // Store the breadcrumb
-        AttendanceLocation loc = saveLocationPing(id, body);
+        // Store the location breadcrumb with calculated metrics
+        AttendanceLocation loc = new AttendanceLocation();
+        loc.setAttendanceId(id);
+        if (body.get("latitude") instanceof Number lat) {
+            loc.setLatitude(((Number) lat).doubleValue());
+        }
+        if (body.get("longitude") instanceof Number lng) {
+            loc.setLongitude(((Number) lng).doubleValue());
+        }
+        if (body.get("accuracy") instanceof Number acc) {
+            loc.setAccuracy(((Number) acc).doubleValue());
+        }
+        loc.setSpeedKmph(calculatedSpeed);
+        loc.setDistanceFromLastKm(distFromLast);
+        loc.setRecordedAt(LocalDateTime.now());
+        locationRepo.save(loc);
 
-        return ResponseEntity.ok(Map.of("success", true, "data", locationDto(loc),
-            "message", "Location recorded"));
+        return ResponseEntity.ok(Map.of(
+            "success", true,
+            "data", locationDto(loc),
+            "session", toDto(session),
+            "message", "Location recorded"
+        ));
     }
 
     // ─── POST /api/attendance/{id}/stop ─────────────────────────────────────
@@ -109,6 +176,7 @@ public class AttendanceController {
 
         session.setStatus("ENDED");
         session.setClockOutAt(LocalDateTime.now());
+        session.setCurrentSpeedKmph(0.0); // Reset speed to 0 on checkout
         attendanceRepo.save(session);
 
         return ResponseEntity.ok(Map.of("success", true, "data", toDto(session),
@@ -161,6 +229,17 @@ public class AttendanceController {
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
+    private double calculateHaversineDistance(double lat1, double lon1, double lat2, double lon2) {
+        final int R = 6371; // Earth's radius in kilometers
+        double latDistance = Math.toRadians(lat2 - lat1);
+        double lonDistance = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c; // returns distance in kilometers
+    }
+
     private void applyGpsToSession(Attendance session, Map<String, Object> body) {
         if (body.get("latitude") instanceof Number lat) {
             session.setLastLat(((Number) lat).doubleValue());
@@ -200,6 +279,8 @@ public class AttendanceController {
         m.put("last_lng", a.getLastLng());
         m.put("last_ping_at", a.getLastPingAt());
         m.put("ping_count", a.getPingCount());
+        m.put("distance_km", a.getDistanceKm() != null ? a.getDistanceKm() : 0.0);
+        m.put("current_speed_kmph", a.getCurrentSpeedKmph() != null ? a.getCurrentSpeedKmph() : 0.0);
         m.put("created_at", a.getCreatedAt());
 
         // Compute duration in minutes
@@ -218,6 +299,8 @@ public class AttendanceController {
         m.put("lat", l.getLatitude());
         m.put("lng", l.getLongitude());
         m.put("accuracy", l.getAccuracy());
+        m.put("speed_kmph", l.getSpeedKmph() != null ? l.getSpeedKmph() : 0.0);
+        m.put("distance_from_last_km", l.getDistanceFromLastKm() != null ? l.getDistanceFromLastKm() : 0.0);
         m.put("recorded_at", l.getRecordedAt());
         return m;
     }

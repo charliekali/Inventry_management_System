@@ -154,6 +154,14 @@ public class DataSeeder implements CommandLineRunner {
         }
 
         try {
+            jdbc.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS distance_km DOUBLE PRECISION DEFAULT 0.0");
+            jdbc.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS current_speed_kmph DOUBLE PRECISION DEFAULT 0.0");
+            log.info("Schema migration: attendance distance and speed columns ensured");
+        } catch (Exception e) {
+            log.warn("Schema migration: attendance columns — {}", e.getMessage());
+        }
+
+        try {
             jdbc.execute(
                 "CREATE TABLE IF NOT EXISTS attendance_locations (" +
                 "  id VARCHAR(36) PRIMARY KEY, " +
@@ -166,6 +174,14 @@ public class DataSeeder implements CommandLineRunner {
             log.info("Schema migration: attendance_locations table ensured");
         } catch (Exception e) {
             log.warn("Schema migration: attendance_locations table — {}", e.getMessage());
+        }
+
+        try {
+            jdbc.execute("ALTER TABLE attendance_locations ADD COLUMN IF NOT EXISTS speed_kmph DOUBLE PRECISION DEFAULT 0.0");
+            jdbc.execute("ALTER TABLE attendance_locations ADD COLUMN IF NOT EXISTS distance_from_last_km DOUBLE PRECISION DEFAULT 0.0");
+            log.info("Schema migration: attendance_locations speed and distance columns ensured");
+        } catch (Exception e) {
+            log.warn("Schema migration: attendance_locations columns — {}", e.getMessage());
         }
 
         // Drop status check constraint to support PARTIAL status

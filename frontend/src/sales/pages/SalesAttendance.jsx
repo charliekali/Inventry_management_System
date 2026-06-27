@@ -178,14 +178,18 @@ export default function SalesAttendance() {
   };
 
   // ─── Send a ping to the backend (debounced) ──────────────────────────────────
-  const sendPing = async (latitude, longitude, accuracy) => {
+  const sendPing = async (latitude, longitude, accuracy, speed = null) => {
     const sid = sessionIdRef.current;
     if (!sid) return;
     const now = Date.now();
     if (now - lastPingTsRef.current < MIN_PING_GAP_MS) return; // debounce
     lastPingTsRef.current = now;
     try {
-      await attendanceAPI.ping(sid, latitude, longitude, accuracy);
+      const res = await attendanceAPI.ping(sid, latitude, longitude, accuracy, speed);
+      if (res.data && res.data.session) {
+        setActiveSession(res.data.session);
+        setSessions(prev => prev.map(s => s.id === res.data.session.id ? res.data.session : s));
+      }
       setLastPingAt(new Date());
       setLastAccuracy(Math.round(accuracy ?? 0));
       setGpsStatus('active');
@@ -204,8 +208,8 @@ export default function SalesAttendance() {
 
       const onPosition = (pos) => {
         if (!pos || !pos.coords) return;
-        const { latitude, longitude, accuracy } = pos.coords;
-        sendPing(latitude, longitude, accuracy);
+        const { latitude, longitude, accuracy, speed } = pos.coords;
+        sendPing(latitude, longitude, accuracy, speed);
       };
       const onError = (err) => {
         setGpsStatus('error');
@@ -276,6 +280,7 @@ export default function SalesAttendance() {
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
           accuracy: pos.coords.accuracy,
+          speed: pos.coords.speed,
         };
         setLastAccuracy(Math.round(pos.coords.accuracy));
       } catch {
@@ -381,6 +386,22 @@ export default function SalesAttendance() {
             </div>
             <div style={{ fontSize: 13, color: 'var(--s-text-3)', marginBottom: 16 }}>
               Clocked in at {fmtTime(activeSession?.clock_in_at)}
+            </div>
+
+            {/* Speed & Distance Tracking Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', margin: '0 auto 20px', maxWidth: '340px' }}>
+              <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: '12px 8px', border: '1px solid var(--s-border)' }}>
+                <div style={{ fontSize: 10, color: 'var(--s-text-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Speed</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--s-text)' }}>
+                  {activeSession?.current_speed_kmph?.toFixed(1) || '0.0'} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--s-text-3)' }}>km/h</span>
+                </div>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: '12px 8px', border: '1px solid var(--s-border)' }}>
+                <div style={{ fontSize: 10, color: 'var(--s-text-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Distance</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--s-text)' }}>
+                  {activeSession?.distance_km?.toFixed(2) || '0.00'} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--s-text-3)' }}>km</span>
+                </div>
+              </div>
             </div>
 
             {/* GPS Status Row */}

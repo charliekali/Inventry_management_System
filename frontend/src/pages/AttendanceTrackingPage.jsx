@@ -284,6 +284,9 @@ export default function AttendanceTrackingPage() {
                     <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
                       In since {fmtTime(session.clock_in_at)} · {fmtDuration(session.duration_minutes)}
                     </div>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2, fontWeight: 600 }}>
+                      🚗 {session.distance_km?.toFixed(2) || '0.00'} km @ {session.current_speed_kmph?.toFixed(1) || '0.0'} km/h
+                    </div>
                     <div style={{ fontSize: 11, color: session.last_ping_at ? '#22c55e' : 'var(--color-text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
                       <div style={{ width: 6, height: 6, borderRadius: '50%', background: session.last_ping_at ? '#22c55e' : 'var(--color-text-muted)', flexShrink: 0 }} />
                       {session.last_ping_at
@@ -350,7 +353,13 @@ export default function AttendanceTrackingPage() {
                         <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>
                           ⏱ Active {fmtDuration(session.duration_minutes)}
                         </div>
-                        <div style={{ fontSize: 12, color: '#22c55e', fontWeight: 600 }}>
+                        <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>
+                          🚗 Distance: {session.distance_km?.toFixed(2) || '0.00'} km
+                        </div>
+                        <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>
+                          ⚡ Speed: {session.current_speed_kmph?.toFixed(1) || '0.0'} km/h
+                        </div>
+                        <div style={{ fontSize: 12, color: '#22c55e', fontWeight: 600, marginTop: 4 }}>
                           {session.ping_count} GPS pings
                         </div>
                       </div>
@@ -401,6 +410,7 @@ export default function AttendanceTrackingPage() {
                   <th>Clock In</th>
                   <th>Clock Out</th>
                   <th>Duration</th>
+                  <th>Distance</th>
                   <th>GPS Pings</th>
                   <th>Status</th>
                 </tr>
@@ -408,7 +418,7 @@ export default function AttendanceTrackingPage() {
               <tbody>
                 {history.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: 32, color: 'var(--color-text-muted)' }}>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: 32, color: 'var(--color-text-muted)' }}>
                       No attendance sessions recorded yet.
                     </td>
                   </tr>
@@ -423,6 +433,9 @@ export default function AttendanceTrackingPage() {
                       <td>{s.clock_out_at ? fmtDateTime(s.clock_out_at) : <span style={{ color: '#22c55e', fontWeight: 600 }}>Active</span>}</td>
                       <td>
                         <span className="badge badge-blue">{fmtDuration(s.duration_minutes)}</span>
+                      </td>
+                      <td>
+                        <span className="badge badge-purple">{s.distance_km?.toFixed(2) || '0.00'} km</span>
                       </td>
                       <td>
                         <span className="badge badge-gray">{s.ping_count} pings</span>

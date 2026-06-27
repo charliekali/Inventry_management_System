@@ -44,6 +44,12 @@ public class Attendance {
     @Column(name = "ping_count")
     private int pingCount = 0;
 
+    @Column(name = "distance_km")
+    private Double distanceKm = 0.0;
+
+    @Column(name = "current_speed_kmph")
+    private Double currentSpeedKmph = 0.0;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -51,6 +57,8 @@ public class Attendance {
     void prePersist() {
         createdAt = LocalDateTime.now();
         if (clockInAt == null) clockInAt = LocalDateTime.now();
+        if (distanceKm == null) distanceKm = 0.0;
+        if (currentSpeedKmph == null) currentSpeedKmph = 0.0;
     }
 
     // ─── Getters & Setters ────────────────────────────────────────────────────
@@ -76,6 +84,10 @@ public class Attendance {
     public void setLastPingAt(LocalDateTime lastPingAt) { this.lastPingAt = lastPingAt; }
     public int getPingCount() { return pingCount; }
     public void setPingCount(int pingCount) { this.pingCount = pingCount; }
+    public Double getDistanceKm() { return distanceKm != null ? distanceKm : 0.0; }
+    public void setDistanceKm(Double distanceKm) { this.distanceKm = distanceKm; }
+    public Double getCurrentSpeedKmph() { return currentSpeedKmph != null ? currentSpeedKmph : 0.0; }
+    public void setCurrentSpeedKmph(Double currentSpeedKmph) { this.currentSpeedKmph = currentSpeedKmph; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }
