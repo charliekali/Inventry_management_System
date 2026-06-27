@@ -540,19 +540,19 @@ function App() {
           } />
 
           <Route path="/sales/*" element={
-            <ProtectedRoute perm="ORDERS:VIEW">
+            <ProtectedRoute>
               <SalesApp />
             </ProtectedRoute>
           } />
 
           <Route path="/production/*" element={
-            <ProtectedRoute perm="STOCK:VIEW">
+            <ProtectedRoute>
               <ProductionApp />
             </ProtectedRoute>
           } />
 
           <Route path="/warehouse/*" element={
-            <ProtectedRoute perm="STOCK:VIEW">
+            <ProtectedRoute>
               <WarehouseApp />
             </ProtectedRoute>
           } />

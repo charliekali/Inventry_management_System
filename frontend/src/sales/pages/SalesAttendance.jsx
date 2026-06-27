@@ -65,12 +65,19 @@ export default function SalesAttendance() {
   // ─── Unified GPS: Capacitor plugin on Android, browser API on web ───────────
   const requestGpsPermission = async () => {
     if (Capacitor.isNativePlatform()) {
+      if (!Geolocation || typeof Geolocation.checkPermissions !== 'function') {
+        throw new Error('Native Geolocation plugin is not available.');
+      }
       try {
         const status = await Geolocation.checkPermissions();
         if (status.location !== 'granted') {
-          const result = await Geolocation.requestPermissions({ permissions: ['location'] });
-          if (result.location !== 'granted') {
-            throw new Error('Location permission denied by user');
+          if (typeof Geolocation.requestPermissions === 'function') {
+            const result = await Geolocation.requestPermissions({ permissions: ['location'] });
+            if (result.location !== 'granted') {
+              throw new Error('Location permission denied by user');
+            }
+          } else {
+            throw new Error('Native requestPermissions is not available.');
           }
         }
       } catch (err) {
@@ -82,6 +89,9 @@ export default function SalesAttendance() {
 
   const getCurrentPosition = async () => {
     if (Capacitor.isNativePlatform()) {
+      if (!Geolocation || typeof Geolocation.getCurrentPosition !== 'function') {
+        throw new Error('Native Geolocation plugin is not available.');
+      }
       // Use the Capacitor native plugin — properly triggers Android permission dialog
       const pos = await Geolocation.getCurrentPosition({
         enableHighAccuracy: true,
@@ -188,42 +198,59 @@ export default function SalesAttendance() {
   // Uses watchPosition with distanceFilter:1 so every ≥1 m movement fires a callback.
   // A 60-sec heartbeat also runs for stationary users so the admin map stays fresh.
   const startWatching = (sessionId) => {
-    stopWatching();
-    sessionIdRef.current = sessionId;
+    try {
+      stopWatching();
+      sessionIdRef.current = sessionId;
 
-    const onPosition = (pos) => {
-      const { latitude, longitude, accuracy } = pos.coords;
-      sendPing(latitude, longitude, accuracy);
-    };
-    const onError = (err) => {
-      setGpsStatus('error');
-      console.warn('watchPosition error:', err);
-    };
+      const onPosition = (pos) => {
+        if (!pos || !pos.coords) return;
+        const { latitude, longitude, accuracy } = pos.coords;
+        sendPing(latitude, longitude, accuracy);
+      };
+      const onError = (err) => {
+        setGpsStatus('error');
+        console.warn('watchPosition error:', err);
+      };
 
-    if (Capacitor.isNativePlatform()) {
-      Geolocation.watchPosition(
-        { enableHighAccuracy: true, timeout: 10000 },
-        (pos, err) => {
-          if (err) { onError(err); return; }
-          if (pos) onPosition(pos);
+      if (Capacitor.isNativePlatform()) {
+        if (Geolocation && typeof Geolocation.watchPosition === 'function') {
+          Geolocation.watchPosition(
+            { enableHighAccuracy: true, timeout: 10000 },
+            (pos, err) => {
+              if (err) { onError(err); return; }
+              if (pos) onPosition(pos);
+            }
+          ).then(id => { watchIdRef.current = id; }).catch(onError);
+        } else {
+          throw new Error('Native Geolocation plugin watchPosition is not available.');
         }
-      ).then(id => { watchIdRef.current = id; }).catch(onError);
-    } else {
-      if (navigator.geolocation) {
-        watchIdRef.current = navigator.geolocation.watchPosition(
-          onPosition, onError,
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
+      } else {
+        if (navigator.geolocation) {
+          watchIdRef.current = navigator.geolocation.watchPosition(
+            onPosition, onError,
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          );
+        } else {
+          throw new Error('Web Geolocation API is not supported in this browser.');
+        }
       }
-    }
 
-    // Heartbeat: if stationary for >60s, re-read position and ping anyway
-    heartbeatRef.current = setInterval(async () => {
-      try {
-        const pos = await getCurrentPosition();
-        sendPing(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
-      } catch { /* silent */ }
-    }, HEARTBEAT_MS);
+      // Heartbeat: if stationary for >60s, re-read position and ping anyway
+      heartbeatRef.current = setInterval(async () => {
+        try {
+          const pos = await getCurrentPosition();
+          if (pos && pos.coords) {
+            sendPing(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+          }
+        } catch (hbErr) {
+          console.warn('Heartbeat GPS read failed:', hbErr);
+        }
+      }, HEARTBEAT_MS);
+    } catch (err) {
+      console.error('Failed to start position tracking:', err);
+      setGpsStatus('error');
+      toast.error('Failed to start GPS tracking: ' + err.message);
+    }
   };
 
   // ─── Start Attendance ────────────────────────────────────────────────────────
