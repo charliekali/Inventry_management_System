@@ -138,6 +138,7 @@ export const ordersAPI = {
   listOutstanding: () => api.get('/orders/outstanding'),
   getFollowUps: (id) => api.get(`/orders/${id}/followups`),
   addFollowUp: (id, data) => api.post(`/orders/${id}/followups`, data),
+  updateCustomFields: (id, fields) => api.patch(`/orders/${id}/custom-fields`, fields),
 };
 
 // ─── Production Orders ────────────────────────────────────────────────────────

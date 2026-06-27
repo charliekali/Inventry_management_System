@@ -460,6 +460,26 @@ public class OrderController {
         return ok(Map.of("message", "Follow-up logged successfully", "id", followUp.getId()));
     }
 
+    @PatchMapping("/{id}/custom-fields")
+    @Transactional
+    public ResponseEntity<?> updateCustomFields(@PathVariable String id, @RequestBody Map<String, String> fields) {
+        if (!auth.hasPermission("SALES:CRM") && !auth.hasPermission("ORDERS:EDIT")) {
+            auth.requirePermission("SALES:CRM");
+        }
+        Order order = orderRepo.findById(id).orElse(null);
+        if (order == null) return ResponseEntity.status(404).body(err("Order/Lead not found"));
+
+        Map<String, String> current = order.getCustomFields();
+        if (current == null) {
+            current = new HashMap<>();
+        }
+        current.putAll(fields);
+        order.setCustomFields(current);
+        orderRepo.save(order);
+
+        return ok(Map.of("success", true, "message", "Custom fields updated", "custom_fields", current));
+    }
+
     @GetMapping("/outstanding")
     @Transactional(readOnly = true)
     public ResponseEntity<?> listOutstanding() {
