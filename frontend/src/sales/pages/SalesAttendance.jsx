@@ -61,6 +61,7 @@ export default function SalesAttendance() {
   const timerRef        = useRef(null);   // elapsed-time interval ID
   const lastPingTsRef   = useRef(0);      // timestamp of last ping (debounce)
   const sessionIdRef    = useRef(null);   // session ID for callbacks
+  const pollRef         = useRef(null);   // UI refresh polling interval
 
   // ─── GPS permission (native only) ─────────────────────────────────────────
   const requestGpsPermission = async () => {
@@ -87,7 +88,32 @@ export default function SalesAttendance() {
     });
   };
 
-  // ─── Send raw GPS ping to backend ──────────────────────────────────────────
+  // ─── Poll backend for fresh session data ─────────────────────────────────
+  // TrackingService (Android background service) pings the backend directly via
+  // HTTP, so React state never sees those updates. A 10-second poll ensures the
+  // distance_km and current_speed_kmph shown on screen stays current.
+  const startPolling = useCallback((sessionId) => {
+    clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await attendanceAPI.my();
+        const list = res.data.data || [];
+        const fresh = list.find(s => s.id === sessionId);
+        if (fresh) {
+          setActiveSession(fresh);
+          setSessions(list);
+        }
+      } catch {
+        // Silent — network blip
+      }
+    }, 10_000); // Every 10 seconds
+  }, []);
+
+  const stopPolling = () => {
+    clearInterval(pollRef.current);
+    pollRef.current = null;
+  };
+
   // Simple: just raw coordinates. Backend does all distance/speed math.
   const sendPing = useCallback(async (latitude, longitude, accuracy, speed = null) => {
     const sid = sessionIdRef.current;
@@ -202,6 +228,7 @@ export default function SalesAttendance() {
         sessionIdRef.current = active.id;
         startTimer(active.clock_in_at);
         setGpsStatus('active');
+        startPolling(active.id);
 
         if (Capacitor.isNativePlatform()) {
           const token   = localStorage.getItem('accessToken');
@@ -217,7 +244,8 @@ export default function SalesAttendance() {
           } catch (e) {
             console.warn('Native startTracking on load failed:', e);
           }
-          startWatching(active.id); // also start Capacitor watchPosition
+          // On Android: TrackingService handles raw GPS pings; watchPosition supplements
+          startWatching(active.id);
         } else {
           startWatching(active.id);
         }
@@ -233,6 +261,7 @@ export default function SalesAttendance() {
     loadSessions();
     return () => {
       stopWatching();
+      stopPolling();
       clearInterval(timerRef.current);
     };
   }, []); // eslint-disable-line
@@ -282,6 +311,7 @@ export default function SalesAttendance() {
       setLastPingAt(new Date());
       setGpsStatus('active');
       startTimer(session.clock_in_at);
+      startPolling(session.id);
 
       // 4. Start native background service (Android) + web watcher
       if (Capacitor.isNativePlatform()) {
@@ -326,6 +356,7 @@ export default function SalesAttendance() {
         try { await Tracking.stopTracking(); } catch (e) { console.warn(e); }
       }
       stopWatching();
+      stopPolling();
       clearInterval(timerRef.current);
       timerRef.current  = null;
       sessionIdRef.current = null;
