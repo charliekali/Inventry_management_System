@@ -21,7 +21,8 @@ const Tracking = registerPlugin('Tracking');
 import { MapPin, Clock, Play, Square, CheckCircle } from 'lucide-react';
 
 const HEARTBEAT_MS  = 30_000; // Stationary heartbeat (web/PWA only)
-const MIN_PING_MS   = 2_000;  // Minimum gap between pings (debounce for web)
+const MIN_PING_MS   = 2_000;  // Minimum gap between pings (debounce)
+const GPS_POLL_MS   = 5_000;  // How often to poll GPS on Android
 
 /** Format seconds as HH:MM:SS */
 function formatElapsed(seconds) {
@@ -56,8 +57,9 @@ export default function SalesAttendance() {
   const [elapsed, setElapsed]           = useState(0);
 
   // Refs (survive re-renders, accessible inside callbacks)
-  const watchIdRef      = useRef(null);   // watchPosition ID (web)
-  const heartbeatRef    = useRef(null);   // heartbeat interval ID (web)
+  const watchIdRef      = useRef(null);   // watchPosition ID (web fallback)
+  const gpsLoopRef      = useRef(null);   // setInterval GPS loop (Android + web)
+  const heartbeatRef    = useRef(null);   // heartbeat interval ID
   const timerRef        = useRef(null);   // elapsed-time interval ID
   const lastPingTsRef   = useRef(0);      // timestamp of last ping (debounce)
   const sessionIdRef    = useRef(null);   // session ID for callbacks
@@ -138,9 +140,24 @@ export default function SalesAttendance() {
     }
   }, []);
 
-  // ─── Start web watchPosition + heartbeat ──────────────────────────────────
+  // ─── Start GPS tracking loop + heartbeat ───────────────────────────────
+  // On Android: a setInterval fires every GPS_POLL_MS to call getCurrentPosition.
+  // This is more reliable than Geolocation.watchPosition which can silently stop
+  // after the first fix on some Android devices/Capacitor versions.
+  // On Web: we use navigator.geolocation.watchPosition (browser-native, efficient)
+  //         plus a 30-second heartbeat for stationary users.
   const startWatching = useCallback((sessionId) => {
-    stopWatching();
+    // Clear any previous watchers
+    clearInterval(gpsLoopRef.current);  gpsLoopRef.current  = null;
+    clearInterval(heartbeatRef.current); heartbeatRef.current = null;
+    if (watchIdRef.current !== null) {
+      if (Capacitor.isNativePlatform()) {
+        Geolocation.clearWatch({ id: watchIdRef.current }).catch(() => {});
+      } else {
+        navigator.geolocation?.clearWatch(watchIdRef.current);
+      }
+      watchIdRef.current = null;
+    }
     sessionIdRef.current = sessionId;
 
     const onPos = (pos) => {
@@ -149,20 +166,26 @@ export default function SalesAttendance() {
       sendPing(latitude, longitude, accuracy, speed);
     };
     const onErr = (err) => {
-      console.warn('watchPosition error:', err);
-      setGpsStatus('error');
+      console.warn('GPS error:', err?.message ?? err);
     };
 
     if (Capacitor.isNativePlatform()) {
-      // On Android the native TrackingService handles continuous updates.
-      // Capacitor watchPosition is used here as a secondary update path.
-      if (typeof Geolocation.watchPosition === 'function') {
-        Geolocation.watchPosition(
-          { enableHighAccuracy: true, timeout: 10000 },
-          (pos, err) => { if (err) onErr(err); else if (pos) onPos(pos); }
-        ).then(id => { watchIdRef.current = id; }).catch(onErr);
-      }
+      // Android: poll getCurrentPosition every 5 seconds
+      // This is reliable where watchPosition silently stops
+      const pollGps = async () => {
+        try {
+          const pos = await Geolocation.getCurrentPosition({
+            enableHighAccuracy: true, timeout: 8000,
+          });
+          if (pos?.coords) onPos(pos);
+        } catch (e) {
+          console.warn('GPS poll error:', e?.message);
+        }
+      };
+      pollGps(); // fire immediately on start
+      gpsLoopRef.current = setInterval(pollGps, GPS_POLL_MS);
     } else {
+      // Web: use watchPosition (efficient, battery-friendly)
       if (navigator.geolocation) {
         watchIdRef.current = navigator.geolocation.watchPosition(onPos, onErr, {
           enableHighAccuracy: true, timeout: 10000, maximumAge: 0,
@@ -172,26 +195,23 @@ export default function SalesAttendance() {
         toast.error('Geolocation not supported in this browser.');
         return;
       }
+      // Web heartbeat: re-ping every 30 s even if stationary
+      heartbeatRef.current = setInterval(async () => {
+        try {
+          const pos = await getCurrentPosition();
+          if (pos?.coords) {
+            lastPingTsRef.current = 0; // bypass debounce for heartbeat
+            onPos(pos);
+          }
+        } catch (e) { console.warn('Heartbeat error:', e); }
+      }, HEARTBEAT_MS);
     }
-
-    // Heartbeat: re-ping every 30 s even if stationary (keeps admin map fresh)
-    heartbeatRef.current = setInterval(async () => {
-      try {
-        const pos = await getCurrentPosition();
-        if (pos?.coords) {
-          const { latitude, longitude, accuracy, speed } = pos.coords;
-          // Bypass debounce for heartbeat by resetting timestamp
-          lastPingTsRef.current = 0;
-          sendPing(latitude, longitude, accuracy, speed);
-        }
-      } catch (e) {
-        console.warn('Heartbeat GPS read failed:', e);
-      }
-    }, HEARTBEAT_MS);
   }, [sendPing]);
 
-  // ─── Stop watchPosition + heartbeat ───────────────────────────────────────
-  const stopWatching = () => {
+  // ─── Stop all GPS watchers ───────────────────────────────────────────────────────
+  const stopWatching = useCallback(() => {
+    clearInterval(gpsLoopRef.current);   gpsLoopRef.current   = null;
+    clearInterval(heartbeatRef.current); heartbeatRef.current = null;
     if (watchIdRef.current !== null) {
       if (Capacitor.isNativePlatform()) {
         Geolocation.clearWatch({ id: watchIdRef.current }).catch(() => {});
@@ -200,9 +220,7 @@ export default function SalesAttendance() {
       }
       watchIdRef.current = null;
     }
-    clearInterval(heartbeatRef.current);
-    heartbeatRef.current = null;
-  };
+  }, []);
 
   // ─── Elapsed timer ─────────────────────────────────────────────────────────
   const startTimer = (clockInAt) => {

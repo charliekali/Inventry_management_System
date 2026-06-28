@@ -12,7 +12,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { attendanceAPI } from '../api';
 import toast from 'react-hot-toast';
-import { MapPin, Users, Clock, Wifi, WifiOff, RefreshCw, History, Activity, ChevronRight, Loader2 } from 'lucide-react';
+import { MapPin, Users, Clock, Wifi, WifiOff, RefreshCw, History, Activity, ChevronRight, Loader2, List, ChevronDown, Search, Navigation } from 'lucide-react';
 
 // Fix Leaflet's default icon path issue with bundlers
 delete L.Icon.Default.prototype._getIconUrl;
@@ -171,11 +171,17 @@ export default function AttendanceTrackingPage() {
   const [trail, setTrail] = useState([]);
   const [rawTrail, setRawTrail] = useState([]);
   const [snapping, setSnapping] = useState(false);
-  const [tab, setTab] = useState('live'); // 'live' | 'history'
+  const [tab, setTab] = useState('live'); // 'live' | 'history' | 'logs'
   const [lastRefresh, setLastRefresh] = useState(null);
   const [loading, setLoading] = useState(true);
   const [flyTarget, setFlyTarget] = useState(null);
   const refreshTimerRef = useRef(null);
+
+  // GPS Logs state
+  const [logsSearch, setLogsSearch]     = useState('');
+  const [expandedLog, setExpandedLog]   = useState(null); // session id
+  const [logTrail, setLogTrail]         = useState([]); // breadcrumbs for expanded session
+  const [logTrailLoading, setLogTrailLoading] = useState(false);
 
   // ─── Load active sessions ──────────────────────────────────────────────────
   const loadActive = useCallback(async (silent = false) => {
@@ -281,8 +287,9 @@ export default function AttendanceTrackingPage() {
       {/* ── Tab Switcher ─────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 12, borderBottom: '1px solid var(--color-border)' }}>
         {[
-          { key: 'live', label: 'Live Map', Icon: Activity },
+          { key: 'live',    label: 'Live Map',          Icon: Activity },
           { key: 'history', label: 'Attendance History', Icon: History },
+          { key: 'logs',    label: 'GPS Logs',           Icon: List },
         ].map(({ key, label, Icon }) => (
           <button
             key={key}
@@ -582,6 +589,154 @@ export default function AttendanceTrackingPage() {
           </div>
         </div>
       )}
+
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {tab === 'logs' && (() => {
+        const allSessions = [...activeSessions, ...history.filter(h => !activeSessions.find(a => a.id === h.id))];
+        const filtered = allSessions.filter(s =>
+          !logsSearch ||
+          (s.user_name || '').toLowerCase().includes(logsSearch.toLowerCase()) ||
+          (s.user_email || '').toLowerCase().includes(logsSearch.toLowerCase())
+        );
+        return (
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* Search bar */}
+            <div style={{ position: 'relative', marginBottom: 4 }}>
+              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
+              <input
+                type="text"
+                placeholder="Search by name or email…"
+                value={logsSearch}
+                onChange={e => setLogsSearch(e.target.value)}
+                style={{
+                  width: '100%', padding: '8px 12px 8px 32px',
+                  background: 'var(--color-bg-card)', border: '1px solid var(--color-border)',
+                  borderRadius: 8, fontSize: 13, color: 'var(--color-text-primary)',
+                  outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            {filtered.length === 0 && (
+              <div style={{ textAlign: 'center', padding: 32, color: 'var(--color-text-muted)', fontSize: 13 }}>
+                No sessions found.
+              </div>
+            )}
+
+            {filtered.map((s, idx) => {
+              const isExpanded = expandedLog === s.id;
+              const color = getColor(idx);
+              return (
+                <div key={s.id} style={{ background: 'var(--color-bg-card)', border: `1px solid ${isExpanded ? color : 'var(--color-border)'}`, borderRadius: 12, overflow: 'hidden', transition: 'border-color 0.15s' }}>
+                  {/* Session header row */}
+                  <button
+                    onClick={async () => {
+                      if (isExpanded) { setExpandedLog(null); setLogTrail([]); return; }
+                      setExpandedLog(s.id);
+                      setLogTrail([]);
+                      setLogTrailLoading(true);
+                      try {
+                        const res = await attendanceAPI.trail(s.id);
+                        setLogTrail(res.data.data || []);
+                      } catch { setLogTrail([]); }
+                      finally { setLogTrailLoading(false); }
+                    }}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '12px 16px', background: 'transparent',
+                      border: 'none', cursor: 'pointer', textAlign: 'left',
+                    }}
+                  >
+                    {/* Avatar */}
+                    <div style={{
+                      width: 36, height: 36, borderRadius: '50%', background: color,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#fff', fontWeight: 900, fontSize: 12, flexShrink: 0,
+                    }}>
+                      {(s.user_name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13.5, color: 'var(--color-text-primary)' }}>{s.user_name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                        {fmtDateTime(s.clock_in_at)} → {s.clock_out_at ? fmtDateTime(s.clock_out_at) : 'Active'}
+                        &nbsp;·&nbsp;{fmtDuration(s.duration_minutes)}
+                        &nbsp;·&nbsp;<strong>{s.distance_km?.toFixed(2) || '0.00'} km</strong>
+                        &nbsp;·&nbsp;{s.ping_count} pings
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {s.status === 'ACTIVE' && (
+                        <span style={{ fontSize: 10, fontWeight: 800, color: '#22c55e', background: 'rgba(34,197,94,0.12)', padding: '2px 8px', borderRadius: 99 }}>LIVE</span>
+                      )}
+                      <ChevronDown size={15} color="var(--color-text-muted)" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                    </div>
+                  </button>
+
+                  {/* Breadcrumb ping list */}
+                  {isExpanded && (
+                    <div style={{ borderTop: '1px solid var(--color-border)', maxHeight: 360, overflowY: 'auto' }}>
+                      {logTrailLoading ? (
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+                          <div className="loading-spinner" />
+                        </div>
+                      ) : logTrail.length === 0 ? (
+                        <div style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 12 }}>
+                          No GPS pings recorded for this session yet.
+                        </div>
+                      ) : (
+                        <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr style={{ background: 'var(--color-bg-secondary)' }}>
+                              <th style={{ padding: '6px 12px', textAlign: 'left', fontWeight: 700, color: 'var(--color-text-muted)', fontSize: 10, textTransform: 'uppercase' }}>#</th>
+                              <th style={{ padding: '6px 12px', textAlign: 'left', fontWeight: 700, color: 'var(--color-text-muted)', fontSize: 10, textTransform: 'uppercase' }}>Time</th>
+                              <th style={{ padding: '6px 12px', textAlign: 'left', fontWeight: 700, color: 'var(--color-text-muted)', fontSize: 10, textTransform: 'uppercase' }}>Lat / Lng</th>
+                              <th style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 700, color: 'var(--color-text-muted)', fontSize: 10, textTransform: 'uppercase' }}>Accuracy</th>
+                              <th style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 700, color: 'var(--color-text-muted)', fontSize: 10, textTransform: 'uppercase' }}>Speed</th>
+                              <th style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 700, color: 'var(--color-text-muted)', fontSize: 10, textTransform: 'uppercase' }}>Dist. from last</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {logTrail.map((ping, i) => (
+                              <tr key={ping.id || i} style={{ borderTop: '1px solid var(--color-border)', background: i % 2 === 0 ? 'transparent' : 'var(--color-bg-secondary)' }}>
+                                <td style={{ padding: '5px 12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>{i + 1}</td>
+                                <td style={{ padding: '5px 12px', color: 'var(--color-text-primary)', whiteSpace: 'nowrap' }}>
+                                  {ping.recorded_at ? new Date(ping.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--'}
+                                </td>
+                                <td style={{ padding: '5px 12px', color: 'var(--color-text-secondary)', fontFamily: 'monospace', fontSize: 11 }}>
+                                  {ping.lat?.toFixed(5)}, {ping.lng?.toFixed(5)}
+                                </td>
+                                <td style={{ padding: '5px 12px', textAlign: 'right', color: 'var(--color-text-muted)' }}>
+                                  ±{ping.accuracy?.toFixed(0) ?? '--'}m
+                                </td>
+                                <td style={{ padding: '5px 12px', textAlign: 'right', color: ping.speed_kmph > 0 ? '#3b82f6' : 'var(--color-text-muted)' }}>
+                                  {ping.speed_kmph?.toFixed(1) ?? '0.0'} km/h
+                                </td>
+                                <td style={{ padding: '5px 12px', textAlign: 'right', color: ping.distance_from_last_km > 0 ? '#22c55e' : 'var(--color-text-muted)' }}>
+                                  {ping.distance_from_last_km > 0 ? `+${(ping.distance_from_last_km * 1000).toFixed(0)}m` : '—'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr style={{ borderTop: '2px solid var(--color-border)', background: 'var(--color-bg-secondary)' }}>
+                              <td colSpan={5} style={{ padding: '6px 12px', fontWeight: 700, fontSize: 11, color: 'var(--color-text-secondary)' }}>
+                                Total: {logTrail.length} pings
+                              </td>
+                              <td style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 800, color: '#22c55e', fontSize: 11 }}>
+                                {(logTrail.reduce((acc, p) => acc + (p.distance_from_last_km || 0), 0) * 1000).toFixed(0)}m total
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* ── Global animation keyframes ─────────────────────────────────────── */}
       <style>{`
