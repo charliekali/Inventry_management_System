@@ -1,12 +1,15 @@
 /**
- * SalesAttendance.jsx
- * GPS Attendance tracking for Sales staff.
- * - "Start": clocks in, requests location permission, starts watchPosition.
- * - watchPosition fires on every ≥1-metre movement (distanceFilter) AND
- *   a 60-sec heartbeat keeps stationary users live on the admin map.
- * - "Stop":  clocks out and clears all watchers.
- * - Uses @capacitor/geolocation on Android (runtime permission dialog).
- * - Falls back to navigator.geolocation.watchPosition on web.
+ * SalesAttendance.jsx — GPS Attendance tracking for Sales staff.
+ *
+ * Architecture: SIMPLE.
+ *   Every GPS position update → ping backend with raw lat/lng/accuracy/speed.
+ *   Backend (AttendanceController) calculates distance & cumulative km.
+ *   No client-side haversine, no drift filter, no complex state.
+ *
+ * On Android: uses the native TrackingService (background foreground-service)
+ *   which fires on every ≥1 m movement.
+ * On Web/PWA: uses navigator.geolocation.watchPosition with enableHighAccuracy.
+ *   A 30-sec heartbeat keeps stationary users live on the admin map.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { registerPlugin, Capacitor } from '@capacitor/core';
@@ -17,42 +20,24 @@ import toast from 'react-hot-toast';
 const Tracking = registerPlugin('Tracking');
 import { MapPin, Clock, Play, Square, CheckCircle } from 'lucide-react';
 
-const HEARTBEAT_MS = 60_000;          // 60-second stationary heartbeat
-const MIN_PING_GAP_MS = 3_000;        // debounce: min gap between backend pings
-const DISTANCE_FILTER_M = 1;          // record on every 1-metre movement
-
-/** Haversine formula to compute distance in KM on client side */
-function calculateHaversine(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Earth's radius in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
+const HEARTBEAT_MS  = 30_000; // Stationary heartbeat (web/PWA only)
+const MIN_PING_MS   = 2_000;  // Minimum gap between pings (debounce for web)
 
 /** Format seconds as HH:MM:SS */
 function formatElapsed(seconds) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
-  return [
-    h.toString().padStart(2, '0'),
-    m.toString().padStart(2, '0'),
-    s.toString().padStart(2, '0'),
-  ].join(':');
+  return [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
 }
 
-/** Format ISO datetime to a short time string */
+/** Format ISO datetime to short time string */
 function fmtTime(iso) {
   if (!iso) return '--';
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-/** Format duration in minutes as e.g. "2h 15m" */
+/** Format duration in minutes */
 function fmtDuration(mins) {
   if (mins == null || mins < 0) return '--';
   if (mins < 60) return `${mins}m`;
@@ -60,158 +45,126 @@ function fmtDuration(mins) {
 }
 
 export default function SalesAttendance() {
-  const [sessions, setSessions] = useState([]);
+  const [sessions, setSessions]         = useState([]);
   const [activeSession, setActiveSession] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [starting, setStarting] = useState(false);
-  const [stopping, setStopping] = useState(false);
-
-  // GPS state
-  const [gpsStatus, setGpsStatus] = useState('idle'); // idle | acquiring | active | error
-  const [lastPingAt, setLastPingAt] = useState(null);
+  const [loading, setLoading]           = useState(true);
+  const [starting, setStarting]         = useState(false);
+  const [stopping, setStopping]         = useState(false);
+  const [gpsStatus, setGpsStatus]       = useState('idle'); // idle|acquiring|active|error
+  const [lastPingAt, setLastPingAt]     = useState(null);
   const [lastAccuracy, setLastAccuracy] = useState(null);
+  const [elapsed, setElapsed]           = useState(0);
 
-  // Live timer
-  const [elapsed, setElapsed] = useState(0);
+  // Refs (survive re-renders, accessible inside callbacks)
+  const watchIdRef      = useRef(null);   // watchPosition ID (web)
+  const heartbeatRef    = useRef(null);   // heartbeat interval ID (web)
+  const timerRef        = useRef(null);   // elapsed-time interval ID
+  const lastPingTsRef   = useRef(0);      // timestamp of last ping (debounce)
+  const sessionIdRef    = useRef(null);   // session ID for callbacks
 
-  // Refs for cleanup
-  const watchIdRef      = useRef(null);   // Geolocation.watchPosition ID
-  const heartbeatRef    = useRef(null);   // 60-sec stationary heartbeat interval
-  const timerIntervalRef = useRef(null);  // elapsed-time display interval
-  const lastPingTsRef   = useRef(0);      // timestamp of last backend ping (debounce)
-  const lastPositionRef = useRef(null);
-  const cumulativeDistanceRef = useRef(0.0);
-  const lastPositionTsRef = useRef(0);
-  const sessionIdRef    = useRef(null);   // current session ID accessible inside callbacks
-
-  // ─── Unified GPS: Capacitor plugin on Android, browser API on web ───────────
+  // ─── GPS permission (native only) ─────────────────────────────────────────
   const requestGpsPermission = async () => {
-    if (Capacitor.isNativePlatform()) {
-      if (!Geolocation || typeof Geolocation.checkPermissions !== 'function') {
-        throw new Error('Native Geolocation plugin is not available.');
+    if (!Capacitor.isNativePlatform()) return; // Browser handles it natively
+    const status = await Geolocation.checkPermissions();
+    if (status.location !== 'granted') {
+      const result = await Geolocation.requestPermissions({ permissions: ['location'] });
+      if (result.location !== 'granted') {
+        throw new Error('Location permission denied');
       }
-      try {
-        const status = await Geolocation.checkPermissions();
-        if (status.location !== 'granted') {
-          if (typeof Geolocation.requestPermissions === 'function') {
-            const result = await Geolocation.requestPermissions({ permissions: ['location'] });
-            if (result.location !== 'granted') {
-              throw new Error('Location permission denied by user');
-            }
-          } else {
-            throw new Error('Native requestPermissions is not available.');
-          }
-        }
-      } catch (err) {
-        throw new Error('Could not request location permission: ' + err.message);
-      }
-    }
-    // Web: browser handles permission natively via getCurrentPosition
-  };
-
-  const getCurrentPosition = async () => {
-    if (Capacitor.isNativePlatform()) {
-      if (!Geolocation || typeof Geolocation.getCurrentPosition !== 'function') {
-        throw new Error('Native Geolocation plugin is not available.');
-      }
-      // Use the Capacitor native plugin — properly triggers Android permission dialog
-      const pos = await Geolocation.getCurrentPosition({
-        enableHighAccuracy: true,
-        timeout: 10000,
-      });
-      return {
-        coords: {
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-        },
-      };
-    } else {
-      // Web / browser fallback
-      return new Promise((resolve, reject) => {
-        if (!navigator.geolocation) {
-          reject(new Error('Geolocation not supported in this browser'));
-          return;
-        }
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 5000,
-        });
-      });
     }
   };
 
-  // ─── Load initial data ──────────────────────────────────────────────────────
-  const loadSessions = useCallback(async () => {
+  // ─── Get current position (unified) ───────────────────────────────────────
+  const getCurrentPosition = () => {
+    if (Capacitor.isNativePlatform()) {
+      return Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
+    }
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) return reject(new Error('Geolocation not supported'));
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true, timeout: 10000, maximumAge: 5000,
+      });
+    });
+  };
+
+  // ─── Send raw GPS ping to backend ──────────────────────────────────────────
+  // Simple: just raw coordinates. Backend does all distance/speed math.
+  const sendPing = useCallback(async (latitude, longitude, accuracy, speed = null) => {
+    const sid = sessionIdRef.current;
+    if (!sid) return;
+
+    // Debounce: prevent hammering the backend more than once every MIN_PING_MS
+    const now = Date.now();
+    if (now - lastPingTsRef.current < MIN_PING_MS) return;
+    lastPingTsRef.current = now;
+
     try {
-      const res = await attendanceAPI.my();
-      const list = res.data.data || [];
-      setSessions(list);
-
-      // Check if there's already an active session
-      const active = list.find(s => s.status === 'ACTIVE');
-      if (active) {
-        setActiveSession(active);
-        sessionIdRef.current = active.id;
-        startTimer(active.clock_in_at);
-
-        // Initialize client-side JS metrics refs
-        cumulativeDistanceRef.current = active.distance_km || 0.0;
-        if (active.last_lat && active.last_lng) {
-          lastPositionRef.current = { latitude: active.last_lat, longitude: active.last_lng };
-          lastPositionTsRef.current = Date.now();
-        }
-
-        if (Capacitor.isNativePlatform()) {
-          const token = localStorage.getItem('accessToken');
-          const baseUrl = getApiBase();
-          try {
-            await Tracking.startTracking({
-              sessionId: active.id,
-              token: token,
-              apiUrl: baseUrl,
-              distanceKm: active.distance_km || 0.0,
-              lastLatitude: active.last_lat || 0.0,
-              lastLongitude: active.last_lng || 0.0,
-              interval: 30000,
-              distance: 1
-            });
-          } catch (nativeErr) {
-            console.warn('Native startTracking on load failed:', nativeErr);
-          }
-        } else {
-          startWatching(active.id);
-        }
-        setGpsStatus('active');
+      const res = await attendanceAPI.ping(sid, latitude, longitude, accuracy, speed);
+      if (res.data?.session) {
+        setActiveSession(res.data.session);
+        setSessions(prev => prev.map(s => s.id === res.data.session.id ? res.data.session : s));
       }
-    } catch {
-      // silent — user might not be logged in or no sessions yet
-    } finally {
-      setLoading(false);
+      setLastPingAt(new Date());
+      setLastAccuracy(Math.round(accuracy ?? 0));
+      setGpsStatus('active');
+    } catch (err) {
+      console.warn('GPS ping failed:', err);
     }
-  }, []); // eslint-disable-line
+  }, []);
 
-  useEffect(() => {
-    loadSessions();
-    return () => {
-      stopWatching();
-      clearInterval(timerIntervalRef.current);
+  // ─── Start web watchPosition + heartbeat ──────────────────────────────────
+  const startWatching = useCallback((sessionId) => {
+    stopWatching();
+    sessionIdRef.current = sessionId;
+
+    const onPos = (pos) => {
+      if (!pos?.coords) return;
+      const { latitude, longitude, accuracy, speed } = pos.coords;
+      sendPing(latitude, longitude, accuracy, speed);
     };
-  }, []); // eslint-disable-line
-
-  // ─── Timer ──────────────────────────────────────────────────────────────────
-  const startTimer = (clockInAt) => {
-    clearInterval(timerIntervalRef.current);
-    const tick = () => {
-      const sec = Math.floor((Date.now() - new Date(clockInAt).getTime()) / 1000);
-      setElapsed(sec > 0 ? sec : 0);
+    const onErr = (err) => {
+      console.warn('watchPosition error:', err);
+      setGpsStatus('error');
     };
-    tick();
-    timerIntervalRef.current = setInterval(tick, 1000);
-  };
 
-  // ─── Stop watching (cleanup helper) ─────────────────────────────────────────
+    if (Capacitor.isNativePlatform()) {
+      // On Android the native TrackingService handles continuous updates.
+      // Capacitor watchPosition is used here as a secondary update path.
+      if (typeof Geolocation.watchPosition === 'function') {
+        Geolocation.watchPosition(
+          { enableHighAccuracy: true, timeout: 10000 },
+          (pos, err) => { if (err) onErr(err); else if (pos) onPos(pos); }
+        ).then(id => { watchIdRef.current = id; }).catch(onErr);
+      }
+    } else {
+      if (navigator.geolocation) {
+        watchIdRef.current = navigator.geolocation.watchPosition(onPos, onErr, {
+          enableHighAccuracy: true, timeout: 10000, maximumAge: 0,
+        });
+      } else {
+        setGpsStatus('error');
+        toast.error('Geolocation not supported in this browser.');
+        return;
+      }
+    }
+
+    // Heartbeat: re-ping every 30 s even if stationary (keeps admin map fresh)
+    heartbeatRef.current = setInterval(async () => {
+      try {
+        const pos = await getCurrentPosition();
+        if (pos?.coords) {
+          const { latitude, longitude, accuracy, speed } = pos.coords;
+          // Bypass debounce for heartbeat by resetting timestamp
+          lastPingTsRef.current = 0;
+          sendPing(latitude, longitude, accuracy, speed);
+        }
+      } catch (e) {
+        console.warn('Heartbeat GPS read failed:', e);
+      }
+    }, HEARTBEAT_MS);
+  }, [sendPing]);
+
+  // ─── Stop watchPosition + heartbeat ───────────────────────────────────────
   const stopWatching = () => {
     if (watchIdRef.current !== null) {
       if (Capacitor.isNativePlatform()) {
@@ -223,224 +176,134 @@ export default function SalesAttendance() {
     }
     clearInterval(heartbeatRef.current);
     heartbeatRef.current = null;
-    lastPingTsRef.current = 0;
   };
 
-  // ─── Send a ping to the backend (debounced) ──────────────────────────────────
-  const sendPing = async (latitude, longitude, accuracy, speed = null) => {
-    const sid = sessionIdRef.current;
-    if (!sid) return;
-    const now = Date.now();
-    if (now - lastPingTsRef.current < MIN_PING_GAP_MS) return; // debounce
-    lastPingTsRef.current = now;
+  // ─── Elapsed timer ─────────────────────────────────────────────────────────
+  const startTimer = (clockInAt) => {
+    clearInterval(timerRef.current);
+    const tick = () => {
+      const sec = Math.floor((Date.now() - new Date(clockInAt).getTime()) / 1000);
+      setElapsed(sec > 0 ? sec : 0);
+    };
+    tick();
+    timerRef.current = setInterval(tick, 1000);
+  };
 
-    let distFromLast = 0.0;
-    let cumulativeDistance = cumulativeDistanceRef.current;
-    let speedKmph = 0.0;
+  // ─── Load initial data ─────────────────────────────────────────────────────
+  const loadSessions = useCallback(async () => {
+    try {
+      const res = await attendanceAPI.my();
+      const list = res.data.data || [];
+      setSessions(list);
 
-    // Accuracy Filter: Discard location jumps with poor accuracy (>100 meters)
-    if (accuracy <= 100.0) {
-      if (lastPositionRef.current) {
-        distFromLast = calculateHaversine(
-          lastPositionRef.current.latitude,
-          lastPositionRef.current.longitude,
-          latitude,
-          longitude
-        );
+      const active = list.find(s => s.status === 'ACTIVE');
+      if (active) {
+        setActiveSession(active);
+        sessionIdRef.current = active.id;
+        startTimer(active.clock_in_at);
+        setGpsStatus('active');
 
-        // Dynamic Drift Filter: Ignore movements less than the GPS accuracy (or min 10m) to prevent phantom drift while stationary
-        const driftThresholdKm = Math.max(0.010, accuracy / 1000.0);
-        if (distFromLast < driftThresholdKm) {
-          distFromLast = 0.0;
-        }
-
-        // Jump Filter: Ignore movements larger than 2.0 km per interval (unrealistic GPS jumps)
-        if (distFromLast > 2.0) {
-          distFromLast = 0.0;
-        }
-      }
-
-      // Calculate Speed: use native speed if available, otherwise estimate from time & distance
-      if (speed !== null && speed > 0) {
-        speedKmph = speed * 3.6;
-      } else if (lastPositionRef.current && distFromLast > 0 && lastPositionTsRef.current) {
-        const timeDiffMs = now - lastPositionTsRef.current;
-        if (timeDiffMs > 1000) {
-          const hours = timeDiffMs / 3600000.0;
-          speedKmph = distFromLast / hours;
-          if (speedKmph > 200.0) {
-            speedKmph = 200.0;
+        if (Capacitor.isNativePlatform()) {
+          const token   = localStorage.getItem('accessToken');
+          const baseUrl = getApiBase();
+          try {
+            await Tracking.startTracking({
+              sessionId: active.id,
+              token,
+              apiUrl: baseUrl,
+              interval: 0,
+              distance: 1,
+            });
+          } catch (e) {
+            console.warn('Native startTracking on load failed:', e);
           }
+          startWatching(active.id); // also start Capacitor watchPosition
+        } else {
+          startWatching(active.id);
         }
       }
-
-      if (!lastPositionRef.current || distFromLast > 0.0) {
-        lastPositionRef.current = { latitude, longitude };
-        lastPositionTsRef.current = now;
-      }
-
-      cumulativeDistanceRef.current += distFromLast;
-      cumulativeDistance = cumulativeDistanceRef.current;
-    } else {
-      // If accuracy is poor, we still might want to capture native GPS speed if available
-      if (speed !== null && speed > 0) {
-        speedKmph = speed * 3.6;
-      }
+    } catch {
+      // Silent — user might not be logged in
+    } finally {
+      setLoading(false);
     }
+  }, [startWatching]); // eslint-disable-line
 
-    try {
-      const res = await attendanceAPI.ping(sid, latitude, longitude, accuracy, speedKmph, distFromLast, cumulativeDistance);
-      if (res.data && res.data.session) {
-        setActiveSession(res.data.session);
-        setSessions(prev => prev.map(s => s.id === res.data.session.id ? res.data.session : s));
-      }
-      setLastPingAt(new Date());
-      setLastAccuracy(Math.round(accuracy ?? 0));
-      setGpsStatus('active');
-    } catch (err) {
-      console.warn('GPS ping failed:', err);
-    }
-  };
-
-  // ─── Start movement-based watching ──────────────────────────────────────────
-  // Uses watchPosition with distanceFilter:1 so every ≥1 m movement fires a callback.
-  // A 60-sec heartbeat also runs for stationary users so the admin map stays fresh.
-  const startWatching = (sessionId) => {
-    try {
+  useEffect(() => {
+    loadSessions();
+    return () => {
       stopWatching();
-      sessionIdRef.current = sessionId;
+      clearInterval(timerRef.current);
+    };
+  }, []); // eslint-disable-line
 
-      const onPosition = (pos) => {
-        if (!pos || !pos.coords) return;
-        const { latitude, longitude, accuracy, speed } = pos.coords;
-        sendPing(latitude, longitude, accuracy, speed);
-      };
-      const onError = (err) => {
-        setGpsStatus('error');
-        console.warn('watchPosition error:', err);
-      };
-
-      if (Capacitor.isNativePlatform()) {
-        if (Geolocation && typeof Geolocation.watchPosition === 'function') {
-          Geolocation.watchPosition(
-            { enableHighAccuracy: true, timeout: 10000 },
-            (pos, err) => {
-              if (err) { onError(err); return; }
-              if (pos) onPosition(pos);
-            }
-          ).then(id => { watchIdRef.current = id; }).catch(onError);
-        } else {
-          throw new Error('Native Geolocation plugin watchPosition is not available.');
-        }
-      } else {
-        if (navigator.geolocation) {
-          watchIdRef.current = navigator.geolocation.watchPosition(
-            onPosition, onError,
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-          );
-        } else {
-          throw new Error('Web Geolocation API is not supported in this browser.');
-        }
-      }
-
-      // Heartbeat: if stationary for >60s, re-read position and ping anyway
-      heartbeatRef.current = setInterval(async () => {
-        try {
-          const pos = await getCurrentPosition();
-          if (pos && pos.coords) {
-            sendPing(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
-          }
-        } catch (hbErr) {
-          console.warn('Heartbeat GPS read failed:', hbErr);
-        }
-      }, HEARTBEAT_MS);
-    } catch (err) {
-      console.error('Failed to start position tracking:', err);
-      setGpsStatus('error');
-      toast.error('Failed to start GPS tracking: ' + err.message);
-    }
-  };
-
-  // ─── Start Attendance ────────────────────────────────────────────────────────
+  // ─── Start Attendance ──────────────────────────────────────────────────────
   const handleStart = async () => {
     setStarting(true);
     setGpsStatus('acquiring');
     try {
-      // Step 1: Request GPS permission (triggers Android dialog if not yet granted)
+      // 1. Request GPS permission (triggers Android dialog if needed)
       try {
         await requestGpsPermission();
-      } catch (permErr) {
-        toast.error('Location permission is required for attendance tracking. Please allow location access in your device settings.');
+      } catch {
+        toast.error('Location permission is required. Please allow it in device settings.');
         setGpsStatus('error');
-        setStarting(false);
         return;
       }
 
-      // Step 2: Get initial GPS fix
+      // 2. Get initial GPS fix
       let gps = null;
       try {
         const pos = await getCurrentPosition();
         gps = {
-          latitude: pos.coords.latitude,
+          latitude:  pos.coords.latitude,
           longitude: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          speed: pos.coords.speed,
+          accuracy:  pos.coords.accuracy,
+          speed:     pos.coords.speed ?? null,
         };
         setLastAccuracy(Math.round(pos.coords.accuracy));
-      } catch (gpsErr) {
-        toast.error('GPS tracking must be active to start attendance. Please ensure GPS is enabled.');
+      } catch {
+        toast.error('GPS must be enabled to start attendance.');
         setGpsStatus('error');
-        setStarting(false);
         return;
       }
 
-      if (!gps || gps.latitude == null || gps.longitude == null) {
-        toast.error('GPS tracking must be active to start attendance. Please ensure GPS is enabled.');
+      if (!gps?.latitude || !gps?.longitude) {
+        toast.error('Could not get GPS fix. Please enable GPS and try again.');
         setGpsStatus('error');
-        setStarting(false);
         return;
       }
 
-      const res = await attendanceAPI.start(gps);
+      // 3. Clock in on backend
+      const res     = await attendanceAPI.start(gps);
       const session = res.data.data;
       setActiveSession(session);
       setSessions(prev => [session, ...prev.filter(s => s.id !== session.id)]);
       setLastPingAt(new Date());
-      setGpsStatus(gps ? 'active' : 'error');
-
-      // Initialize client-side distance refs
-      cumulativeDistanceRef.current = 0.0;
-      if (gps) {
-        lastPositionRef.current = { latitude: gps.latitude, longitude: gps.longitude };
-        lastPositionTsRef.current = Date.now();
-      } else {
-        lastPositionRef.current = null;
-        lastPositionTsRef.current = 0;
-      }
-
+      setGpsStatus('active');
       startTimer(session.clock_in_at);
+
+      // 4. Start native background service (Android) + web watcher
       if (Capacitor.isNativePlatform()) {
-        const token = localStorage.getItem('accessToken');
+        const token   = localStorage.getItem('accessToken');
         const baseUrl = getApiBase();
         try {
           await Tracking.startTracking({
             sessionId: session.id,
-            token: token,
+            token,
             apiUrl: baseUrl,
-            distanceKm: 0.0,
-            lastLatitude: gps?.latitude || 0.0,
-            lastLongitude: gps?.longitude || 0.0,
-            interval: 30000,
-            distance: 1
+            interval: 0,
+            distance: 1,
           });
-        } catch (nativeErr) {
-          console.warn('Native startTracking failed:', nativeErr);
+        } catch (e) {
+          console.warn('Native startTracking failed:', e);
         }
+        startWatching(session.id); // Capacitor watchPosition as supplement
       } else {
         startWatching(session.id);
       }
 
-      toast.success('Attendance started! GPS tracking active.');
+      toast.success('Attendance started! GPS tracking is active.');
     } catch (err) {
       setGpsStatus('error');
       toast.error(err.response?.data?.message || 'Failed to start attendance');
@@ -449,34 +312,28 @@ export default function SalesAttendance() {
     }
   };
 
-  // ─── Stop Attendance ─────────────────────────────────────────────────────────
+  // ─── Stop Attendance ───────────────────────────────────────────────────────
   const handleStop = async () => {
     if (!activeSession) return;
-    if (!window.confirm('Clock out and stop tracking your location?')) return;
+    if (!window.confirm('Clock out and stop location tracking?')) return;
 
     setStopping(true);
     try {
-      const res = await attendanceAPI.stop(activeSession.id);
+      const res     = await attendanceAPI.stop(activeSession.id);
       const updated = res.data.data;
 
       if (Capacitor.isNativePlatform()) {
-        try {
-          await Tracking.stopTracking();
-        } catch (nativeErr) {
-          console.warn('Native stopTracking failed:', nativeErr);
-        }
-      } else {
-        stopWatching();
+        try { await Tracking.stopTracking(); } catch (e) { console.warn(e); }
       }
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
+      stopWatching();
+      clearInterval(timerRef.current);
+      timerRef.current  = null;
       sessionIdRef.current = null;
 
       setActiveSession(null);
       setGpsStatus('idle');
       setElapsed(0);
       setSessions(prev => prev.map(s => s.id === updated.id ? updated : s));
-
       toast.success('Attendance ended. Have a great day!');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to stop attendance');
@@ -485,20 +342,17 @@ export default function SalesAttendance() {
     }
   };
 
-  // ─── Render ──────────────────────────────────────────────────────────────────
+  // ─── Render ────────────────────────────────────────────────────────────────
   const isActive = !!activeSession;
 
-  const gpsIndicatorColor = {
-    idle: 'var(--s-text-3)',
-    acquiring: '#f59e0b',
-    active: '#22c55e',
-    error: '#ef4444',
+  const gpsColor = {
+    idle: 'var(--s-text-3)', acquiring: '#f59e0b',
+    active: '#22c55e', error: '#ef4444',
   }[gpsStatus];
 
   const todaysSessions = sessions.filter(s => {
     const d = new Date(s.created_at);
-    const today = new Date();
-    return d.toDateString() === today.toDateString();
+    return d.toDateString() === new Date().toDateString();
   });
 
   if (loading) {
@@ -512,21 +366,24 @@ export default function SalesAttendance() {
   return (
     <div className="s-page" style={{ padding: '0 0 24px 0' }}>
 
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      {/* ── Header ────────────────────────────────────────────────────────── */}
       <div style={{ padding: '20px 20px 0', marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
           <Clock size={20} color="var(--s-primary)" />
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--s-text)', margin: 0 }}>
-            Attendance
-          </h2>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--s-text)', margin: 0 }}>Attendance</h2>
         </div>
         <p style={{ fontSize: 12.5, color: 'var(--s-text-3)', margin: 0 }}>
           Track your working hours and share your live location.
         </p>
       </div>
 
-      {/* ── Status Card ────────────────────────────────────────────────────── */}
-      <div style={{ margin: '0 16px 20px', background: isActive ? 'rgba(34,197,94,0.08)' : 'var(--s-card)', border: `2px solid ${isActive ? 'rgba(34,197,94,0.3)' : 'var(--s-border)'}`, borderRadius: 16, padding: 20, textAlign: 'center' }}>
+      {/* ── Status Card ───────────────────────────────────────────────────── */}
+      <div style={{
+        margin: '0 16px 20px',
+        background: isActive ? 'rgba(34,197,94,0.08)' : 'var(--s-card)',
+        border: `2px solid ${isActive ? 'rgba(34,197,94,0.3)' : 'var(--s-border)'}`,
+        borderRadius: 16, padding: 20, textAlign: 'center',
+      }}>
 
         {isActive ? (
           <>
@@ -538,35 +395,35 @@ export default function SalesAttendance() {
               Clocked in at {fmtTime(activeSession?.clock_in_at)}
             </div>
 
-            {/* Speed & Distance Tracking Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', margin: '0 auto 20px', maxWidth: '340px' }}>
+            {/* Speed & Distance */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, margin: '0 auto 20px', maxWidth: 340 }}>
               <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: '12px 8px', border: '1px solid var(--s-border)' }}>
                 <div style={{ fontSize: 10, color: 'var(--s-text-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Speed</div>
                 <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--s-text)' }}>
-                  {activeSession?.current_speed_kmph?.toFixed(1) || '0.0'} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--s-text-3)' }}>km/h</span>
+                  {activeSession?.current_speed_kmph?.toFixed(1) ?? '0.0'} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--s-text-3)' }}>km/h</span>
                 </div>
               </div>
               <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: '12px 8px', border: '1px solid var(--s-border)' }}>
                 <div style={{ fontSize: 10, color: 'var(--s-text-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Distance</div>
                 <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--s-text)' }}>
-                  {activeSession?.distance_km?.toFixed(2) || '0.00'} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--s-text-3)' }}>km</span>
+                  {activeSession?.distance_km?.toFixed(2) ?? '0.00'} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--s-text-3)' }}>km</span>
                 </div>
               </div>
             </div>
 
-            {/* GPS Status Row */}
+            {/* GPS Status */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 20 }}>
               <div style={{
                 width: 10, height: 10, borderRadius: '50%',
-                background: gpsIndicatorColor,
-                boxShadow: gpsStatus === 'active' ? `0 0 8px ${gpsIndicatorColor}` : 'none',
+                background: gpsColor,
+                boxShadow: gpsStatus === 'active' ? `0 0 8px ${gpsColor}` : 'none',
                 animation: gpsStatus === 'active' ? 'pulse-dot 1.5s infinite' : 'none',
               }} />
-              <span style={{ fontSize: 12, color: gpsIndicatorColor, fontWeight: 600 }}>
-                {gpsStatus === 'active'   && `GPS Active • ±${lastAccuracy ?? '?'}m`}
+              <span style={{ fontSize: 12, color: gpsColor, fontWeight: 600 }}>
+                {gpsStatus === 'active'    && `GPS Active • ±${lastAccuracy ?? '?'}m`}
                 {gpsStatus === 'acquiring' && 'Acquiring GPS…'}
-                {gpsStatus === 'error'    && 'GPS Unavailable'}
-                {gpsStatus === 'idle'     && 'GPS Idle'}
+                {gpsStatus === 'error'     && 'GPS Unavailable'}
+                {gpsStatus === 'idle'      && 'GPS Idle'}
               </span>
               {lastPingAt && (
                 <span style={{ fontSize: 11, color: 'var(--s-text-3)' }}>
@@ -594,16 +451,11 @@ export default function SalesAttendance() {
           </>
         ) : (
           <>
-            {/* Off-duty state */}
             <div style={{ fontSize: 56, marginBottom: 12 }}>📍</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--s-text)', marginBottom: 6 }}>
-              You are off duty
-            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--s-text)', marginBottom: 6 }}>You are off duty</div>
             <div style={{ fontSize: 13, color: 'var(--s-text-3)', marginBottom: 24 }}>
               {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </div>
-
-            {/* Start Button */}
             <button
               onClick={handleStart}
               disabled={starting}
@@ -633,7 +485,7 @@ export default function SalesAttendance() {
         )}
       </div>
 
-      {/* ── Today's Sessions Log ────────────────────────────────────────────── */}
+      {/* ── Today's Log ───────────────────────────────────────────────────── */}
       {todaysSessions.length > 0 && (
         <div style={{ margin: '0 16px 16px' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--s-text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
@@ -647,7 +499,7 @@ export default function SalesAttendance() {
                     {fmtTime(s.clock_in_at)} → {s.clock_out_at ? fmtTime(s.clock_out_at) : '…'}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--s-text-3)' }}>
-                    {s.ping_count} GPS pings · {fmtDuration(s.duration_minutes)}
+                    {s.ping_count} GPS pings · {fmtDuration(s.duration_minutes)} · {(s.distance_km ?? 0).toFixed(2)} km
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -666,19 +518,17 @@ export default function SalesAttendance() {
         </div>
       )}
 
-      {/* ── Info Footer ─────────────────────────────────────────────────────── */}
+      {/* ── Footer Info ───────────────────────────────────────────────────── */}
       <div style={{ margin: '0 16px', padding: '12px 14px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         <MapPin size={15} color="#3b82f6" style={{ marginTop: 1, flexShrink: 0 }} />
         <div style={{ fontSize: 11.5, color: 'var(--s-text-3)', lineHeight: 1.5 }}>
-          Your location is recorded every time you move ≥1 metre, and at least once per minute while stationary. GPS runs only while this app is open.
+          Your location is recorded on every ≥1 metre movement, and every 30 seconds while stationary. GPS only runs while this app is open.
         </div>
       </div>
 
-      {/* ── CSS Animations ─────────────────────────────────────────────────── */}
+      {/* ── Animations ────────────────────────────────────────────────────── */}
       <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse-dot {
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.6; transform: scale(1.3); }
