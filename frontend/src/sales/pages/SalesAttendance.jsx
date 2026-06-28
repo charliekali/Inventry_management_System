@@ -81,6 +81,7 @@ export default function SalesAttendance() {
   const lastPingTsRef   = useRef(0);      // timestamp of last backend ping (debounce)
   const lastPositionRef = useRef(null);
   const cumulativeDistanceRef = useRef(0.0);
+  const lastPositionTsRef = useRef(0);
   const sessionIdRef    = useRef(null);   // current session ID accessible inside callbacks
 
   // ─── Unified GPS: Capacitor plugin on Android, browser API on web ───────────
@@ -159,6 +160,7 @@ export default function SalesAttendance() {
         cumulativeDistanceRef.current = active.distance_km || 0.0;
         if (active.last_lat && active.last_lng) {
           lastPositionRef.current = { latitude: active.last_lat, longitude: active.last_lng };
+          lastPositionTsRef.current = Date.now();
         }
 
         if (Capacitor.isNativePlatform()) {
@@ -234,10 +236,10 @@ export default function SalesAttendance() {
 
     let distFromLast = 0.0;
     let cumulativeDistance = cumulativeDistanceRef.current;
-    let speedKmph = speed >= 0 ? speed * 3.6 : 0.0;
+    let speedKmph = 0.0;
 
-    // Haversine calculation for browser/React fallback
-    if (accuracy <= 30.0) {
+    // Accuracy Filter: Discard location jumps with poor accuracy (>100 meters)
+    if (accuracy <= 100.0) {
       if (lastPositionRef.current) {
         distFromLast = calculateHaversine(
           lastPositionRef.current.latitude,
@@ -246,22 +248,44 @@ export default function SalesAttendance() {
           longitude
         );
 
-        // Drift filter: ignore movements less than 5 meters
-        if (distFromLast < 0.005) {
+        // Dynamic Drift Filter: Ignore movements less than the GPS accuracy (or min 10m) to prevent phantom drift while stationary
+        const driftThresholdKm = Math.max(0.010, accuracy / 1000.0);
+        if (distFromLast < driftThresholdKm) {
           distFromLast = 0.0;
         }
-        // Jump filter: ignore unrealistic jumps over 2.0 km
+
+        // Jump Filter: Ignore movements larger than 2.0 km per interval (unrealistic GPS jumps)
         if (distFromLast > 2.0) {
           distFromLast = 0.0;
         }
       }
 
+      // Calculate Speed: use native speed if available, otherwise estimate from time & distance
+      if (speed !== null && speed > 0) {
+        speedKmph = speed * 3.6;
+      } else if (lastPositionRef.current && distFromLast > 0 && lastPositionTsRef.current) {
+        const timeDiffMs = now - lastPositionTsRef.current;
+        if (timeDiffMs > 1000) {
+          const hours = timeDiffMs / 3600000.0;
+          speedKmph = distFromLast / hours;
+          if (speedKmph > 200.0) {
+            speedKmph = 200.0;
+          }
+        }
+      }
+
       if (!lastPositionRef.current || distFromLast > 0.0) {
         lastPositionRef.current = { latitude, longitude };
+        lastPositionTsRef.current = now;
       }
 
       cumulativeDistanceRef.current += distFromLast;
       cumulativeDistance = cumulativeDistanceRef.current;
+    } else {
+      // If accuracy is poor, we still might want to capture native GPS speed if available
+      if (speed !== null && speed > 0) {
+        speedKmph = speed * 3.6;
+      }
     }
 
     try {
@@ -388,8 +412,10 @@ export default function SalesAttendance() {
       cumulativeDistanceRef.current = 0.0;
       if (gps) {
         lastPositionRef.current = { latitude: gps.latitude, longitude: gps.longitude };
+        lastPositionTsRef.current = Date.now();
       } else {
         lastPositionRef.current = null;
+        lastPositionTsRef.current = 0;
       }
 
       startTimer(session.clock_in_at);

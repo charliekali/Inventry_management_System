@@ -25,7 +25,10 @@ const REFRESH_INTERVAL_MS = 15_000;
 
 /** Palette for user markers */
 const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#14b8a6', '#8b5cf6', '#f97316', '#06b6d4', '#84cc16'];
-const getColor = (index) => COLORS[index % COLORS.length];
+const getColor = (index) => {
+  if (index < 0 || index >= COLORS.length) return '#6366f1';
+  return COLORS[index % COLORS.length];
+};
 
 /** Create a custom HTML div icon (pulsing circle with initials) */
 function createUserIcon(name, color, isSelected) {

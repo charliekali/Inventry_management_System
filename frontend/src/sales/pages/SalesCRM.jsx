@@ -950,7 +950,7 @@ export default function SalesCRM() {
                         const lat = parseFloat(selectedMapItem.custom_fields.latitude);
                         const lng = parseFloat(selectedMapItem.custom_fields.longitude);
                         const url = `https://www.google.com/maps/dir/?api=1&origin=${myLoc ? `${myLoc[0]},${myLoc[1]}` : ''}&destination=${lat},${lng}&travelmode=driving`;
-                        window.open(url, '_blank');
+                        window.open(url, '_system');
                       }}
                       style={{
                         flex: 2,
@@ -974,7 +974,7 @@ export default function SalesCRM() {
 
                     {selectedMapItem.custom_fields?.phone && (
                       <button
-                        onClick={() => window.open(`tel:${selectedMapItem.custom_fields.phone}`)}
+                        onClick={() => window.open(`tel:${selectedMapItem.custom_fields.phone}`, '_system')}
                         style={{
                           flex: 1,
                           background: 'var(--s-surface)',
