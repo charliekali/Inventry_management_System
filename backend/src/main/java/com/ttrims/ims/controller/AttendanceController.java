@@ -107,8 +107,8 @@ public class AttendanceController {
                     AttendanceLocation lastLoc = lastLocOpt.get();
                     distFromLast = calculateHaversineDistance(lastLoc.getLatitude(), lastLoc.getLongitude(), currentLat, currentLng);
 
-                    // GPS Drift Filter: ignore changes smaller than 5 metres
-                    if (distFromLast < 0.005) {
+                    // GPS Drift Filter: ignore changes smaller than 2 metres
+                    if (distFromLast < 0.002) {
                         distFromLast = 0.0;
                     }
 

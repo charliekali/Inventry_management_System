@@ -55,7 +55,10 @@ export default function PosPage() {
     Promise.all([
       productsAPI.list({ type: 'FINISHED_GOOD' }),
       stockAPI.balance(),
-      ordersAPI.list()
+      ordersAPI.list().catch(err => {
+        console.warn('Could not load orders list for autocomplete:', err);
+        return { data: { data: [] } };
+      })
     ])
       .then(([productsRes, stockRes, ordersRes]) => {
         setProducts(productsRes.data.data);

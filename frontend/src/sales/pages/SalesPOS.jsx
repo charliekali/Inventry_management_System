@@ -9,7 +9,7 @@ import { productsAPI, ordersAPI, stockAPI } from '../../api';
 import toast from 'react-hot-toast';
 import {
   Search, ShoppingCart, Trash2, Plus, Minus, X,
-  CheckCircle2, DollarSign, CreditCard, Tag, RefreshCw, User, ChevronDown
+  CheckCircle2, DollarSign, CreditCard, Tag, RefreshCw, User, ChevronDown, AlertCircle
 } from 'lucide-react';
 
 function fmtCurrency(v) {
@@ -54,7 +54,10 @@ export default function SalesPOS() {
     Promise.all([
       productsAPI.list({ type: 'FINISHED_GOOD' }),
       stockAPI.balance(),
-      ordersAPI.list()
+      ordersAPI.list().catch(err => {
+        console.warn('Could not load orders list for autocomplete:', err);
+        return { data: { data: [] } };
+      })
     ])
       .then(([prodRes, stockRes, ordersRes]) => {
         setProducts(prodRes.data.data || []);
