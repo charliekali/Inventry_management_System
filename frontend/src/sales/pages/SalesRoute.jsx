@@ -7,6 +7,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ordersAPI } from '../../api';
+import { useTheme } from '../../context/ThemeContext';
 import toast from 'react-hot-toast';
 import { MapContainer, TileLayer, Marker, Polyline, CircleMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -107,6 +108,12 @@ function createCustomerMarkerIcon(name, status, isSelected) {
 }
 
 export default function SalesRoute() {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const tileUrl = isDark
+    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+    : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+
   const [assigned, setAssigned] = useState([]);
   const [loading, setLoading] = useState(true);
   const [myLoc, setMyLoc] = useState(null);
@@ -332,7 +339,7 @@ export default function SalesRoute() {
             >
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                url={tileUrl}
               />
 
               {flyTarget && <FlyTo target={flyTarget} zoom={isNavigating ? 17 : 15} />}

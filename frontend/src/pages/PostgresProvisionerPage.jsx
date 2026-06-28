@@ -174,6 +174,10 @@ export default function PostgresProvisionerPage() {
     }
   };
 
+  const regionSlug = (selectedInstance && selectedInstance.region)
+    ? selectedInstance.region.toLowerCase().replace(/[^a-z0-9]/g, '-')
+    : 'unknown';
+
   return (
     <div className="fade-in" style={{ maxWidth: 1200, margin: '0 auto' }}>
       <div className="page-header">
@@ -509,7 +513,7 @@ export default function PostgresProvisionerPage() {
                           <Key size={12} /> Connection Parameters (Private LAN)
                         </div>
                         <div style={{ fontSize: 11.5, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <div><strong>Host:</strong> <code style={{ color: 'var(--color-primary-light)' }}>{selectedInstance.name === 'ttrims-postgres' ? 'dpg-d8in6lcvikkc73c1l780-a' : selectedInstance.name + '.' + selectedInstance.region.toLowerCase().replaceAll('[^a-z0-9]', '-') + '.ttrims.internal'}</code></div>
+                          <div><strong>Host:</strong> <code style={{ color: 'var(--color-primary-light)' }}>{selectedInstance.name === 'ttrims-postgres' ? 'dpg-d8in6lcvikkc73c1l780-a' : `${selectedInstance.name}.${regionSlug}.ttrims.internal`}</code></div>
                           <div><strong>Port:</strong> <code>5432</code></div>
                           <div><strong>Database:</strong> <code>{selectedInstance.databaseName}</code></div>
                           <div><strong>Username:</strong> <code>{selectedInstance.username}</code></div>
@@ -518,7 +522,7 @@ export default function PostgresProvisionerPage() {
                           <div style={{ marginTop: 8, borderTop: '1px dashed rgba(255,255,255,0.08)', paddingTop: 8 }}>
                             <div style={{ color: 'var(--color-text-muted)', fontSize: 10, marginBottom: 2 }}>JDBC Connection String:</div>
                             <code style={{ fontSize: 9.5, wordBreak: 'break-all', color: 'var(--color-success)' }}>
-                              jdbc:postgresql://{selectedInstance.name === 'ttrims-postgres' ? 'dpg-d8in6lcvikkc73c1l780-a' : selectedInstance.name + '.' + selectedInstance.region.toLowerCase().replaceAll('[^a-z0-9]', '-') + '.ttrims.internal'}:5432/{selectedInstance.databaseName}
+                              jdbc:postgresql://{selectedInstance.name === 'ttrims-postgres' ? 'dpg-d8in6lcvikkc73c1l780-a' : `${selectedInstance.name}.${regionSlug}.ttrims.internal`}:5432/{selectedInstance.databaseName}
                             </code>
                           </div>
                         </div>

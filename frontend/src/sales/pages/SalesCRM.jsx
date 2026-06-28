@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useTheme } from '../../context/ThemeContext';
 import { ordersAPI } from '../../api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -420,6 +421,12 @@ function createCustomerMarkerIcon(name, status, isOverdue, isSelected) {
 
 // ── Main CRM Page ─────────────────────────────────────────────────────────────
 export default function SalesCRM() {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const tileUrl = isDark
+    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+    : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+
   const { hasPermission } = useAuth();
   const location   = useLocation();
   const urlParams  = new URLSearchParams(location.search);
@@ -830,7 +837,7 @@ export default function SalesCRM() {
               >
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                  url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                  url={tileUrl}
                 />
 
                 {flyTarget && <FlyTo target={flyTarget} />}

@@ -1582,3 +1582,7 @@ body.native-app .qr-scanner-modal .btn-secondary {
   justify-content: center;
 }
 
+/* Global Leaflet Container Theme-aware Background */
+.leaflet-container {
+  background: var(--color-bg-primary, #f8fafc) !important;
+}

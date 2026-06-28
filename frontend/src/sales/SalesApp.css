@@ -8,24 +8,25 @@
 
 /* ── Root Tokens ─────────────────────────────────────────────────────────────── */
 :root {
-  --s-bg:           #0a0f1a;
-  --s-surface:      #111827;
-  --s-card:         #1a2235;
-  --s-card-hover:   #1e2a40;
-  --s-border:       #2a3547;
-  --s-border-light: #34405a;
+  /* Default: Light Theme Colors */
+  --s-bg:           #f8fafc;
+  --s-surface:      #ffffff;
+  --s-card:         #ffffff;
+  --s-card-hover:   #f1f5f9;
+  --s-border:       #e2e8f0;
+  --s-border-light: #cbd5e1;
 
   --s-primary:      #3b82f6;
-  --s-primary-glow: rgba(59,130,246,0.25);
+  --s-primary-glow: rgba(59,130,246,0.1);
   --s-success:      #10b981;
-  --s-success-glow: rgba(16,185,129,0.2);
-  --s-warning:      #f59e0b;
+  --s-success-glow: rgba(16,185,129,0.1);
+  --s-warning:      #d97706;
   --s-danger:       #ef4444;
   --s-purple:       #8b5cf6;
   --s-cyan:         #06b6d4;
 
-  --s-text:         #f1f5f9;
-  --s-text-2:       #94a3b8;
+  --s-text:         #0f172a;
+  --s-text-2:       #475569;
   --s-text-3:       #64748b;
 
   --s-nav-height:   64px;
@@ -36,6 +37,62 @@
 
   /* safe area */
   --safe-bottom:    env(safe-area-inset-bottom, 0px);
+}
+
+/* System Preference Dark Mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --s-bg:           #0a0f1a;
+    --s-surface:      #111827;
+    --s-card:         #1a2235;
+    --s-card-hover:   #1e2a40;
+    --s-border:       #2a3547;
+    --s-border-light: #34405a;
+
+    --s-primary-glow: rgba(59,130,246,0.25);
+    --s-success-glow: rgba(16,185,129,0.2);
+    --s-warning:      #f59e0b;
+
+    --s-text:         #f1f5f9;
+    --s-text-2:       #94a3b8;
+    --s-text-3:       #64748b;
+  }
+}
+
+/* Explicit Light Mode Override */
+:root[data-theme="light"] {
+  --s-bg:           #f8fafc;
+  --s-surface:      #ffffff;
+  --s-card:         #ffffff;
+  --s-card-hover:   #f1f5f9;
+  --s-border:       #e2e8f0;
+  --s-border-light: #cbd5e1;
+
+  --s-primary-glow: rgba(59,130,246,0.1);
+  --s-success-glow: rgba(16,185,129,0.1);
+  --s-warning:      #d97706;
+
+  --s-text:         #0f172a;
+  --s-text-2:       #475569;
+  --s-text-3:       #64748b;
+}
+
+/* Explicit Dark Mode Override */
+:root[data-theme="dark"] {
+  --s-bg:           #0a0f1a;
+  --s-surface:      #111827;
+  --s-card:         #1a2235;
+  --s-card-hover:   #1e2a40;
+  --s-border:       #2a3547;
+  --s-border-light: #34405a;
+
+  --s-primary-glow: rgba(59,130,246,0.25);
+  --s-success-glow: rgba(16,185,129,0.2);
+  --s-warning:      #f59e0b;
+
+  --s-text:         #f1f5f9;
+  --s-text-2:       #94a3b8;
+  --s-text-3:       #64748b;
 }
 
 /* ── Reset & Base ───────────────────────────────────────────────────────────── */

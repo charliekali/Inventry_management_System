@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import useBulkActions from '../hooks/useBulkActions';
 import BulkActionBar from '../components/BulkActionBar';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import { useTheme } from '../context/ThemeContext';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -35,6 +36,12 @@ function MapEvents({ onClick }) {
 }
 
 export default function OrderPage() {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const tileUrl = isDark
+    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+    : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+
   const navigate = useNavigate();
   const { hasPermission, user } = useAuth();
   const [activeTab, setActiveTab] = useState('sales');
@@ -971,7 +978,7 @@ export default function OrderPage() {
                   style={{ height: '100%', width: '100%' }}
                 >
                   <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    url={tileUrl}
                   />
                   <MapEvents onClick={(lat, lng) => {
                     setTaskLat(lat);

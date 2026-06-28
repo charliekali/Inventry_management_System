@@ -30,7 +30,20 @@ export default function SalesDashboard() {
   }, []);
 
   if (loading) return <div className="loading-center"><div className="loading-spinner"></div></div>;
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div style={{ textAlign: 'center', padding: '80px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+        <AlertCircle size={48} color="var(--color-warning)" />
+        <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>Failed to load sales dashboard</h3>
+        <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: 0, maxWidth: 400 }}>
+          Could not establish connection with the API server. Please check your network or try again.
+        </p>
+        <button onClick={() => window.location.reload()} className="btn btn-primary" style={{ marginTop: 8 }}>
+          Retry Connection
+        </button>
+      </div>
+    );
+  }
 
   const { kpis, statusCounts, recentOrders, topDemandedProducts, recentInvoices } = data;
 

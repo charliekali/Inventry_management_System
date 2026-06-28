@@ -7,6 +7,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker, useMap } from 'react-leaflet';
+import { useTheme } from '../context/ThemeContext';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { attendanceAPI } from '../api';
@@ -158,6 +159,12 @@ async function snapToRoads(points) {
 }
 
 export default function AttendanceTrackingPage() {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const tileUrl = isDark
+    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+    : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+
   const [activeSessions, setActiveSessions] = useState([]);
   const [history, setHistory] = useState([]);
   const [selectedSession, setSelectedSession] = useState(null);
@@ -211,7 +218,9 @@ export default function AttendanceTrackingPage() {
     setSnapping(true);
     attendanceAPI.trail(selectedSession.id)
       .then(async res => {
-        const pts = (res.data.data || []).map(p => [p.lat, p.lng]);
+        const pts = (res.data.data || [])
+          .filter(p => p && typeof p.lat === 'number' && typeof p.lng === 'number' && !isNaN(p.lat) && !isNaN(p.lng))
+          .map(p => [p.lat, p.lng]);
         setRawTrail(pts);
         const snapped = await snapToRoads(pts);
         setTrail(snapped);
@@ -233,8 +242,12 @@ export default function AttendanceTrackingPage() {
     }
   };
 
-  const defaultCenter = activeSessions.find(s => s.last_lat)
-    ? [activeSessions.find(s => s.last_lat).last_lat, activeSessions.find(s => s.last_lat).last_lng]
+  const sessionWithGps = activeSessions.find(s => 
+    s.last_lat != null && s.last_lng != null && 
+    !isNaN(parseFloat(s.last_lat)) && !isNaN(parseFloat(s.last_lng))
+  );
+  const defaultCenter = sessionWithGps 
+    ? [parseFloat(sessionWithGps.last_lat), parseFloat(sessionWithGps.last_lng)]
     : [9.9252, 78.1198]; // Default to Madurai, India
 
   const selectedColor = selectedSession
@@ -386,7 +399,7 @@ export default function AttendanceTrackingPage() {
               {/* Dark map tiles from CartoDB */}
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                url={tileUrl}
               />
 
               {/* Fly to selected user */}
@@ -434,14 +447,16 @@ export default function AttendanceTrackingPage() {
 
               {/* Staff markers */}
               {activeSessions.map((session, idx) => {
-                if (!session.last_lat || !session.last_lng) return null;
+                const lat = parseFloat(session.last_lat);
+                const lng = parseFloat(session.last_lng);
+                if (isNaN(lat) || isNaN(lng)) return null;
                 const color = getColor(idx);
                 const isSelected = selectedSession?.id === session.id;
                 const icon = createUserIcon(session.user_name, color, isSelected);
                 return (
                   <Marker
                     key={session.id}
-                    position={[session.last_lat, session.last_lng]}
+                    position={[lat, lng]}
                     icon={icon}
                     eventHandlers={{ click: () => handleSelectSession(session) }}
                   >
@@ -585,7 +600,7 @@ export default function AttendanceTrackingPage() {
           animation: spin 1s linear infinite;
         }
         .leaflet-container {
-          background: #1a1a2e;
+          background: var(--color-bg-primary, #1a1a2e);
         }
       `}</style>
     </div>
