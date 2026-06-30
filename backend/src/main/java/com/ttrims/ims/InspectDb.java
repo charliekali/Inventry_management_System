@@ -45,6 +45,13 @@ public class InspectDb {
                 }
             }
 
+            // 4. Drop check constraint
+            System.out.println("\n--- Dropping products_type_check constraint ---");
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("ALTER TABLE products DROP CONSTRAINT IF EXISTS products_type_check");
+                System.out.println("Constraint products_type_check dropped successfully (or did not exist)!");
+            }
+
         } catch (Exception e) {
             e.printStackTrace();
         }
