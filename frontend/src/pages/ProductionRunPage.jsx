@@ -193,7 +193,7 @@ export default function ProductionRunPage() {
     };
 
     loadRecipeAndStock();
-  }, [selectedProductId]);
+  }, [selectedProductId, warehouses, allWarehouseSections]);
 
   // Build full flat list of warehouse/sections in the system
   const getAllPossibleLocations = () => {
