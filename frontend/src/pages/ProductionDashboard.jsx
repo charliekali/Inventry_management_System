@@ -54,7 +54,10 @@ export default function ProductionDashboard() {
         </div>
         <div className="page-header-right" style={{ display: 'flex', gap: 12 }}>
           <Link to="/production-run" className="btn btn-primary btn-sm">
-            <Factory size={15} /> Run Production
+            <Factory size={15} /> Plan Production
+          </Link>
+          <Link to="/actual-production" className="btn btn-primary btn-sm">
+            <ClipboardList size={15} /> Actual Production
           </Link>
           <Link to="/recipes" className="btn btn-secondary btn-sm">
             <ListPlus size={15} /> Recipes / BOM

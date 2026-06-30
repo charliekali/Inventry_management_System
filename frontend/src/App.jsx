@@ -27,6 +27,7 @@ import FormSettingsPage from './pages/FormSettingsPage';
 import CategoryPage from './pages/CategoryPage';
 import DataPortabilityPage from './pages/DataPortabilityPage';
 import ProductionRunPage from './pages/ProductionRunPage';
+import ActualProductionEntryPage from './pages/ActualProductionEntryPage';
 import RecipePage from './pages/RecipePage';
 import ProductionHistoryPage from './pages/ProductionHistoryPage';
 import YieldAnalyticsPage from './pages/YieldAnalyticsPage';
@@ -360,6 +361,14 @@ function App() {
             <ProtectedRoute perm="PRODUCTION:RUN">
               <AuthenticatedLayout>
                 <ProductionRunPage />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/actual-production" element={
+            <ProtectedRoute perm="PRODUCTION:RUN">
+              <AuthenticatedLayout>
+                <ActualProductionEntryPage />
               </AuthenticatedLayout>
             </ProtectedRoute>
           } />

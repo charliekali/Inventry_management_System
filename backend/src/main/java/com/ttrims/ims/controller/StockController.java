@@ -77,6 +77,7 @@ public class StockController {
         var locations = balanceRepo.findLocationsByProductId(productId).stream().map(sb -> {
             Map<String, Object> m = new HashMap<>();
             m.put("quantity", sb.getQuantity());
+            m.put("locked_quantity", sb.getLockedQuantity());
             m.put("updated_at", sb.getUpdatedAt() != null ? sb.getUpdatedAt().toString() : "");
             m.put("warehouse_id", sb.getWarehouse().getId());
             m.put("warehouse_name", sb.getWarehouse().getName());
@@ -338,6 +339,7 @@ public class StockController {
     private Map<String, Object> balanceDto(StockBalance sb) {
         Map<String, Object> m = new HashMap<>();
         m.put("id", sb.getId()); m.put("quantity", sb.getQuantity());
+        m.put("locked_quantity", sb.getLockedQuantity());
         m.put("product_id", sb.getProduct().getId()); m.put("product_name", sb.getProduct().getName());
         m.put("product_code", sb.getProduct().getCode()); m.put("product_type", sb.getProduct().getType().name());
         m.put("product_unit", sb.getProduct().getUnit()); m.put("min_stock", sb.getProduct().getMinStock());

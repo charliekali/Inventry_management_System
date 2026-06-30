@@ -28,7 +28,8 @@ const NAV_ITEMS = [
   { group: 'Inventory', items: [
     { path: '/stock-in', label: 'Stock IN', icon: ArrowDownCircle, perm: 'TRANSACTIONS:STOCK_IN' },
     { path: '/stock-out', label: 'Stock OUT', icon: ArrowUpCircle, perm: 'TRANSACTIONS:STOCK_OUT' },
-    { path: '/production-run', label: 'Production Run', icon: Factory, perm: 'PRODUCTION:RUN' },
+    { path: '/production-run', label: 'Production Plan', icon: Factory, perm: 'PRODUCTION:RUN' },
+    { path: '/actual-production', label: 'Actual Production', icon: ClipboardList, perm: 'PRODUCTION:RUN' },
     { path: '/production-history', label: 'Production History', icon: History, perm: 'PRODUCTION:HISTORY' },
     { path: '/yield-analytics', label: 'Yield Analytics', icon: LineChart, perm: 'TRANSACTIONS:VIEW' },
     { path: '/transactions', label: 'Transaction History', icon: ClipboardList, perm: 'TRANSACTIONS:VIEW' },

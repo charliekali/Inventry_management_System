@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { productsAPI, warehousesAPI, transactionsAPI, stockAPI } from '../api';
+import { productsAPI, warehousesAPI, productionPlansAPI, usersAPI, stockAPI } from '../api';
 import toast from 'react-hot-toast';
 import { 
   Factory, Save, AlertTriangle, CheckCircle, Calendar, 
-  Info, Warehouse, Package, RefreshCw, AlertCircle, ArrowRight 
+  Info, Warehouse, Package, RefreshCw, AlertCircle, ArrowRight, User
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 
@@ -18,6 +18,7 @@ export default function ProductionRunPage() {
   // Master Data
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
+  const [users, setUsers] = useState([]);
   const [allWarehouseSections, setAllWarehouseSections] = useState({});
   const [loadingMaster, setLoadingMaster] = useState(true);
 
@@ -27,6 +28,7 @@ export default function ProductionRunPage() {
   const [destWarehouseId, setDestWarehouseId] = useState('');
   const [destSectionId, setDestSectionId] = useState('');
   const [destSections, setDestSections] = useState([]);
+  const [assignedUserId, setAssignedUserId] = useState('');
   const [wastagePct, setWastagePct] = useState('0');
   const [damagePct, setDamagePct] = useState('0');
   const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
@@ -70,6 +72,10 @@ export default function ProductionRunPage() {
         const whRes = await warehousesAPI.list();
         const whs = whRes.data.data;
         setWarehouses(whs);
+
+        // Load all users for assignment
+        const userRes = await usersAPI.list();
+        setUsers(userRes.data.data || []);
 
         // Eagerly load sections for all warehouses to map allocations
         const secPromises = whs.map(w =>
@@ -162,7 +168,8 @@ export default function ProductionRunPage() {
               sl.warehouse_id === loc.warehouseId && 
               ((!sl.section_id && !loc.sectionId) || (sl.section_id === loc.sectionId))
             );
-            const qty = matched ? matched.quantity : 0;
+            // Available stock for planning = total physical stock - locked stock
+            const qty = matched ? (matched.quantity - (matched.locked_quantity || 0)) : 0;
             if (qty > maxStock) {
               maxStock = qty;
               bestLoc = loc;
@@ -215,16 +222,16 @@ export default function ProductionRunPage() {
     return list;
   };
 
-  const allPossibleLocations = getAllPossibleLocations();
-
-  // Helper to get stock for a specific ingredient + location
+  // Helper to get stock for a specific ingredient + location (adjusted for locked stock)
   const getIngredientStockForLocation = (ingredientId, whId, secId) => {
     const locs = ingredientStockLocations[ingredientId] || [];
     const matched = locs.find(sl => 
       sl.warehouse_id === whId && 
       ((!sl.section_id && !secId) || (sl.section_id === secId))
     );
-    return matched ? matched.quantity : 0;
+    if (!matched) return 0;
+    const avail = matched.quantity - (matched.locked_quantity || 0);
+    return avail > 0 ? avail : 0;
   };
 
   // Handle ingredient location selector change
@@ -278,6 +285,7 @@ export default function ProductionRunPage() {
     const qtyNum = parseFloat(targetQuantity);
     if (isNaN(qtyNum) || qtyNum <= 0) return { feasible: false, error: 'Please enter a valid production quantity.' };
     if (!destWarehouseId) return { feasible: false, error: 'Destination warehouse is required.' };
+    if (!assignedUserId) return { feasible: false, error: 'Assigned Operator is required.' };
 
     for (let item of bomItems) {
       const ingredientId = item.raw_material_id;
@@ -296,13 +304,13 @@ export default function ProductionRunPage() {
 
   const feasibilityCheck = validateExecutionFeasibility();
 
-  // Submit Run
+  // Submit Plan
   const handleExecuteRun = async (e) => {
     e.preventDefault();
     
     const qtyNum = parseFloat(targetQuantity);
-    if (!selectedProductId || !destWarehouseId || isNaN(qtyNum) || qtyNum <= 0) {
-      return toast.error('Product, destination warehouse, and target quantity are required');
+    if (!selectedProductId || !destWarehouseId || !assignedUserId || isNaN(qtyNum) || qtyNum <= 0) {
+      return toast.error('Product, destination warehouse, assigned operator, and target quantity are required');
     }
 
     const check = validateExecutionFeasibility();
@@ -317,12 +325,8 @@ export default function ProductionRunPage() {
         quantity: qtyNum,
         warehouse_id: destWarehouseId,
         section_id: destSectionId || null,
-        wastage_pct: wastage,
-        damage_pct: damage,
-        transaction_date: transactionDate,
-        remarks: remarks || `Production run of ${selectedProduct.name} - ${qtyNum} ${selectedProduct.unit}`,
-        production_order_id: productionOrderId || null,
-        production_order_item_id: productionOrderItemId || null,
+        assigned_user_id: assignedUserId,
+        plan_date: transactionDate,
         ingredients: bomItems.map(item => {
           const ingredientId = item.raw_material_id;
           const selection = ingredientSelections[ingredientId];
@@ -336,13 +340,13 @@ export default function ProductionRunPage() {
         })
       };
 
-      const res = await transactionsAPI.productionRun(payload);
-      toast.success(res.data.message || 'Production Run recorded and executed!');
+      const res = await productionPlansAPI.create(payload);
+      toast.success(res.data.message || 'Production Plan created & stock locked!');
       
-      // Navigate to Transaction History to see the result
-      navigate('/transactions');
+      // Navigate to Actual Production Entry list
+      navigate('/actual-production');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to execute production run');
+      toast.error(err.response?.data?.message || 'Failed to create production plan');
     } finally {
       setSubmitting(false);
     }
@@ -356,17 +360,14 @@ export default function ProductionRunPage() {
     );
   }
 
-  // Filter products that have recipes or are marked as FG
-  // (We allow any product since users might define custom blends, 
-  // but if they don't have BOM, the recipe loader will warn them)
   const eligibleProducts = products;
 
   return (
     <div className="fade-in" style={{ maxWidth: 1000, margin: '0 auto' }}>
       <div className="page-header">
         <div className="page-header-left">
-          <h2>Production Execution</h2>
-          <p>Deduct raw materials and package items transactionally to record finished goods output</p>
+          <h2>Create Production Plan</h2>
+          <p>Plan a daily production run and lock raw materials without moving them out yet</p>
         </div>
         <div className="page-header-right">
           <Link to="/products" className="btn btn-secondary btn-sm">
@@ -386,33 +387,12 @@ export default function ProductionRunPage() {
             <div className="card-header">
               <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Factory size={18} className="text-primary" />
-                <span>Production Batch Configuration</span>
+                <span>Production Plan Configuration</span>
               </div>
             </div>
 
             <div className="modal-body" style={{ padding: 0 }}>
               
-              {/* Production Order Alert Banner */}
-              {productionOrderId && (
-                <div style={{
-                  padding: '12px 16px',
-                  background: 'rgba(245, 158, 11, 0.08)',
-                  border: '1px solid rgba(245, 158, 11, 0.25)',
-                  color: 'var(--color-warning)',
-                  borderRadius: 'var(--radius-md)',
-                  marginBottom: 16,
-                  fontSize: 13,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8
-                }}>
-                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
-                  <div>
-                    Linked to Production Order. Completing this run will mark the order as <strong>COMPLETED</strong>.
-                  </div>
-                </div>
-              )}
-
               {/* Product selection */}
               <div className="form-group">
                 <label className="form-label">Target Product to Produce (Bulk Blend / Pouch Pack)</label>
@@ -442,6 +422,35 @@ export default function ProductionRunPage() {
                   {selectedProduct.process_notes && ` | Notes: ${selectedProduct.process_notes}`}
                 </div>
               )}
+
+              {/* Assignment and Date Configuration */}
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Assigned Operator (APK User)</label>
+                  <select 
+                    className="form-control"
+                    value={assignedUserId}
+                    onChange={e => setAssignedUserId(e.target.value)}
+                  >
+                    <option value="">Choose operator...</option>
+                    {users.map(u => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.role || 'Staff'})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Plan Date</label>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input 
+                      type="date"
+                      className="form-control"
+                      value={transactionDate}
+                      onChange={e => setTransactionDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
 
               {/* Destination storage configuration */}
               <div className="form-row">
@@ -520,134 +529,119 @@ export default function ProductionRunPage() {
           {selectedProductId && (
             <div className="card">
               <div className="card-header">
-                <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Warehouse size={18} className="text-success" />
-                  <span>Recipe Ingredients Stock Allocations</span>
-                </div>
-                {loadingBom && <RefreshCw size={16} className="loading-spinner" />}
+                <div className="card-title">Recipe Ingredients Stock Locking & Allocation</div>
               </div>
-
-              {loadingBom ? (
-                <div className="loading-center"><div className="loading-spinner"></div></div>
-              ) : bomItems.length === 0 ? (
-                <div className="empty-state">
-                  <AlertTriangle size={32} className="text-warning" />
-                  <h3>No Recipe Configuration Found</h3>
-                  <p>You cannot execute production runs on products that don't have a BOM defined.</p>
-                </div>
-              ) : (
-                <div className="table-wrapper">
-                  <table>
-                    <thead>
+              <div className="table-wrapper" style={{ margin: 0, border: 'none' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Raw Material Ingredient</th>
+                      <th style={{ textAlign: 'right' }}>Formula Qty</th>
+                      <th style={{ textAlign: 'right' }}>Total Needed</th>
+                      <th>Source Stock Location</th>
+                      <th style={{ textAlign: 'right' }}>Available Stock</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loadingBom && (
                       <tr>
-                        <th>Ingredient</th>
-                        <th>Qty Needed</th>
-                        <th>Source Location & Available Stock</th>
-                        <th>Allocation Status</th>
+                        <td colSpan={5} style={{ textAlign: 'center', padding: 20 }}>
+                          <div className="loading-spinner" style={{ margin: '0 auto' }} />
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {bomItems.map((item, idx) => {
-                        const ingredientId = item.raw_material_id;
-                        const needed = item.qty_required * (parseFloat(targetQuantity || 0) * multiplier) * scalingFactor;
-                        const selection = ingredientSelections[ingredientId] || { warehouseId: '', sectionId: null, availableStock: 0 };
-                        const isSufficient = selection.availableStock >= needed;
-
-                        return (
-                          <tr key={idx}>
-                            <td>
-                              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <strong style={{ color: 'var(--color-text-primary)' }}>{item.raw_material_name}</strong>
-                                <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-                                  Code: {item.raw_material_code} | Step: {item.production_step || 'BLENDING'}
-                                </span>
-                              </div>
-                            </td>
-                            <td style={{ fontWeight: 700, fontSize: 14 }}>
-                              {isNaN(needed) ? '0.000' : needed.toFixed(3)} {item.unit}
-                              <div style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 400 }}>
-                                (Base: {item.qty_required} {item.unit}/KG)
-                              </div>
-                            </td>
-                            <td>
-                              <select
-                                className="form-control"
-                                style={{ padding: '6px 10px', fontSize: 13, minWidth: 260 }}
-                                value={selection.warehouseId ? `${selection.warehouseId}:${selection.sectionId || 'OPEN'}` : ''}
-                                onChange={e => handleIngredientLocationChange(ingredientId, e.target.value)}
-                              >
-                                <option value="">-- Choose Allocation Source --</option>
-                                {allPossibleLocations.map(loc => {
-                                  const stock = getIngredientStockForLocation(ingredientId, loc.warehouseId, loc.sectionId);
-                                  return (
-                                    <option key={loc.key} value={loc.key}>
-                                      {loc.warehouseName} › {loc.sectionName} ({stock.toFixed(2)} {item.unit})
-                                    </option>
-                                  );
-                                })}
-                              </select>
-                            </td>
-                            <td>
-                              {selection.warehouseId ? (
-                                isSufficient ? (
-                                  <span className="badge badge-green">Sufficient</span>
-                                ) : (
-                                  <span className="badge badge-red">Insufficient</span>
-                                )
-                              ) : (
-                                <span className="badge badge-orange">Required</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                    )}
+                    {!loadingBom && bomItems.map(item => {
+                      const ingredientId = item.raw_material_id;
+                      const selection = ingredientSelections[ingredientId] || { warehouseId: '', sectionId: null, availableStock: 0 };
+                      const needed = item.qty_required * (parseFloat(targetQuantity) || 0) * multiplier * scalingFactor;
+                      const isInsuff = selection.availableStock < needed;
+                      
+                      return (
+                        <tr key={item.id} style={{ background: isInsuff ? 'rgba(239, 68, 68, 0.03)' : 'transparent' }}>
+                          <td>
+                            <div style={{ fontWeight: 600 }}>{item.raw_material_name}</div>
+                            <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Code: {item.raw_material_code} | Step: {item.production_step || 'BLENDING'}</div>
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                            {item.qty_required} {item.raw_material_unit}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                            {needed.toFixed(3)} {item.raw_material_unit}
+                          </td>
+                          <td>
+                            <select 
+                              className="form-control form-control-sm"
+                              value={selection.warehouseId ? `${selection.warehouseId}:${selection.sectionId || 'OPEN'}` : ''}
+                              onChange={e => handleIngredientLocationChange(ingredientId, e.target.value)}
+                              style={{ minWidth: 160, border: isInsuff ? '1px solid var(--color-danger)' : '1px solid var(--color-border)' }}
+                            >
+                              <option value="">Select source...</option>
+                              {getAllPossibleLocations().map(loc => {
+                                const stock = getIngredientStockForLocation(ingredientId, loc.warehouseId, loc.sectionId);
+                                return (
+                                  <option key={loc.key} value={`${loc.warehouseId}:${loc.sectionId || 'OPEN'}`}>
+                                    {loc.warehouseName} - {loc.sectionName} ({stock.toFixed(2)} {item.raw_material_unit} avail)
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: isInsuff ? 'var(--color-danger)' : 'var(--color-success)' }}>
+                            {selection.availableStock.toFixed(3)} {item.raw_material_unit}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
+
         </div>
 
-        {/* Sidebar Status / Execution panel */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        {/* Audit / Summary Panel */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, position: 'sticky', top: 24 }}>
           
-          {/* Metadata Card */}
+          {/* Card: Plan Summary */}
           <div className="card">
-            <div className="card-header" style={{ marginBottom: 12 }}>
-              <div className="card-title">Run Log Details</div>
+            <div className="card-header">
+              <div className="card-title">Production Summary</div>
             </div>
-            
-            <div className="modal-body" style={{ padding: 0, gap: 14 }}>
-              <div className="form-group">
-                <label className="form-label">Transaction Date</label>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <input 
-                    type="date"
-                    className="form-control"
-                    value={transactionDate}
-                    onChange={e => setTransactionDate(e.target.value)}
-                  />
-                </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                <span style={{ color: 'var(--color-text-secondary)' }}>Target Product</span>
+                <span style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>{selectedProduct?.name || '—'}</span>
               </div>
-
-              <div className="form-group">
-                <label className="form-label">Execution Remarks</label>
-                <textarea 
-                  className="form-control"
-                  placeholder="e.g. Batch #42 grinding run, fine texture."
-                  style={{ minHeight: 70 }}
-                  value={remarks}
-                  onChange={e => setRemarks(e.target.value)}
-                />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                <span style={{ color: 'var(--color-text-secondary)' }}>Target Output</span>
+                <span style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                  {targetQuantity ? `${targetQuantity} ${selectedProduct?.unit || ''}` : '—'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                <span style={{ color: 'var(--color-text-secondary)' }}>Process Loss</span>
+                <span style={{ fontWeight: 700, color: wastage + damage > 0 ? 'var(--color-warning)' : 'var(--color-text-primary)' }}>
+                  {(wastage + damage).toFixed(1)}%
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                <span style={{ color: 'var(--color-text-secondary)' }}>Operator</span>
+                <span style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                  {users.find(u => u.id === assignedUserId)?.name || '—'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                <span style={{ color: 'var(--color-text-secondary)' }}>Plan Date</span>
+                <span style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>{transactionDate}</span>
               </div>
             </div>
           </div>
 
-          {/* Validation & Submit Card */}
+          {/* Card: Feasibility */}
           <div className="card">
-            <div className="card-header" style={{ marginBottom: 12 }}>
-              <div className="card-title">Execution Audit Check</div>
+            <div className="card-header">
+              <div className="card-title">Planning Feasibility</div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -667,7 +661,7 @@ export default function ProductionRunPage() {
                     }}>
                       <CheckCircle size={16} />
                       <div>
-                        <strong>Batch Feasible</strong>
+                        <strong>Plan Feasible</strong>
                         <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2 }}>All ingredients are allocated with sufficient stock.</div>
                       </div>
                     </div>
@@ -712,8 +706,8 @@ export default function ProductionRunPage() {
                 disabled={submitting || !feasibilityCheck.feasible}
                 onClick={handleExecuteRun}
               >
-                <Factory size={16} />
-                {submitting ? 'Executing Run...' : 'Execute Production Run'}
+                <Save size={16} />
+                {submitting ? 'Saving Plan...' : 'Save Production Plan'}
               </button>
             </div>
           </div>

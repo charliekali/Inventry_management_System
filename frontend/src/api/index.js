@@ -251,4 +251,12 @@ export const dataPortabilityAPI = {
   }
 };
 
+// ─── Production Plans ─────────────────────────────────────────────────────────
+export const productionPlansAPI = {
+  create: (data) => api.post('/production-plans', data),
+  list: () => api.get('/production-plans'),
+  myToday: () => api.get('/production-plans/my-today'),
+  recordActual: (id, actualQuantity) => api.post(`/production-plans/${id}/actual`, { actual_quantity: actualQuantity }),
+};
+
 export default api;

@@ -1,15 +1,18 @@
 package com.ttrims.ims.entity;
 
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "stock_balance",
-    uniqueConstraints = @UniqueConstraint(columnNames = {"product_id","warehouse_id","section_id"}))
-public class StockBalance {
+@Table(name = "production_plan_ingredients")
+public class ProductionPlanIngredient {
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "production_plan_id", nullable = false)
+    private ProductionPlan productionPlan;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "product_id", nullable = false)
@@ -23,31 +26,32 @@ public class StockBalance {
     @JoinColumn(name = "section_id")
     private Section section;
 
-    private Double quantity = 0.0;
+    @Column(name = "planned_quantity", nullable = false)
+    private Double plannedQuantity;
 
-    @Column(name = "locked_quantity", nullable = false)
-    private Double lockedQuantity = 0.0;
+    @Column(name = "actual_quantity", nullable = false)
+    private Double actualQuantity = 0.0;
 
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
-
-    @PrePersist @PreUpdate
-    void onSave() { updatedAt = LocalDateTime.now(); }
-
-    public StockBalance() {}
+    public ProductionPlanIngredient() {}
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
+
+    public ProductionPlan getProductionPlan() { return productionPlan; }
+    public void setProductionPlan(ProductionPlan productionPlan) { this.productionPlan = productionPlan; }
+
     public Product getProduct() { return product; }
     public void setProduct(Product product) { this.product = product; }
+
     public Warehouse getWarehouse() { return warehouse; }
     public void setWarehouse(Warehouse warehouse) { this.warehouse = warehouse; }
+
     public Section getSection() { return section; }
     public void setSection(Section section) { this.section = section; }
-    public Double getQuantity() { return quantity; }
-    public void setQuantity(Double quantity) { this.quantity = quantity; }
-    public Double getLockedQuantity() { return lockedQuantity != null ? lockedQuantity : 0.0; }
-    public void setLockedQuantity(Double lockedQuantity) { this.lockedQuantity = lockedQuantity; }
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public Double getPlannedQuantity() { return plannedQuantity; }
+    public void setPlannedQuantity(Double plannedQuantity) { this.plannedQuantity = plannedQuantity; }
+
+    public Double getActualQuantity() { return actualQuantity; }
+    public void setActualQuantity(Double actualQuantity) { this.actualQuantity = actualQuantity; }
 }
