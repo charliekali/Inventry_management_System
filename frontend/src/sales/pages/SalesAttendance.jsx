@@ -1,28 +1,61 @@
 /**
  * SalesAttendance.jsx — GPS Attendance tracking for Sales staff.
  *
- * Architecture: SIMPLE.
- *   Every GPS position update → ping backend with raw lat/lng/accuracy/speed.
- *   Backend (AttendanceController) calculates distance & cumulative km.
- *   No client-side haversine, no drift filter, no complex state.
+ * Architecture:
+ *   • On Android: native TrackingService (foreground service) is the PRIMARY GPS source.
+ *     App.addListener('appStateChange') restarts it if the app returns from background.
+ *   • On Web/PWA: navigator.geolocation.watchPosition + 30-sec stationary heartbeat.
  *
- * On Android: uses the native TrackingService (background foreground-service)
- *   which fires on every ≥1 m movement.
- * On Web/PWA: uses navigator.geolocation.watchPosition with enableHighAccuracy.
- *   A 30-sec heartbeat keeps stationary users live on the admin map.
+ * Offline Cache:
+ *   • If a GPS ping fails (network error), it is queued in localStorage (key: 'gps_cache').
+ *   • On mount and on 'online' events, the queue is flushed to the backend in order.
+ *   • Cache is cleared ping-by-ping as each one succeeds.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { registerPlugin, Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
+import { App } from '@capacitor/app';
 import { attendanceAPI, getApiBase } from '../../api';
 import toast from 'react-hot-toast';
 
 const Tracking = registerPlugin('Tracking');
-import { MapPin, Clock, Play, Square, CheckCircle } from 'lucide-react';
+import { MapPin, Clock, Play, Square, CheckCircle, WifiOff, Database } from 'lucide-react';
 
 const HEARTBEAT_MS  = 30_000; // Stationary heartbeat (web/PWA only)
 const MIN_PING_MS   = 2_000;  // Minimum gap between pings (debounce)
-const GPS_POLL_MS   = 5_000;  // How often to poll GPS on Android
+
+// ─── GPS Offline Cache Helpers ─────────────────────────────────────────────────
+const CACHE_KEY = 'gps_cache';
+
+function readCache() {
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function writeCache(queue) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(queue));
+  } catch {
+    // Storage quota exceeded — drop oldest entry
+    try {
+      const trimmed = queue.slice(-50);
+      localStorage.setItem(CACHE_KEY, JSON.stringify(trimmed));
+    } catch {}
+  }
+}
+
+function pushToCache(entry) {
+  const queue = readCache();
+  queue.push({ ...entry, cachedAt: Date.now() });
+  writeCache(queue);
+}
+
+function clearCache() {
+  localStorage.removeItem(CACHE_KEY);
+}
 
 /** Format seconds as HH:MM:SS */
 function formatElapsed(seconds) {
@@ -46,28 +79,43 @@ function fmtDuration(mins) {
 }
 
 export default function SalesAttendance() {
-  const [sessions, setSessions]         = useState([]);
+  const [sessions, setSessions]           = useState([]);
   const [activeSession, setActiveSession] = useState(null);
-  const [loading, setLoading]           = useState(true);
-  const [starting, setStarting]         = useState(false);
-  const [stopping, setStopping]         = useState(false);
-  const [gpsStatus, setGpsStatus]       = useState('idle'); // idle|acquiring|active|error
-  const [lastPingAt, setLastPingAt]     = useState(null);
-  const [lastAccuracy, setLastAccuracy] = useState(null);
-  const [elapsed, setElapsed]           = useState(0);
+  const [loading, setLoading]             = useState(true);
+  const [starting, setStarting]           = useState(false);
+  const [stopping, setStopping]           = useState(false);
+  const [gpsStatus, setGpsStatus]         = useState('idle'); // idle|acquiring|active|error
+  const [lastPingAt, setLastPingAt]       = useState(null);
+  const [lastAccuracy, setLastAccuracy]   = useState(null);
+  const [elapsed, setElapsed]             = useState(0);
+  const [cacheSize, setCacheSize]         = useState(0);   // # pending offline pings
+  const [isOnline, setIsOnline]           = useState(navigator.onLine);
 
   // Refs (survive re-renders, accessible inside callbacks)
   const watchIdRef      = useRef(null);   // watchPosition ID (web fallback)
-  const gpsLoopRef      = useRef(null);   // setInterval GPS loop (Android + web)
   const heartbeatRef    = useRef(null);   // heartbeat interval ID
   const timerRef        = useRef(null);   // elapsed-time interval ID
   const lastPingTsRef   = useRef(0);      // timestamp of last ping (debounce)
   const sessionIdRef    = useRef(null);   // session ID for callbacks
   const pollRef         = useRef(null);   // UI refresh polling interval
+  const flushingRef     = useRef(false);  // prevent concurrent flush
+  const appListenerRef  = useRef(null);   // Capacitor App state listener handle
+
+  // ─── Network status listeners ───────────────────────────────────────────────
+  useEffect(() => {
+    const onOnline  = () => { setIsOnline(true);  flushOfflineCache(); };
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener('online',  onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online',  onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []); // eslint-disable-line
 
   // ─── GPS permission (native only) ─────────────────────────────────────────
   const requestGpsPermission = async () => {
-    if (!Capacitor.isNativePlatform()) return; // Browser handles it natively
+    if (!Capacitor.isNativePlatform()) return;
     const status = await Geolocation.checkPermissions();
     if (status.location !== 'granted') {
       const result = await Geolocation.requestPermissions({ permissions: ['location'] });
@@ -90,10 +138,46 @@ export default function SalesAttendance() {
     });
   };
 
+  // ─── Flush offline GPS cache ───────────────────────────────────────────────
+  const flushOfflineCache = useCallback(async () => {
+    if (flushingRef.current) return;
+    const queue = readCache();
+    if (queue.length === 0) { setCacheSize(0); return; }
+
+    flushingRef.current = true;
+    const remaining = [...queue];
+
+    for (let i = 0; i < queue.length; i++) {
+      const entry = queue[i];
+      try {
+        await attendanceAPI.ping(
+          entry.sessionId,
+          entry.latitude,
+          entry.longitude,
+          entry.accuracy,
+          entry.speed ?? null
+        );
+        // Successfully sent — remove from remaining
+        remaining.shift();
+        writeCache(remaining);
+        setCacheSize(remaining.length);
+      } catch {
+        // Still offline — stop trying
+        break;
+      }
+    }
+
+    if (remaining.length === 0) {
+      clearCache();
+      setCacheSize(0);
+      if (queue.length > 0) {
+        toast.success(`${queue.length} cached GPS ping${queue.length > 1 ? 's' : ''} sent to server.`);
+      }
+    }
+    flushingRef.current = false;
+  }, []);
+
   // ─── Poll backend for fresh session data ─────────────────────────────────
-  // TrackingService (Android background service) pings the backend directly via
-  // HTTP, so React state never sees those updates. A 10-second poll ensures the
-  // distance_km and current_speed_kmph shown on screen stays current.
   const startPolling = useCallback((sessionId) => {
     clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
@@ -108,7 +192,7 @@ export default function SalesAttendance() {
       } catch {
         // Silent — network blip
       }
-    }, 10_000); // Every 10 seconds
+    }, 10_000);
   }, []);
 
   const stopPolling = () => {
@@ -116,7 +200,7 @@ export default function SalesAttendance() {
     pollRef.current = null;
   };
 
-  // Simple: just raw coordinates. Backend does all distance/speed math.
+  // ─── Send a GPS ping (with offline cache fallback) ─────────────────────────
   const sendPing = useCallback(async (latitude, longitude, accuracy, speed = null) => {
     const sid = sessionIdRef.current;
     if (!sid) return;
@@ -135,20 +219,30 @@ export default function SalesAttendance() {
       setLastPingAt(new Date());
       setLastAccuracy(Math.round(accuracy ?? 0));
       setGpsStatus('active');
-    } catch (err) {
-      console.warn('GPS ping failed:', err);
-    }
-  }, []);
 
-  // ─── Start GPS tracking loop + heartbeat ───────────────────────────────
-  // On Android: a setInterval fires every GPS_POLL_MS to call getCurrentPosition.
-  // This is more reliable than Geolocation.watchPosition which can silently stop
-  // after the first fix on some Android devices/Capacitor versions.
-  // On Web: we use navigator.geolocation.watchPosition (browser-native, efficient)
-  //         plus a 30-second heartbeat for stationary users.
+      // Any cached pings? Flush them now that we're back online
+      const cached = readCache();
+      if (cached.length > 0) flushOfflineCache();
+
+    } catch (err) {
+      console.warn('GPS ping failed — caching for later:', err?.message);
+
+      // Cache the ping for later delivery
+      pushToCache({ sessionId: sid, latitude, longitude, accuracy, speed });
+      setCacheSize(readCache().length);
+
+      // Keep GPS status visually active but show no-network indicator
+      setGpsStatus('active');
+      setLastPingAt(new Date()); // still update UI time
+      setLastAccuracy(Math.round(accuracy ?? 0));
+    }
+  }, [flushOfflineCache]);
+
+  // ─── Start GPS tracking loop + heartbeat (WEB only) ───────────────────────
+  // On Android: native TrackingService (foreground service) is the primary GPS source.
+  // startWatching() only sets up the web watchPosition fallback.
   const startWatching = useCallback((sessionId) => {
     // Clear any previous watchers
-    clearInterval(gpsLoopRef.current);  gpsLoopRef.current  = null;
     clearInterval(heartbeatRef.current); heartbeatRef.current = null;
     if (watchIdRef.current !== null) {
       if (Capacitor.isNativePlatform()) {
@@ -166,24 +260,20 @@ export default function SalesAttendance() {
       sendPing(latitude, longitude, accuracy, speed);
     };
     const onErr = (err) => {
-      console.warn('GPS error:', err?.message ?? err);
+      console.warn('GPS watchPosition error:', err?.message ?? err);
     };
 
     if (Capacitor.isNativePlatform()) {
-      // Android: poll getCurrentPosition every 5 seconds
-      // This is reliable where watchPosition silently stops
-      const pollGps = async () => {
-        try {
-          const pos = await Geolocation.getCurrentPosition({
-            enableHighAccuracy: true, timeout: 8000,
-          });
-          if (pos?.coords) onPos(pos);
-        } catch (e) {
-          console.warn('GPS poll error:', e?.message);
-        }
-      };
-      pollGps(); // fire immediately on start
-      gpsLoopRef.current = setInterval(pollGps, GPS_POLL_MS);
+      // Android: native TrackingService is primary. We add a watchPosition
+      // only as a supplement for cases where the native plugin silently stops.
+      try {
+        Geolocation.watchPosition(
+          { enableHighAccuracy: true, timeout: 10000 },
+          (pos, err) => { if (pos?.coords) onPos(pos); else onErr(err); }
+        ).then(id => { watchIdRef.current = id; }).catch(() => {});
+      } catch (e) {
+        console.warn('watchPosition supplement failed:', e);
+      }
     } else {
       // Web: use watchPosition (efficient, battery-friendly)
       if (navigator.geolocation) {
@@ -208,9 +298,8 @@ export default function SalesAttendance() {
     }
   }, [sendPing]);
 
-  // ─── Stop all GPS watchers ───────────────────────────────────────────────────────
+  // ─── Stop all GPS watchers ─────────────────────────────────────────────────
   const stopWatching = useCallback(() => {
-    clearInterval(gpsLoopRef.current);   gpsLoopRef.current   = null;
     clearInterval(heartbeatRef.current); heartbeatRef.current = null;
     if (watchIdRef.current !== null) {
       if (Capacitor.isNativePlatform()) {
@@ -219,6 +308,51 @@ export default function SalesAttendance() {
         navigator.geolocation?.clearWatch(watchIdRef.current);
       }
       watchIdRef.current = null;
+    }
+  }, []);
+
+  // ─── Register App background/foreground listener (Android) ────────────────
+  const registerAppStateListener = useCallback((sessionId) => {
+    // Remove any existing listener first
+    if (appListenerRef.current) {
+      appListenerRef.current.remove().catch(() => {});
+      appListenerRef.current = null;
+    }
+    if (!Capacitor.isNativePlatform()) return;
+
+    App.addListener('appStateChange', async ({ isActive }) => {
+      if (isActive) {
+        // App came to foreground — ensure native tracking service is still running
+        console.log('[Attendance] App foregrounded — verifying native tracking service');
+        const sid = sessionIdRef.current || sessionId;
+        if (!sid) return;
+        const token   = localStorage.getItem('accessToken');
+        const baseUrl = getApiBase();
+        try {
+          await Tracking.startTracking({
+            sessionId: sid,
+            token,
+            apiUrl: baseUrl,
+            interval: 0,
+            distance: 1,
+          });
+        } catch (e) {
+          console.warn('Re-startTracking on foreground failed (may already be running):', e);
+        }
+        // Also flush any pings that were cached while offline
+        flushOfflineCache();
+      }
+    }).then(handle => {
+      appListenerRef.current = handle;
+    }).catch(e => {
+      console.warn('App.addListener failed:', e);
+    });
+  }, [flushOfflineCache]);
+
+  const removeAppStateListener = useCallback(() => {
+    if (appListenerRef.current) {
+      appListenerRef.current.remove().catch(() => {});
+      appListenerRef.current = null;
     }
   }, []);
 
@@ -231,6 +365,24 @@ export default function SalesAttendance() {
     };
     tick();
     timerRef.current = setInterval(tick, 1000);
+  };
+
+  // ─── Start native tracking service ────────────────────────────────────────
+  const startNativeTracking = async (sessionId) => {
+    if (!Capacitor.isNativePlatform()) return;
+    const token   = localStorage.getItem('accessToken');
+    const baseUrl = getApiBase();
+    try {
+      await Tracking.startTracking({
+        sessionId,
+        token,
+        apiUrl: baseUrl,
+        interval: 0,
+        distance: 1,
+      });
+    } catch (e) {
+      console.warn('Native startTracking failed:', e);
+    }
   };
 
   // ─── Load initial data ─────────────────────────────────────────────────────
@@ -247,39 +399,27 @@ export default function SalesAttendance() {
         startTimer(active.clock_in_at);
         setGpsStatus('active');
         startPolling(active.id);
-
-        if (Capacitor.isNativePlatform()) {
-          const token   = localStorage.getItem('accessToken');
-          const baseUrl = getApiBase();
-          try {
-            await Tracking.startTracking({
-              sessionId: active.id,
-              token,
-              apiUrl: baseUrl,
-              interval: 0,
-              distance: 1,
-            });
-          } catch (e) {
-            console.warn('Native startTracking on load failed:', e);
-          }
-          // On Android: TrackingService handles raw GPS pings; watchPosition supplements
-          startWatching(active.id);
-        } else {
-          startWatching(active.id);
-        }
+        await startNativeTracking(active.id);
+        startWatching(active.id);
+        registerAppStateListener(active.id);
       }
+
+      // Flush any offline-cached pings from previous session
+      flushOfflineCache();
+      setCacheSize(readCache().length);
     } catch {
       // Silent — user might not be logged in
     } finally {
       setLoading(false);
     }
-  }, [startWatching]); // eslint-disable-line
+  }, [startWatching, startPolling, registerAppStateListener, flushOfflineCache]);
 
   useEffect(() => {
     loadSessions();
     return () => {
       stopWatching();
       stopPolling();
+      removeAppStateListener();
       clearInterval(timerRef.current);
     };
   }, []); // eslint-disable-line
@@ -332,24 +472,9 @@ export default function SalesAttendance() {
       startPolling(session.id);
 
       // 4. Start native background service (Android) + web watcher
-      if (Capacitor.isNativePlatform()) {
-        const token   = localStorage.getItem('accessToken');
-        const baseUrl = getApiBase();
-        try {
-          await Tracking.startTracking({
-            sessionId: session.id,
-            token,
-            apiUrl: baseUrl,
-            interval: 0,
-            distance: 1,
-          });
-        } catch (e) {
-          console.warn('Native startTracking failed:', e);
-        }
-        startWatching(session.id); // Capacitor watchPosition as supplement
-      } else {
-        startWatching(session.id);
-      }
+      await startNativeTracking(session.id);
+      startWatching(session.id);
+      registerAppStateListener(session.id);
 
       toast.success('Attendance started! GPS tracking is active.');
     } catch (err) {
@@ -375,6 +500,7 @@ export default function SalesAttendance() {
       }
       stopWatching();
       stopPolling();
+      removeAppStateListener();
       clearInterval(timerRef.current);
       timerRef.current  = null;
       sessionIdRef.current = null;
@@ -383,6 +509,10 @@ export default function SalesAttendance() {
       setGpsStatus('idle');
       setElapsed(0);
       setSessions(prev => prev.map(s => s.id === updated.id ? updated : s));
+
+      // Flush any remaining cached pings before exiting
+      await flushOfflineCache();
+
       toast.success('Attendance ended. Have a great day!');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to stop attendance');
@@ -417,9 +547,26 @@ export default function SalesAttendance() {
 
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <div style={{ padding: '20px 20px 0', marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-          <Clock size={20} color="var(--s-primary)" />
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--s-text)', margin: 0 }}>Attendance</h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <Clock size={20} color="var(--s-primary)" />
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--s-text)', margin: 0 }}>Attendance</h2>
+          </div>
+          {/* Network status badge */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {!isOnline && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '3px 8px', borderRadius: 99, border: '1px solid rgba(245,158,11,0.25)' }}>
+                <WifiOff size={11} />
+                Offline
+              </span>
+            )}
+            {cacheSize > 0 && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: '#3b82f6', background: 'rgba(59,130,246,0.1)', padding: '3px 8px', borderRadius: 99, border: '1px solid rgba(59,130,246,0.25)' }}>
+                <Database size={11} />
+                {cacheSize} cached
+              </span>
+            )}
+          </div>
         </div>
         <p style={{ fontSize: 12.5, color: 'var(--s-text-3)', margin: 0 }}>
           Track your working hours and share your live location.
@@ -480,6 +627,16 @@ export default function SalesAttendance() {
                 </span>
               )}
             </div>
+
+            {/* Offline cache banner */}
+            {cacheSize > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16, padding: '8px 12px', background: 'rgba(59,130,246,0.08)', borderRadius: 8, border: '1px solid rgba(59,130,246,0.2)' }}>
+                <Database size={14} color="#3b82f6" />
+                <span style={{ fontSize: 12, color: '#3b82f6', fontWeight: 600 }}>
+                  {cacheSize} GPS ping{cacheSize > 1 ? 's' : ''} cached offline — will sync when connected
+                </span>
+              </div>
+            )}
 
             {/* Stop Button */}
             <button
@@ -571,7 +728,7 @@ export default function SalesAttendance() {
       <div style={{ margin: '0 16px', padding: '12px 14px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         <MapPin size={15} color="#3b82f6" style={{ marginTop: 1, flexShrink: 0 }} />
         <div style={{ fontSize: 11.5, color: 'var(--s-text-3)', lineHeight: 1.5 }}>
-          Your location is recorded on every ≥1 metre movement, and every 30 seconds while stationary. GPS only runs while this app is open.
+          Your location is recorded continuously in the background. GPS pings are cached locally if offline and synced automatically when connectivity is restored.
         </div>
       </div>
 
