@@ -185,7 +185,8 @@ export default function ProductionRunPage() {
         setIngredientSelections(initialSelections);
 
       } catch (err) {
-        toast.error('Failed to load recipe ingredients and current stock balances');
+        console.error('Failed to load recipe and stock:', err);
+        toast.error('Failed to load recipe: ' + (err.response?.data?.message || err.message));
       } finally {
         setLoadingBom(false);
       }
