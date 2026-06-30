@@ -54,12 +54,23 @@ public class ProductController {
         return ok(toDto(p.get()));
     }
 
+    private Double getDouble(Object val) {
+        if (val == null) return null;
+        if (val instanceof Number n) return n.doubleValue();
+        if (val instanceof String s) {
+            if (s.isBlank()) return null;
+            try { return Double.parseDouble(s); }
+            catch (NumberFormatException e) { return null; }
+        }
+        return null;
+    }
+
     @PostMapping
     public ResponseEntity<?> create(@RequestBody Map<String, Object> body) {
         auth.requirePermission("PRODUCTS:CREATE");
-        String code = ((String) body.getOrDefault("code","")).toUpperCase().trim();
-        String name = (String) body.get("name");
-        String type = (String) body.get("type");
+        String code = (body.get("code") == null ? "" : body.get("code").toString()).toUpperCase().trim();
+        String name = body.get("name") == null ? null : body.get("name").toString();
+        String type = body.get("type") == null ? null : body.get("type").toString();
 
         if (code.isEmpty() || name == null || type == null) return bad("code, name, and type are required");
         if (!Set.of("FINISHED_GOOD","RAW_MATERIAL","BLEND","TOOL").contains(type)) return bad("type must be FINISHED_GOOD, RAW_MATERIAL, BLEND, or TOOL");
@@ -69,15 +80,26 @@ public class ProductController {
         p.setCode(code);
         p.setName(name);
         p.setType(Product.Type.valueOf(type));
-        p.setUnit((String) body.getOrDefault("unit", "PCS"));
-        p.setDescription((String) body.get("description"));
-        p.setCategory((String) body.get("category"));
-        p.setMinStock(body.containsKey("min_stock") ? ((Number) body.get("min_stock")).doubleValue() : 0.0);
-        if (body.containsKey("selling_price") || body.containsKey("cost_price")) {
+        p.setUnit(body.get("unit") != null ? body.get("unit").toString() : "PCS");
+        p.setDescription(body.get("description") == null ? null : body.get("description").toString());
+        p.setCategory(body.get("category") == null ? null : body.get("category").toString());
+        Double ms = getDouble(body.get("min_stock"));
+        p.setMinStock(ms != null ? ms : 0.0);
+        Double sellingPrice = null;
+        Double costPrice = null;
+        if (body.containsKey("selling_price")) {
+            sellingPrice = getDouble(body.get("selling_price"));
+        }
+        if (body.containsKey("cost_price")) {
+            costPrice = getDouble(body.get("cost_price"));
+        }
+
+        if (sellingPrice != null || costPrice != null) {
             auth.requireSuperAdmin();
         }
-        if (body.containsKey("selling_price")) p.setSellingPrice(body.get("selling_price") == null ? null : ((Number) body.get("selling_price")).doubleValue());
-        if (body.containsKey("cost_price")) p.setCostPrice(body.get("cost_price") == null ? null : ((Number) body.get("cost_price")).doubleValue());
+
+        p.setSellingPrice(sellingPrice);
+        p.setCostPrice(costPrice);
         applyPackConfig(p, body);
         p.setActive(true);
         productRepo.save(p);
@@ -89,21 +111,24 @@ public class ProductController {
         auth.requirePermission("PRODUCTS:EDIT");
         Product p = productRepo.findById(id).orElse(null);
         if (p == null) return ResponseEntity.status(404).body(err("Product not found"));
-        if (body.containsKey("name")) p.setName((String) body.get("name"));
-        if (body.containsKey("unit")) p.setUnit((String) body.get("unit"));
-        if (body.containsKey("description")) p.setDescription((String) body.get("description"));
-        if (body.containsKey("category")) p.setCategory((String) body.get("category"));
-        if (body.containsKey("min_stock")) p.setMinStock(((Number) body.get("min_stock")).doubleValue());
-        if (body.containsKey("is_active")) p.setActive((Boolean) body.get("is_active"));
+        if (body.containsKey("name")) p.setName(body.get("name") == null ? null : body.get("name").toString());
+        if (body.containsKey("unit")) p.setUnit(body.get("unit") == null ? null : body.get("unit").toString());
+        if (body.containsKey("description")) p.setDescription(body.get("description") == null ? null : body.get("description").toString());
+        if (body.containsKey("category")) p.setCategory(body.get("category") == null ? null : body.get("category").toString());
+        if (body.containsKey("min_stock")) {
+            Double ms = getDouble(body.get("min_stock"));
+            p.setMinStock(ms != null ? ms : 0.0);
+        }
+        if (body.containsKey("is_active")) p.setActive(Boolean.TRUE.equals(body.get("is_active")));
         if (body.containsKey("selling_price") || body.containsKey("cost_price")) {
-            Double newSelling = body.containsKey("selling_price") ? (body.get("selling_price") == null ? null : ((Number) body.get("selling_price")).doubleValue()) : p.getSellingPrice();
-            Double newCost = body.containsKey("cost_price") ? (body.get("cost_price") == null ? null : ((Number) body.get("cost_price")).doubleValue()) : p.getCostPrice();
+            Double newSelling = body.containsKey("selling_price") ? getDouble(body.get("selling_price")) : p.getSellingPrice();
+            Double newCost = body.containsKey("cost_price") ? getDouble(body.get("cost_price")) : p.getCostPrice();
             if (!Objects.equals(newSelling, p.getSellingPrice()) || !Objects.equals(newCost, p.getCostPrice())) {
                 auth.requireSuperAdmin();
             }
         }
-        if (body.containsKey("selling_price")) p.setSellingPrice(body.get("selling_price") == null ? null : ((Number) body.get("selling_price")).doubleValue());
-        if (body.containsKey("cost_price")) p.setCostPrice(body.get("cost_price") == null ? null : ((Number) body.get("cost_price")).doubleValue());
+        if (body.containsKey("selling_price")) p.setSellingPrice(getDouble(body.get("selling_price")));
+        if (body.containsKey("cost_price")) p.setCostPrice(getDouble(body.get("cost_price")));
         applyPackConfig(p, body);
         productRepo.save(p);
         return ok(toDto(p));
@@ -162,7 +187,7 @@ public class ProductController {
         auth.requirePermission("BOM:CREATE");
         Product fg = productRepo.findById(id).orElse(null);
         if (fg == null || (fg.getType() != Product.Type.FINISHED_GOOD && fg.getType() != Product.Type.BLEND)) return bad("Finished Good or Blend not found");
-        String rmId = (String) body.get("raw_material_id");
+        String rmId = body.get("raw_material_id") == null ? null : body.get("raw_material_id").toString();
         if (id.equals(rmId)) return bad("A product cannot be an ingredient of itself");
         Product rm = productRepo.findById(rmId).orElse(null);
         if (rm == null) return bad("Ingredient product not found");
@@ -170,8 +195,10 @@ public class ProductController {
         Bom bom = new Bom();
         bom.setFinishedGood(fg);
         bom.setRawMaterial(rm);
-        bom.setQtyRequired(((Number) body.get("qty_required")).doubleValue());
-        bom.setUnit((String) body.getOrDefault("unit", rm.getUnit()));
+        Double qty = getDouble(body.get("qty_required"));
+        if (qty == null) return bad("qty_required is required and must be a number");
+        bom.setQtyRequired(qty);
+        bom.setUnit(body.get("unit") != null ? body.get("unit").toString() : rm.getUnit());
         applyBomRecipeFields(bom, body);
         bomRepo.save(bom);
         return ResponseEntity.status(201).body(Map.of("success", true, "data", bom.getId()));
@@ -184,8 +211,12 @@ public class ProductController {
         auth.requirePermission("BOM:CREATE");
         Bom bom = bomRepo.findById(bomId).orElse(null);
         if (bom == null || !bom.getFinishedGood().getId().equals(id)) return bad("BOM line not found");
-        if (body.containsKey("qty_required")) bom.setQtyRequired(((Number) body.get("qty_required")).doubleValue());
-        if (body.containsKey("unit")) bom.setUnit((String) body.get("unit"));
+        if (body.containsKey("qty_required")) {
+            Double qty = getDouble(body.get("qty_required"));
+            if (qty == null) return bad("qty_required must be a number");
+            bom.setQtyRequired(qty);
+        }
+        if (body.containsKey("unit")) bom.setUnit(body.get("unit") == null ? null : body.get("unit").toString());
         applyBomRecipeFields(bom, body);
         bomRepo.save(bom);
         return ok("BOM line updated");
@@ -223,36 +254,39 @@ public class ProductController {
     /** Apply pack configuration fields from request body to a Product. */
     private void applyPackConfig(Product p, Map<String, Object> body) {
         if (body.containsKey("pack_size_g")) {
-            Object v = body.get("pack_size_g");
-            p.setPackSizeG(v == null ? null : ((Number) v).doubleValue());
+            p.setPackSizeG(getDouble(body.get("pack_size_g")));
         }
         if (body.containsKey("packs_per_kg")) {
-            Object v = body.get("packs_per_kg");
-            p.setPacksPerKg(v == null ? null : ((Number) v).doubleValue());
+            p.setPacksPerKg(getDouble(body.get("packs_per_kg")));
         }
         if (body.containsKey("batch_size_kg")) {
-            Object v = body.get("batch_size_kg");
-            p.setBatchSizeKg(v == null ? null : ((Number) v).doubleValue());
+            p.setBatchSizeKg(getDouble(body.get("batch_size_kg")));
         }
-        if (body.containsKey("process_notes")) p.setProcessNotes((String) body.get("process_notes"));
+        if (body.containsKey("process_notes")) {
+            Object notes = body.get("process_notes");
+            p.setProcessNotes(notes == null ? null : notes.toString());
+        }
     }
 
     /** Apply BOM recipe fields (production_step, blend_pct, notes) from request body to a Bom line. */
     private void applyBomRecipeFields(Bom bom, Map<String, Object> body) {
         if (body.containsKey("production_step")) {
-            String step = (String) body.get("production_step");
+            Object stepObj = body.get("production_step");
+            String step = stepObj == null ? null : stepObj.toString();
             if (step == null || step.isBlank()) {
                 bom.setProductionStep(null);
             } else {
-                try { bom.setProductionStep(Bom.ProductionStep.valueOf(step)); }
+                try { bom.setProductionStep(Bom.ProductionStep.valueOf(step.toUpperCase().trim())); }
                 catch (IllegalArgumentException ignored) {}
             }
         }
         if (body.containsKey("blend_pct")) {
-            Object v = body.get("blend_pct");
-            bom.setBlendPct(v == null ? null : ((Number) v).doubleValue());
+            bom.setBlendPct(getDouble(body.get("blend_pct")));
         }
-        if (body.containsKey("notes")) bom.setNotes((String) body.get("notes"));
+        if (body.containsKey("notes")) {
+            Object notes = body.get("notes");
+            bom.setNotes(notes == null ? null : notes.toString());
+        }
     }
 
     private ResponseEntity<?> ok(Object data) { return ResponseEntity.ok(Map.of("success", true, "data", data)); }

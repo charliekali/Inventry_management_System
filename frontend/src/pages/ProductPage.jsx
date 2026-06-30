@@ -39,7 +39,7 @@ const getTypeLabel = (type) => {
 };
 
 export default function ProductPage() {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const isSuperAdmin = user?.role === 'Super Admin';
 
   const [products, setProducts] = useState([]);
@@ -307,10 +307,12 @@ export default function ProductPage() {
               Archived
             </button>
           </div>
-          <button className="btn btn-primary" onClick={() => { resetProductForm(); setShowProductModal(true); }}>
-            <Plus size={16} />
-            Add Product
-          </button>
+          {hasPermission('PRODUCTS:CREATE') && (
+            <button className="btn btn-primary" onClick={() => { resetProductForm(); setShowProductModal(true); }}>
+              <Plus size={16} />
+              Add Product
+            </button>
+          )}
         </div>
       </div>
 
@@ -387,21 +389,29 @@ export default function ProductPage() {
                         <div style={{ display: 'inline-flex', gap: 4 }}>
                           {!showArchived ? (
                             <>
-                              <button className="btn btn-ghost btn-icon btn-sm" onClick={(e) => handleEditProduct(p, e)} title="Edit Product">
-                                <Edit2 size={13} />
-                              </button>
-                              <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={(e) => handleArchiveProduct(p.id, e)} title="Archive Product">
-                                <Archive size={13} />
-                              </button>
+                              {hasPermission('PRODUCTS:EDIT') && (
+                                <button className="btn btn-ghost btn-icon btn-sm" onClick={(e) => handleEditProduct(p, e)} title="Edit Product">
+                                  <Edit2 size={13} />
+                                </button>
+                              )}
+                              {hasPermission('PRODUCTS:DELETE') && (
+                                <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={(e) => handleArchiveProduct(p.id, e)} title="Archive Product">
+                                  <Archive size={13} />
+                                </button>
+                              )}
                             </>
                           ) : (
                             <>
-                              <button className="btn btn-ghost btn-icon btn-sm text-success" onClick={(e) => handleRestoreProduct(p.id, e)} title="Restore Product">
-                                <RotateCcw size={13} />
-                              </button>
-                              <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={(e) => handleDeletePermanentProduct(p.id, e)} title="Permanently Delete">
-                                <Trash2 size={13} />
-                              </button>
+                              {hasPermission('PRODUCTS:EDIT') && (
+                                <button className="btn btn-ghost btn-icon btn-sm text-success" onClick={(e) => handleRestoreProduct(p.id, e)} title="Restore Product">
+                                  <RotateCcw size={13} />
+                                </button>
+                              )}
+                              {hasPermission('PRODUCTS:DELETE') && (
+                                <button className="btn btn-ghost btn-icon btn-sm text-danger" onClick={(e) => handleDeletePermanentProduct(p.id, e)} title="Permanently Delete">
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
                             </>
                           )}
                         </div>
