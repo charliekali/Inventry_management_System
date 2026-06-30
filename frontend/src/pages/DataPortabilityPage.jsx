@@ -44,6 +44,23 @@ export default function DataPortabilityPage() {
     }
   };
 
+  const handleDownloadTemplate = async (tableName) => {
+    const loadingToast = toast.loading(`Generating template for ${tableName}...`);
+    try {
+      const res = await dataPortabilityAPI.getTemplate(tableName);
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${tableName}_template.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`${tableName} template downloaded!`, { id: loadingToast });
+    } catch (err) {
+      toast.error(`Failed to generate template for ${tableName}`, { id: loadingToast });
+    }
+  };
+
   const triggerFileInput = (tableName) => {
     setImportingTable(tableName);
     if (fileInputRef.current) {
@@ -211,9 +228,18 @@ export default function DataPortabilityPage() {
                     {table.rowCount.toLocaleString()} rows
                   </span>
                 </div>
-                <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 20px 0' }}>
-                  Manage bulk data portability for the database relation <code>{table.name}</code>.
-                </p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, gap: 12 }}>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0, lineHeight: 1.4 }}>
+                    Manage bulk data portability for <code>{table.name}</code>.
+                  </p>
+                  <button 
+                    className="btn btn-link btn-sm" 
+                    onClick={() => handleDownloadTemplate(table.name)}
+                    style={{ fontSize: 12, color: 'var(--color-primary-light)', padding: '2px 6px', border: '1px dashed rgba(59, 130, 246, 0.3)', borderRadius: '4px', background: 'transparent', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    Template
+                  </button>
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: 10 }}>

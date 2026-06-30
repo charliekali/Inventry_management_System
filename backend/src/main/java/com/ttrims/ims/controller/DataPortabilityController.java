@@ -130,6 +130,39 @@ public class DataPortabilityController {
     }
 
     /**
+     * GET /api/data-portability/template/{tableName}
+     * Generates a blank CSV template with only the column headers.
+     */
+    @GetMapping("/template/{tableName}")
+    public ResponseEntity<?> getTemplate(@PathVariable String tableName) {
+        auth.requirePermission("ROLES:VIEW");
+        if (!isSafeTableName(tableName)) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Invalid or unsafe table name"));
+        }
+
+        try {
+            List<Map<String, Object>> columnsMetadata = jdbcTemplate.queryForList(
+                    "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ? ORDER BY ordinal_position",
+                    tableName.toLowerCase()
+            );
+            String header = columnsMetadata.stream()
+                    .map(m -> m.get("column_name").toString())
+                    .map(this::escapeCsv)
+                    .collect(Collectors.joining(","));
+
+            byte[] csvBytes = (header + "\n").getBytes(StandardCharsets.UTF_8);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType("text/csv"));
+            headers.setContentDispositionFormData("attachment", tableName + "_template.csv");
+            headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
+
+            return new ResponseEntity<>(csvBytes, headers, HttpStatus.OK);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "Failed to generate template: " + e.getMessage()));
+        }
+    }
+
+    /**
      * POST /api/data-portability/import/{tableName}
      * Imports data from a CSV file into the table.
      */

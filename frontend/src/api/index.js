@@ -243,6 +243,7 @@ export const keyRegistryAPI = {
 export const dataPortabilityAPI = {
   listTables: () => api.get('/data-portability/tables'),
   exportTable: (tableName) => api.get(`/data-portability/export/${tableName}`, { responseType: 'blob' }),
+  getTemplate: (tableName) => api.get(`/data-portability/template/${tableName}`, { responseType: 'blob' }),
   importTable: (tableName, file) => {
     const fd = new FormData();
     fd.append('file', file);

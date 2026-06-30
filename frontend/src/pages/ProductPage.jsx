@@ -89,6 +89,23 @@ export default function ProductPage() {
     }
   };
 
+  const handleDownloadTemplate = async () => {
+    const loadingToast = toast.loading('Generating template...');
+    try {
+      const res = await dataPortabilityAPI.getTemplate('products');
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'products_template.csv');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Template downloaded!', { id: loadingToast });
+    } catch (err) {
+      toast.error('Failed to generate template', { id: loadingToast });
+    }
+  };
+
   // Modals
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProductId, setEditingProductId] = useState(null);
@@ -343,7 +360,14 @@ export default function ProductPage() {
             </button>
           </div>
           {hasPermission('PRODUCTS:CREATE') && (
-            <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <button 
+                className="btn btn-ghost btn-sm" 
+                onClick={handleDownloadTemplate} 
+                style={{ color: 'var(--color-primary-light)', textDecoration: 'underline', padding: '0 8px', fontSize: 13 }}
+              >
+                Download Template
+              </button>
               <button className="btn btn-secondary" onClick={() => fileInputRef.current?.click()} disabled={importing}>
                 <Upload size={16} />
                 Import CSV
