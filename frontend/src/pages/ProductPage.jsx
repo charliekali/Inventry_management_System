@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { productsAPI, productCategoriesAPI } from '../api';
+import { useState, useEffect, useRef } from 'react';
+import { productsAPI, productCategoriesAPI, dataPortabilityAPI } from '../api';
 import toast from 'react-hot-toast';
-import { Plus, Edit2, Archive, Package, Download, RotateCcw, Trash2 } from 'lucide-react';
+import { Plus, Edit2, Archive, Package, Download, RotateCcw, Trash2, Upload } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import useBulkActions from '../hooks/useBulkActions';
 import BulkActionBar from '../components/BulkActionBar';
@@ -61,6 +61,34 @@ export default function ProductPage() {
   const [pCostPrice, setPCostPrice] = useState('');
   const [categories, setCategories] = useState([]); // [{category, subcategories:[]}]
   
+  const fileInputRef = useRef(null);
+  const [importing, setImporting] = useState(false);
+
+  const handleImportCSV = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = ''; // reset
+
+    const loadingToast = toast.loading('Importing products...');
+    try {
+      const res = await dataPortabilityAPI.importTable('products', file);
+      toast.success(res.data.message || 'Products imported successfully!', { 
+        id: loadingToast,
+        duration: 5000 
+      });
+      loadProducts();
+    } catch (err) {
+      const errMsg = err.response?.data?.message || 'Failed to import products';
+      toast.error(
+        <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+          <strong>Import Failed:</strong>
+          <p style={{ margin: '4px 0 0 0', fontSize: 12 }}>{errMsg}</p>
+        </div>,
+        { id: loadingToast, duration: 8000 }
+      );
+    }
+  };
+
   // Modals
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProductId, setEditingProductId] = useState(null);
@@ -285,6 +313,13 @@ export default function ProductPage() {
 
   return (
     <div className="fade-in">
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleImportCSV} 
+        accept=".csv" 
+        style={{ display: 'none' }} 
+      />
       <div className="page-header">
         <div className="page-header-left">
           <h2>Product Catalog</h2>
@@ -308,10 +343,16 @@ export default function ProductPage() {
             </button>
           </div>
           {hasPermission('PRODUCTS:CREATE') && (
-            <button className="btn btn-primary" onClick={() => { resetProductForm(); setShowProductModal(true); }}>
-              <Plus size={16} />
-              Add Product
-            </button>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button className="btn btn-secondary" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+                <Upload size={16} />
+                Import CSV
+              </button>
+              <button className="btn btn-primary" onClick={() => { resetProductForm(); setShowProductModal(true); }}>
+                <Plus size={16} />
+                Add Product
+              </button>
+            </div>
           )}
         </div>
       </div>
