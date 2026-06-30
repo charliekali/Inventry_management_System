@@ -48,6 +48,7 @@ const NAV_ITEMS = [
     { path: '/users', label: 'Users', icon: Users, perm: 'USERS:VIEW' },
     { path: '/roles', label: 'Roles & Permissions', icon: Settings, perm: 'ROLES:VIEW' },
     { path: '/categories', label: 'Product Categories', icon: Tags, perm: 'ROLES:VIEW' },
+    { path: '/data-portability', label: 'Data Portability', icon: Database, perm: 'ROLES:VIEW' },
     { path: '/form-settings', label: 'Form Settings', icon: SlidersHorizontal, perm: 'ROLES:VIEW' },
     { path: '/invoice-designer', label: 'Invoice Designer', icon: FileText, perm: 'ROLES:VIEW' },
     { path: '/attendance-tracking', label: 'Live Tracking', icon: Radio, perm: null },

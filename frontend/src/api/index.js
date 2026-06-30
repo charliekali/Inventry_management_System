@@ -239,5 +239,15 @@ export const keyRegistryAPI = {
   /** Reject a pending request (Super Admin) */
   rejectRequest: (id)        => api.post(`/key-registry/requests/${id}/reject`, {}),
 };
+// ─── Data Portability ─────────────────────────────────────────────────────────
+export const dataPortabilityAPI = {
+  listTables: () => api.get('/data-portability/tables'),
+  exportTable: (tableName) => api.get(`/data-portability/export/${tableName}`, { responseType: 'blob' }),
+  importTable: (tableName, file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.post(`/data-portability/import/${tableName}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  }
+};
 
 export default api;

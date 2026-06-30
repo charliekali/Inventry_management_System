@@ -25,6 +25,7 @@ import UserPage from './pages/UserPage';
 import RolePage from './pages/RolePage';
 import FormSettingsPage from './pages/FormSettingsPage';
 import CategoryPage from './pages/CategoryPage';
+import DataPortabilityPage from './pages/DataPortabilityPage';
 import ProductionRunPage from './pages/ProductionRunPage';
 import RecipePage from './pages/RecipePage';
 import ProductionHistoryPage from './pages/ProductionHistoryPage';
@@ -471,6 +472,14 @@ function App() {
             <ProtectedRoute perm="ROLES:VIEW">
               <AuthenticatedLayout>
                 <CategoryPage />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/data-portability" element={
+            <ProtectedRoute perm="ROLES:VIEW">
+              <AuthenticatedLayout>
+                <DataPortabilityPage />
               </AuthenticatedLayout>
             </ProtectedRoute>
           } />
