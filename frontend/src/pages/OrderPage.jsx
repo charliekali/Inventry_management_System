@@ -515,6 +515,7 @@ export default function OrderPage() {
       case 'PARTIAL': return 'badge-orange';
       case 'INSUFFICIENT': return 'badge-red';
       case 'FULFILLED': return 'badge-blue';
+      case 'CANCELLED': return 'badge-red';
       default: return 'badge-gray';
     }
   };
@@ -1524,7 +1525,7 @@ export default function OrderPage() {
             {
               label: 'Mark Completed',
               icon: <Check size={16} />,
-              onClick: () => handleBulkUpdateOrderStatus('COMPLETED'),
+              onClick: () => handleBulkUpdateOrderStatus('FULFILLED'),
               className: 'btn-success'
             },
             {

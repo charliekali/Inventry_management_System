@@ -52,6 +52,13 @@ public class InspectDb {
                 System.out.println("Constraint products_type_check dropped successfully (or did not exist)!");
             }
 
+            // 5. Drop orders_status_check constraint
+            System.out.println("\n--- Dropping orders_status_check constraint ---");
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_check");
+                System.out.println("Constraint orders_status_check dropped successfully (or did not exist)!");
+            }
+
         } catch (Exception e) {
             e.printStackTrace();
         }

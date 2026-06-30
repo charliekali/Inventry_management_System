@@ -9,7 +9,7 @@ import java.util.*;
 @Entity
 @Table(name = "orders")
 public class Order {
-    public enum Status { PENDING, FEASIBLE, PARTIAL, INSUFFICIENT, FULFILLED }
+    public enum Status { PENDING, FEASIBLE, PARTIAL, INSUFFICIENT, FULFILLED, CANCELLED }
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
