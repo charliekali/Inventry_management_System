@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, Fragment } from 'react';
 import { ordersAPI } from '../api';
 import toast from 'react-hot-toast';
 import { 
-  Users, Search, RefreshCw, ChevronDown, ChevronUp, Download, Printer 
+  Users, Search, RefreshCw, ChevronDown, ChevronUp, Download, Printer, CheckCircle2 
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useBulkActions from '../hooks/useBulkActions';
