@@ -55,13 +55,26 @@ public class AttendanceController {
         session.setStatus("ACTIVE");
         session.setClockInAt(Instant.now());
 
+        // Parse client-supplied timestamp or fallback to Instant.now()
+        Instant recordedAt = Instant.now();
+        if (body.get("recorded_at") != null) {
+            Object rec = body.get("recorded_at");
+            if (rec instanceof Number num) {
+                recordedAt = Instant.ofEpochMilli(num.longValue());
+            } else if (rec instanceof String str) {
+                try {
+                    recordedAt = Instant.parse(str);
+                } catch (Exception ignored) {}
+            }
+        }
+
         // Capture initial GPS
-        applyGpsToSession(session, body);
+        applyGpsToSession(session, body, recordedAt);
 
         attendanceRepo.save(session);
 
         // Save it as the first location ping
-        saveLocationPing(session.getId(), body);
+        saveLocationPing(session.getId(), body, recordedAt);
 
         return ResponseEntity.status(201)
             .body(Map.of("success", true, "data", toDto(session),
@@ -292,7 +305,7 @@ public class AttendanceController {
         session.setLastPingAt(recordedAt);
     }
 
-    private AttendanceLocation saveLocationPing(String attendanceId, Map<String, Object> body) {
+    private AttendanceLocation saveLocationPing(String attendanceId, Map<String, Object> body, Instant recordedAt) {
         AttendanceLocation loc = new AttendanceLocation();
         loc.setAttendanceId(attendanceId);
         if (body.get("latitude") instanceof Number lat) {
@@ -304,7 +317,7 @@ public class AttendanceController {
         if (body.get("accuracy") instanceof Number acc) {
             loc.setAccuracy(((Number) acc).doubleValue());
         }
-        loc.setRecordedAt(Instant.now());
+        loc.setRecordedAt(recordedAt);
         return locationRepo.save(loc);
     }
 
