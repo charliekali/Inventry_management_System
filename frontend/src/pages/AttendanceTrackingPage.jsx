@@ -403,6 +403,7 @@ export default function AttendanceTrackingPage() {
   const [playbackIndex, setPlaybackIndex]     = useState(0);
   const [playbackSpeed, setPlaybackSpeed]     = useState(20); // 1x, 2x, 5x, 10x, 20x
   const [autoCenter, setAutoCenter]           = useState(true);
+  const [mapType, setMapType]                 = useState('hybrid'); // roadmap | hybrid
 
   const [tab, setTab]                         = useState('live');
   const [lastRefresh, setLastRefresh]         = useState(null);
@@ -986,8 +987,12 @@ export default function AttendanceTrackingPage() {
                 zoomControl={true}
               >
                 <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                  url={tileUrl}
+                  attribution='&copy; Google Maps'
+                  url={mapType === 'hybrid'
+                    ? "https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+                    : "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+                  }
+                  subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
                 />
 
                 {/* Auto-center when first data arrives */}
@@ -1137,6 +1142,37 @@ export default function AttendanceTrackingPage() {
                   );
                 })}
               </MapContainer>
+
+              {/* Map Type Switcher Floating Overlay */}
+              <div style={{
+                position: 'absolute', bottom: 12, left: 12, zIndex: 999,
+                background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)',
+                border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
+                padding: '4px', display: 'flex', gap: 4,
+              }}>
+                <button
+                  onClick={() => setMapType('roadmap')}
+                  style={{
+                    padding: '4px 10px', fontSize: 11.5, fontWeight: 700, borderRadius: 6,
+                    border: 'none', cursor: 'pointer',
+                    background: mapType === 'roadmap' ? 'var(--color-primary-light)' : 'transparent',
+                    color: '#fff', transition: 'all 0.15s'
+                  }}
+                >
+                  🗺️ Street
+                </button>
+                <button
+                  onClick={() => setMapType('hybrid')}
+                  style={{
+                    padding: '4px 10px', fontSize: 11.5, fontWeight: 700, borderRadius: 6,
+                    border: 'none', cursor: 'pointer',
+                    background: mapType === 'hybrid' ? 'var(--color-primary-light)' : 'transparent',
+                    color: '#fff', transition: 'all 0.15s'
+                  }}
+                >
+                  🛰️ Satellite
+                </button>
+              </div>
 
               {/* Live/History indicator overlay */}
               <div style={{
