@@ -1,11 +1,9 @@
 /**
  * AttendanceTrackingPage.jsx
- * Super-Admin live GPS tracking dashboard.
- * Shows all active sales staff on an interactive map using Leaflet + OpenStreetMap.
- * Auto-refreshes every 10 seconds. Clicking a staff member flies to their location
- * and draws their GPS breadcrumb trail as a polyline.
- *
- * GPS Logs tab: flat, always-visible table of all sessions + expandable ping detail.
+ * Super-Admin live GPS tracking dashboard with route playback & stop detection.
+ * Shows active and historical sales staff tracking sessions on an interactive map.
+ * Replays GPS trail index-by-index with speed controls (1x to 20x) and timeline scrubbing.
+ * Identifies stop points (clusters within 40m for >= 2 minutes) and shows duration in minutes.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker, useMap } from 'react-leaflet';
@@ -17,7 +15,7 @@ import toast from 'react-hot-toast';
 import {
   MapPin, Users, Clock, Wifi, WifiOff, RefreshCw, History,
   Activity, ChevronRight, Loader2, List, ChevronDown, Search,
-  Navigation, AlertCircle, Download,
+  Navigation, AlertCircle, Download, Play, Pause
 } from 'lucide-react';
 
 // Fix Leaflet's default icon path issue with bundlers
@@ -28,11 +26,102 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-const REFRESH_INTERVAL_MS = 10_000; // Refreshed from 15s to 10s for snappier live view
+const REFRESH_INTERVAL_MS = 10_000;
 
 /** Palette for user markers */
 const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#14b8a6', '#8b5cf6', '#f97316', '#06b6d4', '#84cc16'];
 const getColor = (index) => COLORS[Math.abs(index) % COLORS.length];
+
+/** Calculate Haversine distance between two coordinates in km */
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/** Detect stop points where coordinates stay within a 40m radius for >= 2 minutes */
+function detectStops(pings) {
+  if (!pings || pings.length < 2) return [];
+
+  const stops = [];
+  const radiusKm = 0.04; // 40 meters
+  const minDurationMs = 2 * 60 * 1000; // 2 minutes
+
+  let i = 0;
+  while (i < pings.length) {
+    let j = i + 1;
+    let stopEndIndex = i;
+
+    while (j < pings.length) {
+      const dist = calculateDistance(pings[i].lat, pings[i].lng, pings[j].lat, pings[j].lng);
+      if (dist <= radiusKm) {
+        stopEndIndex = j;
+        j++;
+      } else {
+        break;
+      }
+    }
+
+    const startTime = new Date(pings[i].recorded_at).getTime();
+    const endTime = new Date(pings[stopEndIndex].recorded_at).getTime();
+    const durationMs = endTime - startTime;
+
+    if (durationMs >= minDurationMs && stopEndIndex > i) {
+      // Calculate centroid coordinate of the stop
+      let sumLat = 0, sumLng = 0;
+      for (let k = i; k <= stopEndIndex; k++) {
+        sumLat += pings[k].lat;
+        sumLng += pings[k].lng;
+      }
+      const count = stopEndIndex - i + 1;
+
+      stops.push({
+        startIndex: i,
+        endIndex: stopEndIndex,
+        lat: sumLat / count,
+        lng: sumLng / count,
+        startTime: pings[i].recorded_at,
+        endTime: pings[stopEndIndex].recorded_at,
+        durationMinutes: Math.max(1, Math.round(durationMs / 60000)),
+      });
+      i = stopEndIndex + 1;
+    } else {
+      i++;
+    }
+  }
+
+  return stops;
+}
+
+/** Create a custom stop icon with red circle and white duration inside */
+function createStopIcon(durationMinutes) {
+  const size = 30;
+  const html = `
+    <div style="position:relative; width:${size}px; height:${size}px;">
+      <div style="
+        position:absolute; inset:0;
+        background:#ef4444;
+        border-radius:50%;
+        display:flex; align-items:center; justify-content:center;
+        color:#fff; font-weight:800; font-size:11px;
+        border: 2px solid white;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+      ">${durationMinutes}</div>
+    </div>`;
+  return L.divIcon({
+    html,
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
+  });
+}
 
 /** Create a custom HTML div icon (pulsing circle with initials) */
 function createUserIcon(name, color, isSelected) {
@@ -83,6 +172,17 @@ function MapCenterUpdater({ center }) {
       initialised.current = true;
     }
   }, [center, map]);
+  return null;
+}
+
+/** Helper: smoothly pan the map to the active playback coordinate */
+function PlaybackCenterer({ target, active }) {
+  const map = useMap();
+  useEffect(() => {
+    if (active && target) {
+      map.panTo(target, { animate: true, duration: 0.3 });
+    }
+  }, [target, active, map]);
   return null;
 }
 
@@ -184,15 +284,24 @@ export default function AttendanceTrackingPage() {
   const { theme } = useTheme();
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   const tileUrl = isDark
-    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+    ? 'https://{s.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    : 'https://{s.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
 
   const [activeSessions, setActiveSessions]   = useState([]);
   const [history, setHistory]                 = useState([]);
   const [selectedSession, setSelectedSession] = useState(null);
+  
+  // GPS Trail & Playback States
+  const [sessionPings, setSessionPings]       = useState([]);
   const [trail, setTrail]                     = useState([]);
   const [rawTrail, setRawTrail]               = useState([]);
+  const [stops, setStops]                     = useState([]);
   const [snapping, setSnapping]               = useState(false);
+  const [isPlaying, setIsPlaying]             = useState(false);
+  const [playbackIndex, setPlaybackIndex]     = useState(0);
+  const [playbackSpeed, setPlaybackSpeed]     = useState(20); // 1x, 2x, 5x, 10x, 20x
+  const [autoCenter, setAutoCenter]           = useState(true);
+
   const [tab, setTab]                         = useState('live');
   const [lastRefresh, setLastRefresh]         = useState(null);
   const [loading, setLoading]                 = useState(true);
@@ -246,20 +355,78 @@ export default function AttendanceTrackingPage() {
 
   // ─── Load trail when a session is selected ─────────────────────────────────
   useEffect(() => {
-    if (!selectedSession) { setTrail([]); setRawTrail([]); return; }
+    if (!selectedSession) {
+      setTrail([]);
+      setRawTrail([]);
+      setSessionPings([]);
+      setStops([]);
+      setPlaybackIndex(0);
+      setIsPlaying(false);
+      return;
+    }
     setSnapping(true);
+    setIsPlaying(false);
     attendanceAPI.trail(selectedSession.id)
       .then(async res => {
-        const pts = (res.data.data || [])
-          .filter(p => p && typeof p.lat === 'number' && typeof p.lng === 'number' && !isNaN(p.lat) && !isNaN(p.lng))
-          .map(p => [p.lat, p.lng]);
+        const pingsData = res.data.data || [];
+        const validPings = pingsData.filter(p => p && typeof p.lat === 'number' && typeof p.lng === 'number' && !isNaN(p.lat) && !isNaN(p.lng));
+        setSessionPings(validPings);
+
+        const pts = validPings.map(p => [p.lat, p.lng]);
         setRawTrail(pts);
+        setPlaybackIndex(pts.length > 0 ? pts.length - 1 : 0);
+
+        // Detect stops
+        const detectedStops = detectStops(validPings);
+        setStops(detectedStops);
+
+        // Snap path to roads
         const snapped = await snapToRoads(pts);
         setTrail(snapped);
       })
-      .catch(() => { setTrail([]); setRawTrail([]); })
+      .catch(() => {
+        setTrail([]);
+        setRawTrail([]);
+        setSessionPings([]);
+        setStops([]);
+        setPlaybackIndex(0);
+      })
       .finally(() => setSnapping(false));
   }, [selectedSession]);
+
+  // ─── Playback Timer Effect ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isPlaying) return;
+    if (rawTrail.length === 0) return;
+    if (playbackIndex >= rawTrail.length - 1) {
+      setIsPlaying(false);
+      return;
+    }
+
+    const intervalMs = 200;
+    const step = playbackSpeed;
+
+    const timer = setInterval(() => {
+      setPlaybackIndex(prev => {
+        const next = prev + step;
+        if (next >= rawTrail.length - 1) {
+          setIsPlaying(false);
+          return rawTrail.length - 1;
+        }
+        return next;
+      });
+    }, intervalMs);
+
+    return () => clearInterval(timer);
+  }, [isPlaying, playbackSpeed, rawTrail.length, playbackIndex]);
+
+  // ─── Play / Pause Trigger ──────────────────────────────────────────────────
+  const handlePlayPause = () => {
+    if (playbackIndex >= rawTrail.length - 1) {
+      setPlaybackIndex(0);
+    }
+    setIsPlaying(!isPlaying);
+  };
 
   // ─── Select a session ───────────────────────────────────────────────────────
   const handleSelectSession = (session) => {
@@ -304,6 +471,56 @@ export default function AttendanceTrackingPage() {
     ? getColor(activeSessions.findIndex(s => s.id === selectedSession.id))
     : '#6366f1';
 
+  // ─── Stats Calculator ──────────────────────────────────────────────────────
+  const calculateStats = () => {
+    if (sessionPings.length === 0) {
+      return {
+        straightDistanceKm: '0.00',
+        movingDurationStr: '0m',
+        stoppedDurationStr: '0m',
+        stopsCount: 0,
+        maxSpeedKmph: '0.0',
+        pingsCount: 0
+      };
+    }
+
+    const first = sessionPings[0];
+    const last = sessionPings[sessionPings.length - 1];
+    const straightDist = calculateDistance(first.lat, first.lng, last.lat, last.lng);
+    
+    const stopsCount = stops.length;
+    const stoppedMins = stops.reduce((acc, s) => acc + s.durationMinutes, 0);
+
+    const startTime = new Date(first.recorded_at).getTime();
+    const endTime = new Date(last.recorded_at).getTime();
+    const totalMins = Math.max(1, Math.round((endTime - startTime) / 60000));
+    const movingMins = Math.max(0, totalMins - stoppedMins);
+
+    const formatMins = (mins) => {
+      if (mins < 60) return `${mins}m`;
+      return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+    };
+
+    const maxSpeed = Math.max(...sessionPings.map(p => p.speed_kmph || 0));
+
+    return {
+      straightDistanceKm: straightDist.toFixed(2),
+      movingDurationStr: formatMins(movingMins),
+      stoppedDurationStr: formatMins(stoppedMins),
+      stopsCount,
+      maxSpeedKmph: maxSpeed.toFixed(1),
+      pingsCount: sessionPings.length
+    };
+  };
+
+  const stats = calculateStats();
+  const activePing = sessionPings[playbackIndex];
+  const activePlaybackCoord = rawTrail[playbackIndex];
+
+  // Dynamic Polylines representation
+  const completedTrail = rawTrail.slice(0, playbackIndex + 1);
+  const remainingTrail = rawTrail.slice(playbackIndex);
+
   // ─── GPS Logs helpers ───────────────────────────────────────────────────────
   const allSessions = [
     ...activeSessions,
@@ -341,9 +558,9 @@ export default function AttendanceTrackingPage() {
         <div className="page-header-left">
           <h2 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <MapPin size={22} className="text-primary" />
-            Live Staff Tracking
+            Live Staff Tracking & Playback
           </h2>
-          <p>Real-time GPS location of active sales personnel.</p>
+          <p>Real-time GPS tracking and path replaying of sales personnel routes.</p>
         </div>
         <div className="page-header-right" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           {loadError && (
@@ -368,7 +585,7 @@ export default function AttendanceTrackingPage() {
       {/* ── Tab Switcher ─────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 12, borderBottom: '1px solid var(--color-border)' }}>
         {[
-          { key: 'live',    label: 'Live Map',           Icon: Activity },
+          { key: 'live',    label: 'Tracking Map',       Icon: Activity },
           { key: 'history', label: 'Attendance History',  Icon: History },
           { key: 'logs',    label: 'GPS Logs',            Icon: List },
         ].map(({ key, label, Icon }) => (
@@ -408,6 +625,41 @@ export default function AttendanceTrackingPage() {
             width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8,
             overflowY: 'auto', paddingBottom: 8,
           }}>
+            {/* Historical selected session info block */}
+            {selectedSession && !activeSessions.some(s => s.id === selectedSession.id) && (
+              <div style={{
+                background: 'rgba(245, 158, 11, 0.08)',
+                border: '1.5px dashed #f59e0b',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px 14px',
+                marginBottom: 8,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  🕒 Historical Playback
+                </div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                  {selectedSession.user_name}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                  Session: {new Date(selectedSession.clock_in_at).toLocaleDateString()}
+                </div>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    setSelectedSession(null);
+                    setPlaybackIndex(0);
+                    setIsPlaying(false);
+                  }}
+                  style={{ marginTop: 4, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                >
+                  ◀ Close Playback
+                </button>
+              </div>
+            )}
+
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
               {activeSessions.length > 0 ? `${activeSessions.length} Active Now` : 'No Active Staff'}
             </div>
@@ -482,120 +734,341 @@ export default function AttendanceTrackingPage() {
             })}
           </div>
 
-          {/* ── Map ───────────────────────────────────────────────────── */}
-          <div style={{ flex: 1, borderRadius: 'var(--radius-lg)', overflow: 'hidden', border: '1px solid var(--color-border)', position: 'relative', minHeight: 400 }}>
-            <MapContainer
-              center={defaultCenter}
-              zoom={12}
-              style={{ height: '100%', width: '100%' }}
-              zoomControl={true}
-            >
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                url={tileUrl}
-              />
+          {/* ── Map + Playback Layout Column ─────────────────────────────── */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
+            {/* Map Canvas */}
+            <div style={{ flex: 1, borderRadius: 'var(--radius-lg)', overflow: 'hidden', border: '1px solid var(--color-border)', position: 'relative', minHeight: 400 }}>
+              <MapContainer
+                center={defaultCenter}
+                zoom={12}
+                style={{ height: '100%', width: '100%' }}
+                zoomControl={true}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                  url={tileUrl}
+                />
 
-              {/* Auto-center when first data arrives */}
-              <MapCenterUpdater center={sessionWithGps ? [parseFloat(sessionWithGps.last_lat), parseFloat(sessionWithGps.last_lng)] : null} />
+                {/* Auto-center when first data arrives */}
+                <MapCenterUpdater center={sessionWithGps ? [parseFloat(sessionWithGps.last_lat), parseFloat(sessionWithGps.last_lng)] : null} />
 
-              {/* Fly to selected user */}
-              {flyTarget && <FlyTo target={flyTarget} />}
+                {/* Fly to selected user when first loaded */}
+                {flyTarget && <FlyTo target={flyTarget} />}
 
-              {/* Road-snapped trail */}
-              {trail.length > 1 && (
-                <>
-                  <Polyline positions={trail} color={selectedColor} weight={6} opacity={0.3} />
-                  <Polyline positions={trail} color={selectedColor} weight={3.5} opacity={0.95} />
-                </>
-              )}
+                {/* Smooth playback map center helper */}
+                <PlaybackCenterer target={activePlaybackCoord} active={autoCenter && isPlaying} />
 
-              {/* Raw GPS ping dots */}
-              {rawTrail.map((pt, idx) => (
-                <CircleMarker
-                  key={`raw-${idx}`}
-                  center={pt}
-                  radius={3.5}
-                  fillColor={selectedColor}
-                  color="#ffffff"
-                  weight={1.5}
-                  fillOpacity={0.85}
-                  opacity={0.9}
-                >
-                  <Popup>
-                    <div style={{ fontFamily: 'system-ui,sans-serif', fontSize: 11 }}>
-                      <strong>GPS Ping #{idx + 1}</strong>
-                    </div>
-                  </Popup>
-                </CircleMarker>
-              ))}
+                {/* Road-snapped trail in background (if loaded) */}
+                {trail.length > 1 && (
+                  <Polyline positions={trail} color={selectedColor} weight={6} opacity={0.15} />
+                )}
 
-              {/* Staff markers */}
-              {activeSessions.map((session, idx) => {
-                const lat = parseFloat(session.last_lat);
-                const lng = parseFloat(session.last_lng);
-                if (isNaN(lat) || isNaN(lng)) return null;
-                const color = getColor(idx);
-                const isSelected = selectedSession?.id === session.id;
-                return (
+                {/* Completed raw GPS trail */}
+                {completedTrail.length > 1 && (
+                  <Polyline positions={completedTrail} color={selectedColor} weight={4} opacity={0.9} />
+                )}
+
+                {/* Remaining raw GPS trail (Dashed) */}
+                {remainingTrail.length > 1 && (
+                  <Polyline positions={remainingTrail} color={selectedColor} weight={3} opacity={0.25} dashArray="5, 10" />
+                )}
+
+                {/* Raw GPS ping dots (rendered only up to current playback index) */}
+                {rawTrail.slice(0, playbackIndex + 1).map((pt, idx) => (
+                  <CircleMarker
+                    key={`raw-${idx}`}
+                    center={pt}
+                    radius={3.5}
+                    fillColor={selectedColor}
+                    color="#ffffff"
+                    weight={1.5}
+                    fillOpacity={0.85}
+                    opacity={0.9}
+                  >
+                    <Popup>
+                      <div style={{ fontFamily: 'system-ui,sans-serif', fontSize: 11 }}>
+                        <strong>GPS Ping #{idx + 1}</strong>
+                        {sessionPings[idx] && (
+                          <div style={{ marginTop: 4 }}>
+                            Time: {new Date(sessionPings[idx].recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}<br/>
+                            Speed: {(sessionPings[idx].speed_kmph || 0).toFixed(1)} km/h
+                          </div>
+                        )}
+                      </div>
+                    </Popup>
+                  </CircleMarker>
+                ))}
+
+                {/* Stop Point Markers rendering stop duration in minutes */}
+                {stops.map((stop, sIdx) => (
                   <Marker
-                    key={session.id}
-                    position={[lat, lng]}
-                    icon={createUserIcon(session.user_name, color, isSelected)}
-                    eventHandlers={{ click: () => handleSelectSession(session) }}
+                    key={`stop-${sIdx}`}
+                    position={[stop.lat, stop.lng]}
+                    icon={createStopIcon(stop.durationMinutes)}
                   >
                     <Popup>
                       <div style={{ fontFamily: 'system-ui,sans-serif', minWidth: 160 }}>
-                        <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4 }}>{session.user_name}</div>
-                        <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>📍 {session.last_lat?.toFixed(5)}, {session.last_lng?.toFixed(5)}</div>
-                        <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>⏱ Active {fmtDuration(session.duration_minutes)}</div>
-                        <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>🚗 Distance: {session.distance_km?.toFixed(2) || '0.00'} km</div>
-                        <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>⚡ Speed: {session.current_speed_kmph?.toFixed(1) || '0.0'} km/h</div>
-                        <div style={{ fontSize: 12, color: '#22c55e', fontWeight: 600, marginTop: 4 }}>{session.ping_count} GPS pings</div>
+                        <div style={{ fontWeight: 800, fontSize: 13, color: '#ef4444', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          🛑 Stopped for {stop.durationMinutes} mins
+                        </div>
+                        <div style={{ fontSize: 11.5, color: 'var(--color-text-secondary)', marginBottom: 2 }}>
+                          <strong>Arrival:</strong> {fmtDateTime(stop.startTime)}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: 'var(--color-text-secondary)' }}>
+                          <strong>Departure:</strong> {fmtDateTime(stop.endTime)}
+                        </div>
                       </div>
                     </Popup>
                   </Marker>
-                );
-              })}
-            </MapContainer>
+                ))}
 
-            {/* Live indicator overlay */}
-            <div style={{
-              position: 'absolute', top: 12, right: 12, zIndex: 999,
-              background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)',
-              border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
-              padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: 4,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: loadError ? '#ef4444' : '#22c55e', animation: loadError ? 'none' : 'live-pulse 1.5s infinite' }} />
-                <span style={{ color: '#fff', fontSize: 11, fontWeight: 600 }}>
-                  {loadError ? 'DISCONNECTED' : `LIVE · Refreshes every ${REFRESH_INTERVAL_MS / 1000}s`}
-                </span>
+                {/* Playback Cursor Marker (Only if coordinate is valid) */}
+                {activePlaybackCoord && selectedSession && (
+                  <Marker
+                    position={activePlaybackCoord}
+                    icon={createUserIcon(selectedSession.user_name, selectedColor, true)}
+                  >
+                    <Popup>
+                      <div style={{ fontFamily: 'system-ui,sans-serif', minWidth: 160 }}>
+                        <div style={{ fontWeight: 850, fontSize: 14, marginBottom: 4 }}>{selectedSession.user_name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 2 }}>
+                          📍 {activePlaybackCoord[0].toFixed(5)}, {activePlaybackCoord[1].toFixed(5)}
+                        </div>
+                        {activePing && (
+                          <>
+                            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 2 }}>
+                              ⏱ Time: {new Date(activePing.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 2 }}>
+                              ⚡ Speed: {activePing.speed_kmph?.toFixed(1) || '0.0'} km/h
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                              🎯 Accuracy: ±{activePing.accuracy?.toFixed(0) || '0'}m
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </Popup>
+                  </Marker>
+                )}
+
+                {/* Render other active staff positions on map (excluding selected) */}
+                {activeSessions.map((session, idx) => {
+                  const lat = parseFloat(session.last_lat);
+                  const lng = parseFloat(session.last_lng);
+                  if (isNaN(lat) || isNaN(lng)) return null;
+                  if (selectedSession && selectedSession.id === session.id) return null; // Rendered as active playback marker
+                  const color = getColor(idx);
+                  return (
+                    <Marker
+                      key={session.id}
+                      position={[lat, lng]}
+                      icon={createUserIcon(session.user_name, color, false)}
+                      eventHandlers={{ click: () => handleSelectSession(session) }}
+                    >
+                      <Popup>
+                        <div style={{ fontFamily: 'system-ui,sans-serif', minWidth: 160 }}>
+                          <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4 }}>{session.user_name}</div>
+                          <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>📍 {session.last_lat?.toFixed(5)}, {session.last_lng?.toFixed(5)}</div>
+                          <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>⏱ Active {fmtDuration(session.duration_minutes)}</div>
+                          <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>🚗 Distance: {session.distance_km?.toFixed(2) || '0.00'} km</div>
+                          <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>⚡ Speed: {session.current_speed_kmph?.toFixed(1) || '0.0'} km/h</div>
+                          <div style={{ fontSize: 12, color: '#22c55e', fontWeight: 600, marginTop: 4 }}>{session.ping_count} GPS pings</div>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  );
+                })}
+              </MapContainer>
+
+              {/* Live indicator overlay */}
+              <div style={{
+                position: 'absolute', top: 12, right: 12, zIndex: 999,
+                background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)',
+                border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
+                padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: 4,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: loadError ? '#ef4444' : '#22c55e', animation: loadError ? 'none' : 'live-pulse 1.5s infinite' }} />
+                  <span style={{ color: '#fff', fontSize: 11, fontWeight: 600 }}>
+                    {loadError ? 'DISCONNECTED' : `LIVE · Refreshes every ${REFRESH_INTERVAL_MS / 1000}s`}
+                  </span>
+                </div>
+                {snapping && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 4, marginTop: 2 }}>
+                    <Loader2 size={11} className="spin-icon" color="#3b82f6" />
+                    <span style={{ color: '#3b82f6', fontSize: 10, fontWeight: 600 }}>Snapping path to roads...</span>
+                  </div>
+                )}
               </div>
-              {snapping && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 4, marginTop: 2 }}>
-                  <Loader2 size={11} className="spin-icon" color="#3b82f6" />
-                  <span style={{ color: '#3b82f6', fontSize: 10, fontWeight: 600 }}>Snapping path to roads...</span>
+
+              {/* No GPS data warning for selected session */}
+              {selectedSession && rawTrail.length === 0 && !loading && (
+                <div style={{
+                  position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                  zIndex: 999, background: 'rgba(0,0,0,0.85)', color: '#fff',
+                  padding: '16px 20px', borderRadius: 10, textAlign: 'center', fontSize: 13,
+                  border: '1px solid rgba(255,255,255,0.1)', maxWidth: 280
+                }}>
+                  <AlertCircle size={22} style={{ marginBottom: 6, color: '#f59e0b', margin: '0 auto 8px' }} />
+                  <div style={{ fontWeight: 700 }}>No GPS Trail Available</div>
+                  <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>No coordinates recorded for this session. The user might have been offline.</div>
+                </div>
+              )}
+
+              {/* General No GPS data message */}
+              {!loading && activeSessions.length > 0 && activeSessions.every(s => !s.last_lat) && !selectedSession && (
+                <div style={{
+                  position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                  zIndex: 999, background: 'rgba(0,0,0,0.8)', color: '#fff',
+                  padding: '16px 20px', borderRadius: 10, textAlign: 'center', fontSize: 13,
+                }}>
+                  <WifiOff size={20} style={{ marginBottom: 6 }} />
+                  <div>Staff are active but no GPS coordinates received yet.</div>
+                  <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>Waiting for first ping…</div>
                 </div>
               )}
             </div>
 
-            {/* No GPS data message */}
-            {!loading && activeSessions.length > 0 && activeSessions.every(s => !s.last_lat) && (
-              <div style={{
-                position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                zIndex: 999, background: 'rgba(0,0,0,0.8)', color: '#fff',
-                padding: '16px 20px', borderRadius: 10, textAlign: 'center', fontSize: 13,
-              }}>
-                <WifiOff size={20} style={{ marginBottom: 6 }} />
-                <div>Staff are active but no GPS coordinates received yet.</div>
-                <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>Waiting for first ping…</div>
+            {/* Playback Controls Panel */}
+            {selectedSession && rawTrail.length > 0 && (
+              <div className="card" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14, flexShrink: 0 }}>
+                {/* Control elements row */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                  {/* Play/Pause Button */}
+                  <button
+                    onClick={handlePlayPause}
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: '50%',
+                      background: 'var(--color-primary-light)',
+                      border: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 6px rgba(99, 102, 241, 0.4)',
+                      transition: 'all 0.2s',
+                      flexShrink: 0
+                    }}
+                    title={isPlaying ? 'Pause' : 'Play'}
+                  >
+                    {isPlaying ? <Pause size={16} fill="#fff" /> : <Play size={16} fill="#fff" style={{ marginLeft: 2 }} />}
+                  </button>
+
+                  {/* Range Timeline Slider */}
+                  <input
+                    type="range"
+                    min={0}
+                    max={Math.max(0, rawTrail.length - 1)}
+                    value={playbackIndex}
+                    onChange={e => {
+                      setPlaybackIndex(parseInt(e.target.value, 10));
+                      setIsPlaying(false);
+                    }}
+                    style={{
+                      flex: 1,
+                      height: 6,
+                      borderRadius: 3,
+                      background: 'var(--color-border)',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      accentColor: 'var(--color-primary-light)',
+                      minWidth: 150
+                    }}
+                  />
+
+                  {/* Playback Time stamp */}
+                  <div style={{
+                    fontFamily: 'monospace',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: 'var(--color-text-primary)',
+                    minWidth: 80,
+                    textAlign: 'center',
+                    flexShrink: 0
+                  }}>
+                    {activePing ? new Date(activePing.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--:--:--'}
+                  </div>
+
+                  {/* Speed Multipliers */}
+                  <div style={{ display: 'flex', border: '1px solid var(--color-border)', borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
+                    {[1, 2, 5, 10, 20].map(speed => (
+                      <button
+                        key={speed}
+                        onClick={() => setPlaybackSpeed(speed)}
+                        style={{
+                          padding: '6px 12px',
+                          background: playbackSpeed === speed ? 'var(--color-primary-light)' : 'transparent',
+                          color: playbackSpeed === speed ? '#fff' : 'var(--color-text-muted)',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: 12,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {speed}x
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Auto Center Map Toggle */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', userSelect: 'none', color: 'var(--color-text-secondary)', marginLeft: 'auto', flexShrink: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={autoCenter}
+                      onChange={e => setAutoCenter(e.target.checked)}
+                      style={{ cursor: 'pointer', accentColor: 'var(--color-primary-light)' }}
+                    />
+                    Follow Marker
+                  </label>
+                </div>
+
+                {/* Divider */}
+                <div style={{ height: 1, background: 'var(--color-border)', opacity: 0.5 }} />
+
+                {/* Statistics Grid */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(6, 1fr)',
+                  gap: 10,
+                  textAlign: 'center'
+                }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Straight distance</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-text-primary)' }}>{stats.straightDistanceKm} km</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Moving</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-text-primary)' }}>{stats.movingDurationStr}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Stopped</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-text-primary)' }}>{stats.stoppedDurationStr}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Stops</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: '#ef4444' }}>{stats.stopsCount}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Max speed</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-text-primary)' }}>{stats.maxSpeedKmph} km/h</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Pings</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-text-primary)' }}>{stats.pingsCount}</div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* ══════════════ HISTORY TAB ════════════════════════════════════════ */}
+      {/* ─── Attendance History Tab ────────────────────────────────────── */}
       {tab === 'history' && (
         <div className="card" style={{ flex: 1, overflow: 'hidden' }}>
           <div className="table-wrapper" style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto' }}>
@@ -610,12 +1083,13 @@ export default function AttendanceTrackingPage() {
                   <th>Distance</th>
                   <th>GPS Pings</th>
                   <th>Status</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {history.length === 0 ? (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: 32, color: 'var(--color-text-muted)' }}>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: 32, color: 'var(--color-text-muted)' }}>
                       No attendance sessions recorded yet.
                     </td>
                   </tr>
@@ -635,6 +1109,20 @@ export default function AttendanceTrackingPage() {
                           : <span className="badge badge-gray">Ended</span>
                         }
                       </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => {
+                            setSelectedSession(s);
+                            setTab('live');
+                          }}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 12 }}
+                          title="Load and play the route trail of this session"
+                        >
+                          <Navigation size={12} />
+                          Play Route
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -644,7 +1132,7 @@ export default function AttendanceTrackingPage() {
         </div>
       )}
 
-      {/* ══════════════ GPS LOGS TAB — Flat Table ══════════════════════════ */}
+      {/* ─── GPS Logs Tab ────────────────────────────────────────────── */}
       {tab === 'logs' && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, gap: 10 }}>
 
@@ -683,7 +1171,7 @@ export default function AttendanceTrackingPage() {
             </button>
           </div>
 
-          {/* ── Sessions table (outer) ──────────────────────────────────── */}
+          {/* Sessions table (outer) */}
           <div className="card" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ overflowY: 'auto', flex: 1 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -723,12 +1211,13 @@ export default function AttendanceTrackingPage() {
                       Pings <SortIcon col="ping_count" />
                     </th>
                     <th style={{ padding: '9px 12px', textAlign: 'center', fontWeight: 700, whiteSpace: 'nowrap' }}>Status</th>
+                    <th style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredSessions.length === 0 && (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--color-text-muted)' }}>
+                      <td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--color-text-muted)' }}>
                         No sessions found.
                       </td>
                     </tr>
@@ -742,7 +1231,7 @@ export default function AttendanceTrackingPage() {
 
                     return (
                       <>
-                        {/* ── Session summary row ────────────────────── */}
+                        {/* Session summary row */}
                         <tr
                           key={s.id}
                           style={{
@@ -800,12 +1289,26 @@ export default function AttendanceTrackingPage() {
                               : <span className="badge badge-gray">Ended</span>
                             }
                           </td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                            <button
+                              className="btn btn-primary btn-sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedSession(s);
+                                setTab('live');
+                              }}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', fontSize: 11 }}
+                            >
+                              <Navigation size={11} />
+                              Play
+                            </button>
+                          </td>
                         </tr>
 
-                        {/* ── Expanded ping detail row ─────────────── */}
+                        {/* Expanded ping detail row */}
                         {isExpanded && (
                           <tr key={`${s.id}-pings`} style={{ borderTop: 'none' }}>
-                            <td colSpan={8} style={{ padding: 0 }}>
+                            <td colSpan={9} style={{ padding: 0 }}>
                               <div style={{ background: 'var(--color-bg-primary)', borderLeft: `3px solid ${color}`, margin: '0 0 2px 0' }}>
                                 {isPingLoading ? (
                                   <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}>
