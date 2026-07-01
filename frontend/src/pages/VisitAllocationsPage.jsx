@@ -62,7 +62,13 @@ export default function VisitAllocationsPage() {
   const { user } = useAuth();
   const [salespersons, setSalespersons] = useState([]);
   const [selectedSalespersonId, setSelectedSalespersonId] = useState('');
-  const [visitDate, setVisitDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [visitDate, setVisitDate] = useState(() => {
+    const localDate = new Date();
+    const year = localDate.getFullYear();
+    const month = String(localDate.getMonth() + 1).padStart(2, '0');
+    const day = String(localDate.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
   const [allocations, setAllocations] = useState([]);
   const [loadingAllocations, setLoadingAllocations] = useState(false);
   const [targets, setTargets] = useState([]); // combined list of leads and customers

@@ -135,7 +135,11 @@ export default function SalesRoute() {
   const loadAssigned = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const todayStr = new Date().toISOString().split('T')[0];
+      const localDate = new Date();
+      const year = localDate.getFullYear();
+      const month = String(localDate.getMonth() + 1).padStart(2, '0');
+      const day = String(localDate.getDate()).padStart(2, '0');
+      const todayStr = `${year}-${month}-${day}`;
       const resVisits = await visitAllocationsAPI.listMy({ date: todayStr });
       const visits = resVisits.data.data || [];
       
