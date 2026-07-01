@@ -7,7 +7,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { ordersAPI } from '../../api';
+import { ordersAPI, visitAllocationsAPI } from '../../api';
 import { useTheme } from '../../context/ThemeContext';
 import toast from 'react-hot-toast';
 import { MapContainer, TileLayer, Marker, Polyline, CircleMarker, useMap } from 'react-leaflet';
@@ -77,7 +77,7 @@ function createCustomerMarkerIcon(name, status, isSelected) {
     ? name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
     : '??';
   
-  const color = status === 'PENDING' ? '#10b981' : '#3b82f6';
+  const color = status === 'PENDING' ? '#10b981' : status === 'COMPLETED' ? '#10b981' : status === 'SKIPPED' ? '#ef4444' : '#3b82f6';
   const size = isSelected ? 40 : 32;
   const html = `
     <div style="position:relative; width:${size}px; height:${size}px;">
@@ -116,6 +116,7 @@ export default function SalesRoute() {
   const tileUrl = "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}";
 
   const [assigned, setAssigned] = useState([]);
+  const [useAllocations, setUseAllocations] = useState(true);
   const [loading, setLoading] = useState(true);
   const [myLoc, setMyLoc] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -130,18 +131,48 @@ export default function SalesRoute() {
 
   const watchIdRef = useRef(null);
 
-  // Load assigned tasks/leads
+  // Load assigned tasks/leads (or visit allocations)
   const loadAssigned = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const res = await ordersAPI.listMyAssigned();
-      setAssigned(res.data.data || []);
+      const todayStr = new Date().toISOString().split('T')[0];
+      const resVisits = await visitAllocationsAPI.listMy({ date: todayStr });
+      const visits = resVisits.data.data || [];
+      
+      if (visits.length > 0) {
+        setAssigned(visits);
+        setUseAllocations(true);
+      } else {
+        const res = await ordersAPI.listMyAssigned();
+        setAssigned(res.data.data || []);
+        setUseAllocations(false);
+      }
     } catch (err) {
-      toast.error('Failed to load assigned routes');
+      try {
+        const res = await ordersAPI.listMyAssigned();
+        setAssigned(res.data.data || []);
+        setUseAllocations(false);
+      } catch (innerErr) {
+        toast.error('Failed to load assigned routes');
+      }
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const handleUpdateVisitStatus = async (id, status) => {
+    setLoading(true);
+    try {
+      await visitAllocationsAPI.updateStatus(id, status);
+      toast.success(`Visit marked as ${status.toLowerCase()}`);
+      await loadAssigned(true);
+      setSelectedItem(prev => prev && prev.id === id ? { ...prev, visit_status: status, status: status } : prev);
+    } catch (err) {
+      toast.error('Failed to update visit status');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     loadAssigned();
@@ -260,9 +291,10 @@ export default function SalesRoute() {
             latitude: pos.coords.latitude.toString(),
             longitude: pos.coords.longitude.toString()
           };
-          await ordersAPI.updateCustomFields(item.id, fields);
+          const orderId = item.order_id || item.id;
+          await ordersAPI.updateCustomFields(orderId, fields);
           toast.success('Location pinned successfully!');
-          loadAssigned(true);
+          loadAssigned();
           setSelectedItem(prev => ({ ...prev, custom_fields: { ...prev.custom_fields, ...fields } }));
           setFlyTarget([pos.coords.latitude, pos.coords.longitude]);
         } catch (err) {
@@ -318,10 +350,10 @@ export default function SalesRoute() {
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--s-text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
               <Navigation size={20} color="var(--s-primary)" />
-              Assigned Routes
+              {useAllocations ? 'Scheduled Visits' : 'Assigned Routes'}
             </h2>
             <p style={{ fontSize: 12, color: 'var(--s-text-3)', margin: '2px 0 0 0' }}>
-              {assigned.length} locations assigned by Admin
+              {assigned.length} {useAllocations ? 'locations allocated for today' : 'locations assigned by Admin'}
             </p>
           </div>
           <button
@@ -543,8 +575,56 @@ export default function SalesRoute() {
                   </div>
                 )}
 
+                {/* Admin Instructions Notes */}
+                {useAllocations && selectedItem.notes && (
+                  <div style={{ fontSize: 12, color: 'var(--s-text-2)', background: 'rgba(59,130,246,0.06)', padding: '8px 10px', borderRadius: 8, border: '1px solid rgba(59,130,246,0.15)', lineHeight: 1.4, textAlign: 'left' }}>
+                    <strong>Admin Instructions:</strong> {selectedItem.notes}
+                  </div>
+                )}
+
                 {/* Actions */}
-                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                  {/* Status update buttons if using allocations */}
+                  {useAllocations && selectedItem.visit_status === 'PENDING' && (
+                    <div style={{ display: 'flex', gap: 6, width: '100%' }}>
+                      <button
+                        onClick={() => handleUpdateVisitStatus(selectedItem.id, 'COMPLETED')}
+                        style={{
+                          flex: 1, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          color: '#fff', border: 'none', borderRadius: 10, padding: '10px 14px',
+                          fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                          cursor: 'pointer', boxShadow: '0 4px 12px rgba(16,185,129,0.2)'
+                        }}
+                      >
+                        ✓ Mark Visited
+                      </button>
+                      <button
+                        onClick={() => handleUpdateVisitStatus(selectedItem.id, 'SKIPPED')}
+                        style={{
+                          flex: 1, background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                          color: '#fff', border: 'none', borderRadius: 10, padding: '10px 14px',
+                          fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                          cursor: 'pointer', boxShadow: '0 4px 12px rgba(239,68,68,0.2)'
+                        }}
+                      >
+                        ✗ Skip Visit
+                      </button>
+                    </div>
+                  )}
+                  {useAllocations && selectedItem.visit_status !== 'PENDING' && (
+                    <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid var(--s-border)' }}>
+                      <span style={{ fontSize: 12.5, color: 'var(--s-text-2)', fontWeight: 600 }}>
+                        Visit Status: <strong style={{ color: selectedItem.visit_status === 'COMPLETED' ? '#10b981' : '#f87171' }}>{selectedItem.visit_status}</strong>
+                      </span>
+                      <button 
+                        onClick={() => handleUpdateVisitStatus(selectedItem.id, 'PENDING')}
+                        style={{ background: 'none', border: 'none', color: 'var(--s-primary)', cursor: 'pointer', padding: 2, textDecoration: 'underline', fontSize: 12, fontWeight: 700 }}
+                      >
+                        Reset Status
+                      </button>
+                    </div>
+                  )}
+
                   {selectedItem.custom_fields?.latitude && selectedItem.custom_fields?.longitude ? (
                     <button
                       onClick={() => setIsNavigating(true)}
@@ -558,7 +638,7 @@ export default function SalesRoute() {
                       }}
                     >
                       <Navigation size={14} fill="#fff" />
-                      Start In-App Navigation
+                      Start Navigation
                     </button>
                   ) : (
                     <button
@@ -591,7 +671,6 @@ export default function SalesRoute() {
                     </button>
                   )}
 
-                  {/* Re-pin location if it already exists */}
                   {selectedItem.custom_fields?.latitude && selectedItem.custom_fields?.longitude && (
                     <button
                       onClick={() => handlePinLocation(selectedItem)}
@@ -635,12 +714,23 @@ export default function SalesRoute() {
           {!isNavigating && (
             <div style={{ padding: '0 16px', flexShrink: 0 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--s-text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-                Assigned Visits
+                {useAllocations ? 'Allocated Route Sequence' : 'Assigned Visits'}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 180, overflowY: 'auto' }}>
                 {assigned.map(item => {
                   const isSelected = selectedItem?.id === item.id;
                   const hasGps = item.custom_fields?.latitude && item.custom_fields?.longitude;
+                  
+                  let visitStatusLabel = null;
+                  if (useAllocations) {
+                    const statusColor = item.visit_status === 'COMPLETED' ? '#10b981' : item.visit_status === 'SKIPPED' ? '#ef4444' : '#64748b';
+                    visitStatusLabel = (
+                      <span style={{ fontSize: 9, fontWeight: 700, color: statusColor, padding: '1px 5px', border: `1px solid ${statusColor}40`, borderRadius: 10, textTransform: 'uppercase', marginLeft: 8 }}>
+                        {item.visit_status}
+                      </span>
+                    );
+                  }
+
                   return (
                     <div
                       key={item.id}
@@ -652,16 +742,27 @@ export default function SalesRoute() {
                         justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.15s'
                       }}
                     >
-                      <div>
-                        <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--s-text)', marginBottom: 2 }}>
-                          {item.customer_name || item.customer}
-                        </div>
-                        <div style={{ fontSize: 11.5, color: 'var(--s-text-3)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span>{item.invoice_number || item.order_number}</span>
-                          {item.status === 'PENDING' && <span className="s-chip green" style={{ fontSize: 8, padding: '0px 4px' }}>LEAD</span>}
-                          <span style={{ color: hasGps ? '#10b981' : '#f59e0b' }}>
-                            {hasGps ? '• GPS Pinned' : '• No GPS'}
-                          </span>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        {useAllocations && (
+                          <div style={{
+                            width: 22, height: 22, borderRadius: '50%', background: 'var(--s-border)',
+                            color: 'var(--s-text-2)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 11, fontWeight: 800
+                          }}>{item.sequence}</div>
+                        )}
+                        <div>
+                          <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--s-text)', marginBottom: 2, display: 'flex', alignItems: 'center' }}>
+                            {item.customer_name || item.customer}
+                            {visitStatusLabel}
+                          </div>
+                          <div style={{ fontSize: 11.5, color: 'var(--s-text-3)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span>{item.invoice_number || item.order_number}</span>
+                            {item.status === 'PENDING' && !useAllocations && <span className="s-chip green" style={{ fontSize: 8, padding: '0px 4px' }}>LEAD</span>}
+                            {item.is_lead_order && <span className="s-chip green" style={{ fontSize: 8, padding: '0px 4px' }}>LEAD</span>}
+                            <span style={{ color: hasGps ? '#10b981' : '#f59e0b' }}>
+                              {hasGps ? '• GPS Pinned' : '• No GPS'}
+                            </span>
+                          </div>
                         </div>
                       </div>
                       <ChevronRight size={16} color={isSelected ? 'var(--s-primary)' : 'var(--s-text-3)'} />

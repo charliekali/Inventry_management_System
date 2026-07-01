@@ -259,4 +259,15 @@ export const productionPlansAPI = {
   recordActual: (id, actualQuantity) => api.post(`/production-plans/${id}/actual`, { actual_quantity: actualQuantity }),
 };
 
+// ─── Visit Allocations ────────────────────────────────────────────────────────
+export const visitAllocationsAPI = {
+  list: (params) => api.get('/visit-allocations', { params }),
+  listMy: (params) => api.get('/visit-allocations/my', { params }),
+  create: (data) => api.post('/visit-allocations', data),
+  update: (id, data) => api.put(`/visit-allocations/${id}`, data),
+  updateStatus: (id, status) => api.patch(`/visit-allocations/${id}/status`, { status }),
+  delete: (id) => api.delete(`/visit-allocations/${id}`),
+  reorder: (data) => api.patch('/visit-allocations/reorder', data),
+};
+
 export default api;

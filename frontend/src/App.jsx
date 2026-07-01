@@ -42,6 +42,7 @@ import BillingPage from './pages/BillingPage';
 import SalesCRMDashboard from './pages/SalesCRMDashboard';
 import NewLeadsPage from './pages/NewLeadsPage';
 import CustomersPage from './pages/CustomersPage';
+import VisitAllocationsPage from './pages/VisitAllocationsPage';
 import AttendanceTrackingPage from './pages/AttendanceTrackingPage';
 import KeyRegistryPage from './pages/KeyRegistryPage';
 import MobileKeyRegistry from './components/MobileKeyRegistry';
@@ -537,6 +538,14 @@ function App() {
             <ProtectedRoute perm="SALES:CUSTOMERS">
               <AuthenticatedLayout>
                 <CustomersPage />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/crm/visit-allocations" element={
+            <ProtectedRoute perm="SALES:CRM">
+              <AuthenticatedLayout>
+                <VisitAllocationsPage />
               </AuthenticatedLayout>
             </ProtectedRoute>
           } />

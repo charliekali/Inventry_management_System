@@ -23,6 +23,7 @@ const NAV_ITEMS = [
     { path: '/crm', label: 'CRM Workspace', icon: PhoneCall, perm: 'SALES:CRM' },
     { path: '/crm/leads', label: 'New Leads', icon: Target, perm: 'SALES:LEADS' },
     { path: '/crm/customers', label: 'Customers', icon: Users, perm: 'SALES:CUSTOMERS' },
+    { path: '/crm/visit-allocations', label: 'Visit Allocations', icon: MapPin, perm: 'SALES:CRM' },
     { path: '/billing', label: 'Invoice & Billing', icon: ClipboardList, perm: 'SALES:COLLECT' },
   ]},
   { group: 'Inventory', items: [
