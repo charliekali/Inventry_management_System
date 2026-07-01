@@ -70,7 +70,7 @@ public class DataSeeder implements CommandLineRunner {
             { "BOM", "VIEW" }, { "BOM", "CREATE" }, { "BOM", "EDIT" }, { "BOM", "DELETE" },
             { "REPORTS", "VIEW" },
             { "SALES", "CRM" }, { "SALES", "COLLECT" },
-            { "PRODUCTION", "RUN" }, { "PRODUCTION", "HISTORY" },
+            { "PRODUCTION", "PLAN" }, { "PRODUCTION", "RUN" }, { "PRODUCTION", "HISTORY" },
             { "SALES", "ADD_LEAD" }, { "SALES", "LOG_FOLLOWUP" },
             { "SALES", "LEADS" }, { "SALES", "CUSTOMERS" },
             { "ATTENDANCE", "VIEW" }, { "ATTENDANCE", "TRACK" }

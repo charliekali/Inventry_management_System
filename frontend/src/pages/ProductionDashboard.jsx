@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { stockAPI } from '../api';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { 
   Package, 
   AlertTriangle, 
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 
 export default function ProductionDashboard() {
+  const { hasPermission } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -53,12 +55,16 @@ export default function ProductionDashboard() {
           <p>Monitor active production runs, check recipe requirements, and track material processing yields.</p>
         </div>
         <div className="page-header-right" style={{ display: 'flex', gap: 12 }}>
-          <Link to="/production-run" className="btn btn-primary btn-sm">
-            <Factory size={15} /> Plan Production
-          </Link>
-          <Link to="/actual-production" className="btn btn-primary btn-sm">
-            <ClipboardList size={15} /> Actual Production
-          </Link>
+          {hasPermission('PRODUCTION:PLAN') && (
+            <Link to="/production-run" className="btn btn-primary btn-sm">
+              <Factory size={15} /> Plan Production
+            </Link>
+          )}
+          {hasPermission('PRODUCTION:RUN') && (
+            <Link to="/actual-production" className="btn btn-primary btn-sm">
+              <ClipboardList size={15} /> Actual Production
+            </Link>
+          )}
           <Link to="/recipes" className="btn btn-secondary btn-sm">
             <ListPlus size={15} /> Recipes / BOM
           </Link>

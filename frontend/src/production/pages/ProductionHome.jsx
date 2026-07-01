@@ -16,7 +16,7 @@ function getGreeting() {
 }
 
 export default function ProductionHome() {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -84,13 +84,23 @@ export default function ProductionHome() {
 
       {/* Quick Actions */}
       <div className="p-section-label">Quick Actions</div>
-      <div className="p-quick-actions">
-        <button className="p-qa-btn" onClick={() => navigate('/production/runs')}>
-          <div className="p-qa-icon" style={{ background: 'rgba(16,185,129,0.15)' }}>
-            <Factory size={20} color="#10b981" />
-          </div>
-          <span className="p-qa-label">Execute Run</span>
-        </button>
+      <div className="p-quick-actions" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))' }}>
+        {hasPermission('PRODUCTION:PLAN') && (
+          <button className="p-qa-btn" onClick={() => navigate('/production/plan')}>
+            <div className="p-qa-icon" style={{ background: 'rgba(59,130,246,0.15)' }}>
+              <Factory size={20} color="#3b82f6" />
+            </div>
+            <span className="p-qa-label">Plan Production</span>
+          </button>
+        )}
+        {hasPermission('PRODUCTION:RUN') && (
+          <button className="p-qa-btn" onClick={() => navigate('/production/actual')}>
+            <div className="p-qa-icon" style={{ background: 'rgba(16,185,129,0.15)' }}>
+              <ClipboardList size={20} color="#10b981" />
+            </div>
+            <span className="p-qa-label">Actual Entry</span>
+          </button>
+        )}
         <button className="p-qa-btn" onClick={() => navigate('/production/recipes')}>
           <div className="p-qa-icon" style={{ background: 'rgba(139,92,246,0.15)' }}>
             <ListPlus size={20} color="#8b5cf6" />
@@ -98,8 +108,8 @@ export default function ProductionHome() {
           <span className="p-qa-label">Recipes / BOM</span>
         </button>
         <button className="p-qa-btn" onClick={() => navigate('/production/history')}>
-          <div className="p-qa-icon" style={{ background: 'rgba(59,130,246,0.15)' }}>
-            <History size={20} color="#3b82f6" />
+          <div className="p-qa-icon" style={{ background: 'rgba(245,158,11,0.15)' }}>
+            <History size={20} color="#f59e0b" />
           </div>
           <span className="p-qa-label">Run History</span>
         </button>
@@ -112,7 +122,7 @@ export default function ProductionHome() {
           <div className="p-empty">
             <ClipboardList size={32} style={{ opacity: 0.5 }} />
             <p className="title">No production runs recorded</p>
-            <p className="sub">Press "Execute Run" to start transaction logs.</p>
+            <p className="sub">Use the Plan or Actual Entry actions to start production logs.</p>
           </div>
         ) : (
           <div className="p-list">

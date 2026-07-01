@@ -358,7 +358,7 @@ function App() {
           } />
 
           <Route path="/production-run" element={
-            <ProtectedRoute perm="PRODUCTION:RUN">
+            <ProtectedRoute perm="PRODUCTION:PLAN">
               <AuthenticatedLayout>
                 <ProductionRunPage />
               </AuthenticatedLayout>

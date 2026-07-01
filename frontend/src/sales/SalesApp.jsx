@@ -19,6 +19,7 @@ import SalesAttendance from './pages/SalesAttendance';
 import SalesRoute from './pages/SalesRoute';
 import MobileKeyRegistry from '../components/MobileKeyRegistry';
 import SalesCRMComponent from './pages/SalesCRM';
+import ActualProductionEntryPage from '../pages/ActualProductionEntryPage';
 import { AlertTriangle, LogOut, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './SalesApp.css';
@@ -158,6 +159,7 @@ export default function SalesApp() {
         <Route path="orders" element={<SalesOrders />} />
         <Route path="pos" element={<SalesPOS />} />
         <Route path="attendance" element={<SalesAttendance />} />
+        <Route path="actual-production" element={<ActualProductionEntryPage />} />
         <Route path="route" element={<SalesRoute />} />
         <Route path="key-registry" element={<MobileKeyRegistry />} />
         <Route path="profile" element={<SalesProfile />} />

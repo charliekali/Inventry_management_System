@@ -51,7 +51,7 @@ public class ProductionPlanController {
     @PostMapping
     @Transactional
     public ResponseEntity<?> createPlan(@RequestBody Map<String, Object> body) {
-        auth.requirePermission("PRODUCTION:RUN");
+        auth.requirePermission("PRODUCTION:PLAN");
 
         String productId = (String) body.get("product_id");
         String warehouseId = (String) body.get("warehouse_id");

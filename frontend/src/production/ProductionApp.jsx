@@ -6,6 +6,8 @@ import ProductionHistory from './pages/ProductionHistory';
 import ProductionRecipes from './pages/ProductionRecipes';
 import ProductionProfile from './pages/ProductionProfile';
 import MobileKeyRegistry from '../components/MobileKeyRegistry';
+import ProductionRunPage from '../pages/ProductionRunPage';
+import ActualProductionEntryPage from '../pages/ActualProductionEntryPage';
 import './ProductionApp.css';
 
 export default function ProductionApp() {
@@ -13,6 +15,8 @@ export default function ProductionApp() {
     <ProductionAppLayout>
       <Routes>
         <Route path="/" element={<ProductionHome />} />
+        <Route path="plan" element={<ProductionRunPage />} />
+        <Route path="actual" element={<ActualProductionEntryPage />} />
         <Route path="runs" element={<ProductionRuns />} />
         <Route path="history" element={<ProductionHistory />} />
         <Route path="recipes" element={<ProductionRecipes />} />
