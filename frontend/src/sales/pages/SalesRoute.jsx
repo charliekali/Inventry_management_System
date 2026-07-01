@@ -6,6 +6,7 @@
  * and a fully integrated, in-app turn-by-turn navigation system.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ordersAPI } from '../../api';
 import { useTheme } from '../../context/ThemeContext';
 import toast from 'react-hot-toast';
@@ -109,10 +110,10 @@ function createCustomerMarkerIcon(name, status, isSelected) {
 
 export default function SalesRoute() {
   const { theme } = useTheme();
+  const location = useLocation();
+  const routeState = location.state;
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  const tileUrl = isDark
-    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-    : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+  const tileUrl = "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}";
 
   const [assigned, setAssigned] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -209,6 +210,22 @@ export default function SalesRoute() {
       setSteps([]);
     }
   }, [selectedItem, myLoc]);
+
+  // Handle pre-selected navigation route from CRM page
+  useEffect(() => {
+    if (routeState?.preselectedItemId && assigned.length > 0) {
+      const match = assigned.find(item => item.id === routeState.preselectedItemId);
+      if (match) {
+        setSelectedItem(match);
+        const lat = parseFloat(match.custom_fields?.latitude);
+        const lng = parseFloat(match.custom_fields?.longitude);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          setFlyTarget([lat, lng]);
+        }
+        setIsNavigating(true);
+      }
+    }
+  }, [routeState, assigned]);
 
   // Real-time step advancement based on distance
   useEffect(() => {
@@ -338,8 +355,10 @@ export default function SalesRoute() {
               zoomControl={false}
             >
               <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                attribution='&copy; Google Maps'
                 url={tileUrl}
+                subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
+                className={isDark ? 'leaflet-dark-filter' : ''}
               />
 
               {flyTarget && <FlyTo target={flyTarget} zoom={isNavigating ? 17 : 15} />}

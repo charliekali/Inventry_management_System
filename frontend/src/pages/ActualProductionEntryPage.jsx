@@ -93,16 +93,7 @@ export default function ActualProductionEntryPage() {
       </div>
 
       {/* Filter Toolbar */}
-      <div style={{
-        display: 'flex',
-        gap: 16,
-        marginBottom: 20,
-        alignItems: 'center',
-        background: 'var(--color-bg-card)',
-        padding: 16,
-        borderRadius: 'var(--radius-lg)',
-        border: '1px solid var(--color-border)'
-      }}>
+      <div className="actual-filter-toolbar">
         {/* Search */}
         <div style={{ position: 'relative', flex: 1 }}>
           <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
@@ -133,68 +124,108 @@ export default function ActualProductionEntryPage() {
       </div>
 
       {/* Plans Grid / Table */}
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'transparent', border: 'none', boxShadow: 'none' }}>
         {loading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 40, background: 'var(--color-bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)' }}>
             <div className="loading-spinner" />
           </div>
         ) : filteredPlans.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--color-text-muted)' }}>
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--color-text-muted)', background: 'var(--color-bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)' }}>
             <ClipboardList size={40} style={{ marginBottom: 12, opacity: 0.5 }} />
             <h4>No Production Plans Found</h4>
             <p style={{ fontSize: 13 }}>Create a new production plan to get started.</p>
           </div>
         ) : (
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Plan Number</th>
-                  <th>Plan Date</th>
-                  <th>Product</th>
-                  <th>Assigned Operator</th>
-                  <th style={{ textAlign: 'right' }}>Planned Qty</th>
-                  <th style={{ textAlign: 'right' }}>Actual Qty</th>
-                  <th>Destination</th>
-                  <th style={{ textAlign: 'center' }}>Status</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPlans.map(p => (
-                  <tr key={p.id}>
-                    <td>
-                      <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{p.plan_number}</span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}>
-                        <Calendar size={13} color="var(--color-text-muted)" />
-                        {p.plan_date}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 700 }}>{p.product_name}</div>
-                      <div style={{ fontSize: 11.5, color: 'var(--color-text-muted)' }}>{p.product_code}</div>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <User size={14} color="var(--color-text-muted)" />
-                        <span>{p.assigned_user_name}</span>
-                      </div>
-                    </td>
-                    <td style={{ textAlign: 'right', fontWeight: 700 }}>
-                      {p.planned_quantity} {p.product_unit}
-                    </td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--color-success)' }}>
-                      {p.status === 'COMPLETED' ? `${p.actual_quantity} ${p.product_unit}` : '—'}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}>
-                        <Warehouse size={13} color="var(--color-text-muted)" />
-                        <span>{p.warehouse_name} {p.section_name && `· ${p.section_name}`}</span>
-                      </div>
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
+          <>
+            {/* Desktop Table View */}
+            <div className="table-wrapper hide-on-mobile" style={{ background: 'var(--color-bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', overflow: 'hidden' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Plan Number</th>
+                    <th>Plan Date</th>
+                    <th>Product</th>
+                    <th>Assigned Operator</th>
+                    <th style={{ textAlign: 'right' }}>Planned Qty</th>
+                    <th style={{ textAlign: 'right' }}>Actual Qty</th>
+                    <th>Destination</th>
+                    <th style={{ textAlign: 'center' }}>Status</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPlans.map(p => (
+                    <tr key={p.id}>
+                      <td>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{p.plan_number}</span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}>
+                          <Calendar size={13} color="var(--color-text-muted)" />
+                          {p.plan_date}
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 700 }}>{p.product_name}</div>
+                        <div style={{ fontSize: 11.5, color: 'var(--color-text-muted)' }}>{p.product_code}</div>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <User size={14} color="var(--color-text-muted)" />
+                          <span>{p.assigned_user_name}</span>
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 700 }}>
+                        {p.planned_quantity} {p.product_unit}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--color-success)' }}>
+                        {p.status === 'COMPLETED' ? `${p.actual_quantity} ${p.product_unit}` : '—'}
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}>
+                          <Warehouse size={13} color="var(--color-text-muted)" />
+                          <span>{p.warehouse_name} {p.section_name && `· ${p.section_name}`}</span>
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        {p.status === 'PLANNED' ? (
+                          <span className="badge badge-blue">Planned</span>
+                        ) : p.status === 'COMPLETED' ? (
+                          <span className="badge badge-green">Completed</span>
+                        ) : (
+                          <span className="badge badge-gray">Cancelled</span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {p.status === 'PLANNED' ? (
+                          <button 
+                            className="btn btn-primary btn-xs"
+                            onClick={() => handleOpenEntry(p)}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                          >
+                            <Play size={11} fill="currentColor" />
+                            Record Actual
+                          </button>
+                        ) : (
+                          <button className="btn btn-ghost btn-xs" disabled>
+                            <CheckCircle2 size={13} />
+                            Finalized
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="mobile-card-list show-on-mobile">
+              {filteredPlans.map(p => (
+                <div className="mobile-card" key={p.id}>
+                  <div className="mobile-card-header">
+                    <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 14 }}>{p.plan_number}</span>
+                    <div>
                       {p.status === 'PLANNED' ? (
                         <span className="badge badge-blue">Planned</span>
                       ) : p.status === 'COMPLETED' ? (
@@ -202,29 +233,63 @@ export default function ActualProductionEntryPage() {
                       ) : (
                         <span className="badge badge-gray">Cancelled</span>
                       )}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      {p.status === 'PLANNED' ? (
-                        <button 
-                          className="btn btn-primary btn-xs"
-                          onClick={() => handleOpenEntry(p)}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                        >
-                          <Play size={11} fill="currentColor" />
-                          Record Actual
-                        </button>
-                      ) : (
-                        <button className="btn btn-ghost btn-xs" disabled>
-                          <CheckCircle2 size={13} />
-                          Finalized
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </div>
+                  
+                  <div className="mobile-card-section">
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{p.product_name}</div>
+                    <div style={{ fontSize: 11.5, color: 'var(--color-text-muted)', marginBottom: 8 }}>Code: {p.product_code}</div>
+                    
+                    <div className="mobile-card-info-row">
+                      <Calendar size={13} color="var(--color-text-muted)" />
+                      <span>Date: {p.plan_date}</span>
+                    </div>
+                    
+                    <div className="mobile-card-info-row">
+                      <User size={13} color="var(--color-text-muted)" />
+                      <span>Operator: {p.assigned_user_name}</span>
+                    </div>
+                    
+                    <div className="mobile-card-info-row">
+                      <Warehouse size={13} color="var(--color-text-muted)" />
+                      <span>Dest: {p.warehouse_name} {p.section_name && `· ${p.section_name}`}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="mobile-card-metrics">
+                    <div className="mobile-card-metric-item">
+                      <span className="mobile-card-metric-label">Planned Qty</span>
+                      <span className="mobile-card-metric-value">{p.planned_quantity} {p.product_unit}</span>
+                    </div>
+                    <div className="mobile-card-metric-item">
+                      <span className="mobile-card-metric-label">Actual Qty</span>
+                      <span className="mobile-card-metric-value" style={{ color: p.status === 'COMPLETED' ? 'var(--color-success)' : 'inherit' }}>
+                        {p.status === 'COMPLETED' ? `${p.actual_quantity} ${p.product_unit}` : '—'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="mobile-card-actions">
+                    {p.status === 'PLANNED' ? (
+                      <button 
+                        className="btn btn-primary"
+                        onClick={() => handleOpenEntry(p)}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                      >
+                        <Play size={14} fill="currentColor" />
+                        Record Actual
+                      </button>
+                    ) : (
+                      <button className="btn btn-ghost" disabled style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                        <CheckCircle2 size={14} />
+                        Finalized
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 

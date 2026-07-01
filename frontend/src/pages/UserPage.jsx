@@ -249,7 +249,7 @@ export default function UserPage() {
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <div className="sidebar-avatar" style={{ width: 28, height: 28, fontSize: 11 }}>
-                            {u.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+                            {(u.name || '').split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '??'}
                           </div>
                           <span style={{ fontWeight: 700 }}>{u.name}</span>
                         </div>

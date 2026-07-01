@@ -263,10 +263,10 @@ function App() {
     document.body.classList.toggle('native-app', isNative);
 
     if (isNative) {
-      // Configure Status Bar style
+      // Hide the Status Bar for fullscreen mobile view
       const setupStatusBar = async () => {
         try {
-          await StatusBar.setStyle({ style: Style.Dark });
+          await StatusBar.hide();
         } catch (e) {
           console.warn('StatusBar not available:', e);
         }

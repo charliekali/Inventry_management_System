@@ -3,7 +3,7 @@
  * Full outstanding list, filters, log follow-up bottom sheet, follow-up history, and Lead creation modal.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { ordersAPI } from '../../api';
 import toast from 'react-hot-toast';
@@ -16,6 +16,7 @@ import {
 import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { Capacitor } from '@capacitor/core';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(v) {
@@ -421,11 +422,10 @@ function createCustomerMarkerIcon(name, status, isOverdue, isSelected) {
 
 // ── Main CRM Page ─────────────────────────────────────────────────────────────
 export default function SalesCRM() {
+  const navigate = useNavigate();
   const { theme } = useTheme();
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  const tileUrl = isDark
-    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-    : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+  const tileUrl = "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}";
 
   const { hasPermission } = useAuth();
   const location   = useLocation();
@@ -836,8 +836,10 @@ export default function SalesCRM() {
                 zoomControl={false}
               >
                 <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                  attribution='&copy; Google Maps'
                   url={tileUrl}
+                  subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
+                  className={isDark ? 'leaflet-dark-filter' : ''}
                 />
 
                 {flyTarget && <FlyTo target={flyTarget} />}
@@ -954,10 +956,7 @@ export default function SalesCRM() {
                   <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                     <button
                       onClick={() => {
-                        const lat = parseFloat(selectedMapItem.custom_fields.latitude);
-                        const lng = parseFloat(selectedMapItem.custom_fields.longitude);
-                        const url = `https://www.google.com/maps/dir/?api=1&origin=${myLoc ? `${myLoc[0]},${myLoc[1]}` : ''}&destination=${lat},${lng}&travelmode=driving`;
-                        window.open(url, '_system');
+                        navigate('/sales/route', { state: { preselectedItemId: selectedMapItem.id } });
                       }}
                       style={{
                         flex: 2,

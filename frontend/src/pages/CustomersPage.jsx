@@ -31,7 +31,7 @@ export default function CustomersPage() {
         
         // Find customers that have at least one invoice generated (excluding temporary orders)
         const invoicedItems = list.filter(o => o.invoice_number && !o.invoice_number.startsWith('ORD-'));
-        const customerNames = Array.from(new Set(invoicedItems.map(o => o.customer)));
+        const customerNames = Array.from(new Set(invoicedItems.map(o => o.customer).filter(Boolean)));
 
         const aggregated = customerNames.map(name => {
           const customerOrders = invoicedItems.filter(o => o.customer === name);
@@ -221,7 +221,7 @@ export default function CustomersPage() {
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <div className="sidebar-avatar" style={{ width: 28, height: 28, fontSize: 11, background: 'rgba(139, 92, 246, 0.12)', color: '#a7f3d0' }}>
-                              {cust.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+                              {(cust.name || 'Anonymous').split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '??'}
                             </div>
                             <span style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>{cust.name}</span>
                           </div>

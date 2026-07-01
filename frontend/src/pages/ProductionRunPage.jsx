@@ -377,7 +377,7 @@ export default function ProductionRunPage() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 24, alignItems: 'start' }}>
+      <div className="production-run-layout">
         
         {/* Main Entry Panel */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -531,7 +531,8 @@ export default function ProductionRunPage() {
               <div className="card-header">
                 <div className="card-title">Recipe Ingredients Stock Locking & Allocation</div>
               </div>
-              <div className="table-wrapper" style={{ margin: 0, border: 'none' }}>
+              {/* Desktop Table View */}
+              <div className="table-wrapper hide-on-mobile" style={{ margin: 0, border: 'none' }}>
                 <table>
                   <thead>
                     <tr>
@@ -595,13 +596,79 @@ export default function ProductionRunPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Mobile Card List View */}
+              <div className="mobile-card-list show-on-mobile" style={{ padding: '0 16px 16px 16px' }}>
+                {loadingBom && (
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}>
+                    <div className="loading-spinner" />
+                  </div>
+                )}
+                {!loadingBom && bomItems.map(item => {
+                  const ingredientId = item.raw_material_id;
+                  const selection = ingredientSelections[ingredientId] || { warehouseId: '', sectionId: null, availableStock: 0 };
+                  const needed = item.qty_required * (parseFloat(targetQuantity) || 0) * multiplier * scalingFactor;
+                  const isInsuff = selection.availableStock < needed;
+
+                  return (
+                    <div className="mobile-card" key={item.id} style={{ border: isInsuff ? '1px solid var(--color-danger)' : '1px solid var(--color-border)', background: isInsuff ? 'rgba(239, 68, 68, 0.02)' : 'var(--color-bg-card)', marginBottom: 12 }}>
+                      <div className="mobile-card-header" style={{ borderBottom: '1px solid var(--color-border)' }}>
+                        <span className="mobile-card-title">{item.raw_material_name}</span>
+                        <span className="badge badge-gray" style={{ fontSize: 10 }}>{item.production_step || 'BLENDING'}</span>
+                      </div>
+                      
+                      <div className="mobile-card-section" style={{ gap: 8 }}>
+                        <div style={{ fontSize: 11.5, color: 'var(--color-text-muted)' }}>Code: {item.raw_material_code}</div>
+                        
+                        <div className="mobile-card-metrics">
+                          <div className="mobile-card-metric-item">
+                            <span className="mobile-card-metric-label">Formula Qty</span>
+                            <span className="mobile-card-metric-value">{item.qty_required} {item.raw_material_unit}</span>
+                          </div>
+                          <div className="mobile-card-metric-item">
+                            <span className="mobile-card-metric-label">Total Needed</span>
+                            <span className="mobile-card-metric-value" style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>{needed.toFixed(3)} {item.raw_material_unit}</span>
+                          </div>
+                        </div>
+
+                        <div className="form-group" style={{ margin: '8px 0 0 0' }}>
+                          <label className="form-label" style={{ fontSize: 11, textTransform: 'uppercase', marginBottom: 4, display: 'block', fontWeight: 600 }}>Source Stock Location</label>
+                          <select 
+                            className="form-control form-control-sm"
+                            value={selection.warehouseId ? `${selection.warehouseId}:${selection.sectionId || 'OPEN'}` : ''}
+                            onChange={e => handleIngredientLocationChange(ingredientId, e.target.value)}
+                            style={{ width: '100%', border: isInsuff ? '1px solid var(--color-danger)' : '1px solid var(--color-border)' }}
+                          >
+                            <option value="">Select source...</option>
+                            {getAllPossibleLocations().map(loc => {
+                              const stock = getIngredientStockForLocation(ingredientId, loc.warehouseId, loc.sectionId);
+                              return (
+                                <option key={loc.key} value={`${loc.warehouseId}:${loc.sectionId || 'OPEN'}`}>
+                                  {loc.warehouseName} - {loc.sectionName} ({stock.toFixed(2)} {item.raw_material_unit} avail)
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+                        
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, fontSize: 13 }}>
+                          <span style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Available Stock:</span>
+                          <span style={{ fontWeight: 700, color: isInsuff ? 'var(--color-danger)' : 'var(--color-success)' }}>
+                            {selection.availableStock.toFixed(3)} {item.raw_material_unit}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
         </div>
 
         {/* Audit / Summary Panel */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, position: 'sticky', top: 24 }}>
+        <div className="run-summary-panel">
           
           {/* Card: Plan Summary */}
           <div className="card">
