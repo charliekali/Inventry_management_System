@@ -207,6 +207,7 @@ function fmtDateTime(iso) {
 async function snapToRoads(points) {
   if (!points || points.length < 2) return points;
 
+  // 1. Filter out duplicate or extremely close points
   const filteredPoints = [];
   for (const pt of points) {
     if (filteredPoints.length === 0) {
@@ -220,30 +221,66 @@ async function snapToRoads(points) {
   }
   if (filteredPoints.length < 2) return filteredPoints;
 
-  const maxChunkSize = 90;
-  const chunks = [];
-  for (let i = 0; i < filteredPoints.length; i += maxChunkSize - 1) {
-    chunks.push(filteredPoints.slice(i, i + maxChunkSize));
-    if (i + maxChunkSize >= filteredPoints.length) break;
-  }
+  // 2. Split into segments based on distance gaps (> 0.5 km)
+  // Large distance gaps indicate offline periods or GPS jumps, which OSRM cannot match contiguously
+  const segments = [];
+  let currentSegment = [filteredPoints[0]];
 
+  for (let i = 1; i < filteredPoints.length; i++) {
+    const prev = filteredPoints[i - 1];
+    const curr = filteredPoints[i];
+    const dist = calculateDistance(prev[0], prev[1], curr[0], curr[1]);
+    
+    if (dist > 0.5) {
+      segments.push(currentSegment);
+      currentSegment = [curr];
+    } else {
+      currentSegment.push(curr);
+    }
+  }
+  segments.push(currentSegment);
+
+  // 3. For each segment, chunk into sizes <= 90 and query OSRM Match API
   const snappedPaths = [];
-  for (const chunk of chunks) {
-    if (chunk.length < 2) continue;
-    const coordString = chunk.map(p => `${p[1]},${p[0]}`).join(';');
-    const url = `https://router.project-osrm.org/match/v1/driving/${coordString}?overview=full&geometries=geojson`;
-    try {
-      const response = await fetch(url);
-      const data = await response.json();
-      if (data.code === 'Ok' && data.matchings?.length > 0) {
-        snappedPaths.push(...data.matchings.flatMap(m =>
-          m.geometry.coordinates.map(c => [c[1], c[0]])
-        ));
-      } else {
+  const maxChunkSize = 90;
+
+  for (const segment of segments) {
+    if (segment.length < 2) {
+      snappedPaths.push(...segment);
+      continue;
+    }
+
+    const chunks = [];
+    for (let i = 0; i < segment.length; i += maxChunkSize - 1) {
+      chunks.push(segment.slice(i, i + maxChunkSize));
+      if (i + maxChunkSize >= segment.length) break;
+    }
+
+    for (const chunk of chunks) {
+      if (chunk.length < 2) {
+        snappedPaths.push(...chunk);
+        continue;
+      }
+      const coordString = chunk.map(p => `${p[1]},${p[0]}`).join(';');
+      const url = `https://router.project-osrm.org/match/v1/driving/${coordString}?overview=full&geometries=geojson`;
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          // Fallback to raw coordinates on non-ok response status (e.g. 400 Bad Request)
+          snappedPaths.push(...chunk);
+          continue;
+        }
+        const data = await response.json();
+        if (data.code === 'Ok' && data.matchings?.length > 0) {
+          snappedPaths.push(...data.matchings.flatMap(m =>
+            m.geometry.coordinates.map(c => [c[1], c[0]])
+          ));
+        } else {
+          snappedPaths.push(...chunk);
+        }
+      } catch {
         snappedPaths.push(...chunk);
       }
-    } catch {
-      snappedPaths.push(...chunk);
     }
   }
   return snappedPaths;
