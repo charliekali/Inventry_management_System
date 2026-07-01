@@ -200,25 +200,24 @@ export default function ProductionRunPage() {
     const list = [];
     warehouses.forEach(w => {
       const sections = allWarehouseSections[w.id] || [];
-      if (sections.length === 0) {
+      // Always allow Open Area (no specific shelf)
+      list.push({
+        key: `${w.id}:OPEN`,
+        warehouseId: w.id,
+        warehouseName: w.name,
+        sectionId: null,
+        sectionName: 'Open Area'
+      });
+      // Add specific sections if any
+      sections.forEach(s => {
         list.push({
-          key: `${w.id}:OPEN`,
+          key: `${w.id}:${s.id}`,
           warehouseId: w.id,
           warehouseName: w.name,
-          sectionId: null,
-          sectionName: 'Open Area'
+          sectionId: s.id,
+          sectionName: s.name
         });
-      } else {
-        sections.forEach(s => {
-          list.push({
-            key: `${w.id}:${s.id}`,
-            warehouseId: w.id,
-            warehouseName: w.name,
-            sectionId: s.id,
-            sectionName: s.name
-          });
-        });
-      }
+      });
     });
     return list;
   };
