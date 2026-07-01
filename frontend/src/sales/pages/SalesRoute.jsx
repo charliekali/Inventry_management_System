@@ -1,9 +1,10 @@
 /**
  * SalesRoute.jsx
- * Dedicated "Route" module for Sales Person app.
- * Displays all customers/leads assigned to the logged-in sales person by the Super Admin.
- * Renders an interactive Leaflet map showing their live GPS location, OSRM routing,
- * and a fully integrated, in-app turn-by-turn navigation system.
+ * Google Maps-style navigation for Sales staff.
+ * - Smooth road-snapped polyline with casing (blue inner + white border)
+ * - Full-screen driving HUD with turn instruction, speed, ETA
+ * - Fixed Re-Center button using forceCenter counter trick
+ * - Exit Navigation positioned separately from Re-Center
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -14,970 +15,800 @@ import { MapContainer, TileLayer, Marker, Polyline, CircleMarker, useMap } from 
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
-  MapPin, PhoneCall, Navigation, Clock, CheckCircle2, X, ChevronRight, RefreshCw, AlertTriangle, ArrowUp, ArrowUpLeft, ArrowUpRight, Check
+  MapPin, PhoneCall, Navigation, Clock, CheckCircle2, X,
+  ChevronRight, RefreshCw, AlertTriangle, ArrowUp,
+  ArrowUpLeft, ArrowUpRight, ArrowLeft, ArrowRight,
+  Check, LocateFixed, Gauge
 } from 'lucide-react';
 
-// ── Helper to fly map ────────────────────────────────────────────────────────
+// ─── FlyTo (non-navigation mode) ─────────────────────────────────────────────
 function FlyTo({ target, zoom = 15 }) {
   const map = useMap();
   useEffect(() => {
-    if (target) {
-      map.flyTo(target, zoom, { duration: 1.2 });
-    }
+    if (target) map.flyTo(target, zoom, { duration: 1.0 });
   }, [target, zoom, map]);
   return null;
 }
 
-// ── Helper to center map instantly during driving navigation ────────────────
-function NavigationCenterer({ target, isNavigating, autoCenter }) {
+// ─── NavigationCenterer — locks map on driver, forceCenter triggers re-lock ──
+function NavigationCenterer({ target, isNavigating, autoCenter, forceCenter }) {
   const map = useMap();
-  const lastTargetRef = useRef(null);
+  const prevForce = useRef(forceCenter);
 
   useEffect(() => {
     if (!isNavigating || !target || !autoCenter) return;
-    
-    // Center immediately without slow animated panning
-    const hasShifted = !lastTargetRef.current || 
-      Math.abs(target[0] - lastTargetRef.current[0]) > 0.00003 ||
-      Math.abs(target[1] - lastTargetRef.current[1]) > 0.00003;
-
-    if (hasShifted) {
-      map.setView(target, 17, { animate: false });
-      lastTargetRef.current = target;
-    }
+    map.setView(target, 17, { animate: false });
   }, [target, isNavigating, autoCenter, map]);
+
+  // Re-center immediately when forceCenter counter increments
+  useEffect(() => {
+    if (forceCenter !== prevForce.current && target && isNavigating) {
+      map.setView(target, 17, { animate: true, duration: 0.5 });
+      prevForce.current = forceCenter;
+    }
+  }, [forceCenter, target, isNavigating, map]);
 
   return null;
 }
 
-// ── Listener to turn off follow mode if driver pans or zooms map ─────────────
+// ─── MapInteractionListener — pauses follow mode on manual pan/zoom ──────────
 function MapInteractionListener({ setAutoCenter }) {
   const map = useMap();
   useEffect(() => {
-    const disableFollow = () => {
-      setAutoCenter(false);
-    };
-    map.on('dragstart', disableFollow);
-    map.on('zoomstart', disableFollow);
-    return () => {
-      map.off('dragstart', disableFollow);
-      map.off('zoomstart', disableFollow);
-    };
+    const off = () => setAutoCenter(false);
+    map.on('dragstart', off);
+    map.on('zoomstart', off);
+    return () => { map.off('dragstart', off); map.off('zoomstart', off); };
   }, [map, setAutoCenter]);
   return null;
 }
 
-// ── Custom driving arrow icon pointing in heading direction ──────────────────
-function createDrivingIcon(color, heading) {
-  const size = 40;
-  const rotation = heading != null && !isNaN(heading) ? heading : 0;
+// ─── Driving arrow icon (heading-rotated) ────────────────────────────────────
+function createDrivingIcon(heading) {
+  const rot = (heading != null && !isNaN(heading)) ? heading : 0;
   const html = `
     <div style="
-      width: ${size}px; height: ${size}px;
-      display: flex; align-items: center; justify-content: center;
-      transform: rotate(${rotation}deg);
-      transition: transform 0.2s ease-out;
+      width:48px;height:48px;
+      display:flex;align-items:center;justify-content:center;
+      transform:rotate(${rot}deg);
+      transition:transform 0.3s ease-out;
+      filter:drop-shadow(0 3px 8px rgba(0,0,0,0.45));
     ">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 2L22 22L12 17L2 22L12 2Z" fill="${color}" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round" style="filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.3));" />
+      <svg width="36" height="36" viewBox="0 0 36 36">
+        <!-- White border -->
+        <path d="M18 2L33 34L18 26L3 34Z" fill="white"/>
+        <!-- Blue fill -->
+        <path d="M18 5L30 32L18 24.5L6 32Z" fill="#1A73E8"/>
+        <!-- White dot at base -->
+        <circle cx="18" cy="24" r="3" fill="white"/>
       </svg>
     </div>`;
-  return L.divIcon({
-    html,
-    className: '',
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-  });
+  return L.divIcon({ html, className: '', iconSize: [48, 48], iconAnchor: [24, 24] });
 }
 
-// ── GPS Distance Helper ──────────────────────────────────────────────────────
-function getDistanceMeters(lat1, lon1, lat2, lon2) {
-  const R = 6371e3; // meters
-  const φ1 = lat1 * Math.PI/180;
-  const φ2 = lat2 * Math.PI/180;
-  const Δφ = (lat2-lat1) * Math.PI/180;
-  const Δλ = (lon2-lon1) * Math.PI/180;
-
-  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ/2) * Math.sin(Δλ/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-  return R * c;
+// ─── Static location dot (non-nav) ────────────────────────────────────────────
+function createLocDot() {
+  const html = `
+    <div style="position:relative;width:24px;height:24px;">
+      <div style="
+        position:absolute;inset:0;border-radius:50%;
+        background:rgba(26,115,232,0.2);
+        animation:sr-pulse 2s ease-in-out infinite;
+      "></div>
+      <div style="
+        position:absolute;inset:5px;border-radius:50%;
+        background:#1A73E8;border:2.5px solid white;
+        box-shadow:0 2px 6px rgba(26,115,232,0.5);
+      "></div>
+    </div>`;
+  return L.divIcon({ html, className: '', iconSize: [24, 24], iconAnchor: [12, 12] });
 }
 
-// ── Minimum Distance to Polyline Helper ──────────────────────────────────────
-function getMinDistanceToPolyline(lat, lng, polyline) {
-  if (!polyline || polyline.length === 0) return Infinity;
-  let minDistance = Infinity;
-  for (const pt of polyline) {
-    const dist = getDistanceMeters(lat, lng, pt[0], pt[1]);
-    if (dist < minDistance) {
-      minDistance = dist;
-    }
-  }
-  return minDistance;
-}
-
-// ── Format maneuver instruction ──────────────────────────────────────────────
-function formatStepInstruction(step) {
-  if (!step) return 'Proceed along the route';
-  const type = step.maneuver.type;
-  const modifier = step.maneuver.modifier || '';
-  const name = step.name || '';
-  
-  if (type === 'depart') return `Depart towards ${name || 'road'}`;
-  if (type === 'arrive') return `Arrive at destination`;
-  
-  let dir = 'Go';
-  if (modifier.includes('left')) dir = 'Turn Left';
-  else if (modifier.includes('right')) dir = 'Turn Right';
-  else if (modifier.includes('straight')) dir = 'Go Straight';
-  
-  return `${dir} onto ${name || 'road'} (${Math.round(step.distance)}m)`;
-}
-
-// ── Get turn icon based on maneuver modifier ──────────────────────────────────
-function getTurnIcon(step) {
-  if (!step) return <ArrowUp size={24} />;
-  const modifier = step.maneuver.modifier || '';
-  if (modifier.includes('left')) return <ArrowUpLeft size={24} color="#3b82f6" />;
-  if (modifier.includes('right')) return <ArrowUpRight size={24} color="#3b82f6" />;
-  return <ArrowUp size={24} color="#3b82f6" />;
-}
-
-// ── Custom Marker Icon Maker ──────────────────────────────────────────────────
-function createCustomerMarkerIcon(name, status, isSelected) {
+// ─── Customer marker ─────────────────────────────────────────────────────────
+function createCustomerMarkerIcon(name, visitStatus, isSelected) {
   const initials = name
     ? name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
     : '??';
-  
-  const color = status === 'PENDING' ? '#10b981' : status === 'COMPLETED' ? '#10b981' : status === 'SKIPPED' ? '#ef4444' : '#3b82f6';
-  const size = isSelected ? 40 : 32;
+  const color = visitStatus === 'COMPLETED' ? '#1a9e5c'
+              : visitStatus === 'SKIPPED'   ? '#e53935'
+              : isSelected                  ? '#1A73E8'
+              :                              '#34A853';
+  const size = isSelected ? 42 : 34;
   const html = `
-    <div style="position:relative; width:${size}px; height:${size}px;">
+    <div style="position:relative;width:${size}px;height:${size}px;">
       ${isSelected ? `<div style="
-        position:absolute; inset:-4px;
-        border-radius:50%;
-        border: 2.5px solid ${color};
-        opacity:0.6;
-        animation: route-live-ring 1.5s ease-out infinite;
+        position:absolute;inset:-5px;border-radius:50%;
+        border:2px solid ${color};opacity:0.5;
+        animation:sr-ring 1.6s ease-out infinite;
       "></div>` : ''}
       <div style="
-        position:absolute; inset:0;
-        background:${color};
-        border-radius:50%;
-        display:flex; align-items:center; justify-content:center;
-        color:#fff; font-weight:900; font-size:${isSelected ? 13 : 11}px;
-        border: 2px solid white;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.35);
-        font-family: system-ui, sans-serif;
+        position:absolute;inset:0;background:${color};
+        border-radius:50%;display:flex;align-items:center;justify-content:center;
+        color:#fff;font-weight:900;font-size:${isSelected ? 14 : 12}px;
+        border:2.5px solid white;box-shadow:0 3px 10px rgba(0,0,0,0.3);
+        font-family:system-ui,sans-serif;
       ">${initials}</div>
     </div>`;
-  return L.divIcon({
-    html,
-    className: '',
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    popupAnchor: [0, -(size / 2 + 4)],
-  });
+  return L.divIcon({ html, className: '', iconSize: [size, size], iconAnchor: [size/2, size/2] });
 }
 
+// ─── Haversine distance ───────────────────────────────────────────────────────
+function distM(lat1, lon1, lat2, lon2) {
+  const R  = 6371e3;
+  const φ1 = lat1 * Math.PI / 180, φ2 = lat2 * Math.PI / 180;
+  const dφ = (lat2 - lat1) * Math.PI / 180;
+  const dλ = (lon2 - lon1) * Math.PI / 180;
+  const a  = Math.sin(dφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function minDistToPolyline(lat, lng, poly) {
+  if (!poly?.length) return Infinity;
+  return Math.min(...poly.map(p => distM(lat, lng, p[0], p[1])));
+}
+
+// ─── Step instruction formatters ─────────────────────────────────────────────
+function stepInstruction(step) {
+  if (!step) return 'Follow the route';
+  const { type, modifier = '' } = step.maneuver;
+  const road = step.name ? `onto ${step.name}` : '';
+  const dist = step.distance > 0 ? ` in ${Math.round(step.distance)}m` : '';
+  if (type === 'depart') return `Head towards ${step.name || 'start'}`;
+  if (type === 'arrive') return `You have arrived`;
+  if (type === 'roundabout') return `Take the roundabout${road}`;
+  if (modifier.includes('sharp left'))  return `Sharp left ${road}${dist}`;
+  if (modifier.includes('sharp right')) return `Sharp right ${road}${dist}`;
+  if (modifier.includes('slight left')) return `Slight left ${road}${dist}`;
+  if (modifier.includes('slight right'))return `Slight right ${road}${dist}`;
+  if (modifier.includes('left'))        return `Turn left ${road}${dist}`;
+  if (modifier.includes('right'))       return `Turn right ${road}${dist}`;
+  if (modifier.includes('uturn'))       return `Make a U-turn${dist}`;
+  return `Continue straight ${road}${dist}`;
+}
+
+function TurnIcon({ step, size = 28, color = '#1A73E8' }) {
+  if (!step) return <ArrowUp size={size} color={color} />;
+  const m = step.maneuver.modifier || '';
+  const t = step.maneuver.type || '';
+  if (t === 'arrive') return <MapPin size={size} color="#e53935" />;
+  if (m.includes('left'))  return <ArrowUpLeft  size={size} color={color} />;
+  if (m.includes('right')) return <ArrowUpRight size={size} color={color} />;
+  if (m.includes('uturn')) return <ArrowLeft    size={size} color={color} />;
+  return <ArrowUp size={size} color={color} />;
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function SalesRoute() {
   const { theme } = useTheme();
-  const location = useLocation();
+  const location  = useLocation();
   const routeState = location.state;
-  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  const tileUrl = "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}";
+  const isDark    = theme === 'dark' ||
+    (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
-  const [assigned, setAssigned] = useState([]);
+  const [assigned,       setAssigned]       = useState([]);
   const [useAllocations, setUseAllocations] = useState(true);
-  const [loading, setLoading] = useState(true);
-  const [myLoc, setMyLoc] = useState(null);
-  const [myHeading, setMyHeading] = useState(null);
-  const [mapType, setMapType] = useState('roadmap'); // roadmap | hybrid
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [route, setRoute] = useState(null);
-  const [steps, setSteps] = useState([]);
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [flyTarget, setFlyTarget] = useState(null);
-  const [gpsStatus, setGpsStatus] = useState('acquiring'); // acquiring | active | error
+  const [loading,        setLoading]        = useState(true);
+  const [myLoc,          setMyLoc]          = useState(null);
+  const [myHeading,      setMyHeading]      = useState(null);
+  const [mySpeed,        setMySpeed]        = useState(0); // km/h from GPS
+  const [mapType,        setMapType]        = useState('roadmap');
+  const [selectedItem,   setSelectedItem]   = useState(null);
+  const [route,          setRoute]          = useState(null);
+  const [steps,          setSteps]          = useState([]);
+  const [stepIdx,        setStepIdx]        = useState(0);
+  const [flyTarget,      setFlyTarget]      = useState(null);
+  const [gpsStatus,      setGpsStatus]      = useState('acquiring');
 
-  // Navigation Mode States
   const [isNavigating, setIsNavigating] = useState(false);
-  const [autoCenter, setAutoCenter] = useState(true);
+  const [autoCenter,   setAutoCenter]   = useState(true);
+  const [forceCenter,  setForceCenter]  = useState(0); // increment to force re-center
 
   const watchIdRef = useRef(null);
 
-  // Load assigned tasks/leads (or visit allocations)
+  // ── Load assigned tasks ───────────────────────────────────────────────────
   const loadAssigned = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const localDate = new Date();
-      const year = localDate.getFullYear();
-      const month = String(localDate.getMonth() + 1).padStart(2, '0');
-      const day = String(localDate.getDate()).padStart(2, '0');
-      const todayStr = `${year}-${month}-${day}`;
-      const resVisits = await visitAllocationsAPI.listMy({ date: todayStr });
-      const visits = resVisits.data.data || [];
-      
+      const d = new Date();
+      const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const rv = await visitAllocationsAPI.listMy({ date: today });
+      const visits = rv.data.data || [];
       if (visits.length > 0) {
-        setAssigned(visits);
-        setUseAllocations(true);
+        setAssigned(visits); setUseAllocations(true);
       } else {
-        const res = await ordersAPI.listMyAssigned();
-        setAssigned(res.data.data || []);
-        setUseAllocations(false);
+        const ro = await ordersAPI.listMyAssigned();
+        setAssigned(ro.data.data || []); setUseAllocations(false);
       }
-    } catch (err) {
+    } catch {
       try {
-        const res = await ordersAPI.listMyAssigned();
-        setAssigned(res.data.data || []);
-        setUseAllocations(false);
-      } catch (innerErr) {
-        toast.error('Failed to load assigned routes');
-      }
-    } finally {
-      setLoading(false);
-    }
+        const ro = await ordersAPI.listMyAssigned();
+        setAssigned(ro.data.data || []); setUseAllocations(false);
+      } catch { toast.error('Failed to load routes'); }
+    } finally { setLoading(false); }
   }, []);
 
   const handleUpdateVisitStatus = async (id, status) => {
     setLoading(true);
     try {
       await visitAllocationsAPI.updateStatus(id, status);
-      toast.success(`Visit marked as ${status.toLowerCase()}`);
+      toast.success(`Marked as ${status.toLowerCase()}`);
       await loadAssigned(true);
-      setSelectedItem(prev => prev && prev.id === id ? { ...prev, visit_status: status, status: status } : prev);
-    } catch (err) {
-      toast.error('Failed to update visit status');
-    } finally {
-      setLoading(false);
-    }
+      setSelectedItem(p => p?.id === id ? { ...p, visit_status: status } : p);
+    } catch { toast.error('Failed to update visit'); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    loadAssigned();
-  }, [loadAssigned]);
+  useEffect(() => { loadAssigned(); }, [loadAssigned]);
 
-  // Watch Sales Person's live location
+  // ── GPS watch ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (navigator.geolocation) {
-      watchIdRef.current = navigator.geolocation.watchPosition(
-        (pos) => {
-          setMyLoc([pos.coords.latitude, pos.coords.longitude]);
-          setMyHeading(pos.coords.heading);
-          setGpsStatus('active');
-        },
-        (err) => {
-          console.warn('GPS error:', err);
-          setGpsStatus('error');
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-    } else {
-      setGpsStatus('error');
-    }
-
-    return () => {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-      }
-    };
+    if (!navigator.geolocation) { setGpsStatus('error'); return; }
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      pos => {
+        setMyLoc([pos.coords.latitude, pos.coords.longitude]);
+        setMyHeading(pos.coords.heading);
+        setMySpeed(pos.coords.speed != null ? (pos.coords.speed * 3.6) : 0);
+        setGpsStatus('active');
+      },
+      err => { console.warn('GPS:', err); setGpsStatus('error'); },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+    return () => { if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current); };
   }, []);
 
-  // Fetch OSRM route & steps to selected destination (Optimized with Off-Route detection)
+  // ── Fetch OSRM route (with off-route threshold) ───────────────────────────
   useEffect(() => {
-    if (selectedItem && myLoc) {
-      const lat = parseFloat(selectedItem.custom_fields?.latitude);
-      const lng = parseFloat(selectedItem.custom_fields?.longitude);
-      if (!isNaN(lat) && !isNaN(lng)) {
-        
-        // Check if route exists and driver is still close to the current path (< 100m)
-        if (route && route.coordinates && route.coordinates.length > 0) {
-          const distToRoute = getMinDistanceToPolyline(myLoc[0], myLoc[1], route.coordinates);
-          if (distToRoute < 100) {
-            return; // Driver is still on route, do not recalculate!
-          }
-        }
+    if (!selectedItem || !myLoc) { setRoute(null); setSteps([]); return; }
+    const lat = parseFloat(selectedItem.custom_fields?.latitude);
+    const lng = parseFloat(selectedItem.custom_fields?.longitude);
+    if (isNaN(lat) || isNaN(lng)) { setRoute(null); setSteps([]); return; }
 
-        const fetchRoute = async () => {
-          const url = `https://router.project-osrm.org/route/v1/driving/${myLoc[1]},${myLoc[0]};${lng},${lat}?overview=full&geometries=geojson&steps=true`;
-          try {
-            const res = await fetch(url);
-            const data = await res.json();
-            if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-              const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-              const rawSteps = data.routes[0].legs[0].steps || [];
-              setRoute({
-                coordinates: coords,
-                distance: data.routes[0].distance / 1000, // km
-                duration: data.routes[0].duration / 60, // mins
-              });
-              setSteps(rawSteps);
-              setCurrentStepIndex(0);
-            } else {
-              setRoute(null);
-              setSteps([]);
-            }
-          } catch (err) {
-            console.warn('Routing failed:', err);
-            setRoute(null);
-            setSteps([]);
-          }
-        };
-        fetchRoute();
-      }
-    } else {
-      setRoute(null);
-      setSteps([]);
+    // Don't refetch if still close to route (< 100 m)
+    if (route?.coordinates?.length > 0) {
+      const d = minDistToPolyline(myLoc[0], myLoc[1], route.coordinates);
+      if (d < 100) return;
     }
-  }, [selectedItem, myLoc]);
 
-  // Handle pre-selected navigation route from CRM page
+    const fetchRoute = async () => {
+      const url = `https://router.project-osrm.org/route/v1/driving/${myLoc[1]},${myLoc[0]};${lng},${lat}?overview=full&geometries=geojson&steps=true`;
+      try {
+        const res  = await fetch(url);
+        const data = await res.json();
+        if (data.code === 'Ok' && data.routes?.length > 0) {
+          const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+          setRoute({
+            coordinates: coords,
+            distance: data.routes[0].distance / 1000,
+            duration: data.routes[0].duration / 60,
+          });
+          setSteps(data.routes[0].legs[0].steps || []);
+          setStepIdx(0);
+        } else { setRoute(null); setSteps([]); }
+      } catch { setRoute(null); setSteps([]); }
+    };
+    fetchRoute();
+  }, [selectedItem, myLoc]); // eslint-disable-line
+
+  // ── Pre-selected route from CRM ────────────────────────────────────────────
   useEffect(() => {
     if (routeState?.preselectedItemId && assigned.length > 0) {
-      const match = assigned.find(item => item.id === routeState.preselectedItemId);
+      const match = assigned.find(i => i.id === routeState.preselectedItemId);
       if (match) {
         setSelectedItem(match);
         const lat = parseFloat(match.custom_fields?.latitude);
         const lng = parseFloat(match.custom_fields?.longitude);
-        if (!isNaN(lat) && !isNaN(lng)) {
-          setFlyTarget([lat, lng]);
-        }
+        if (!isNaN(lat) && !isNaN(lng)) setFlyTarget([lat, lng]);
         setIsNavigating(true);
       }
     }
   }, [routeState, assigned]);
 
-  // Real-time step advancement based on distance
+  // ── Auto-advance steps ─────────────────────────────────────────────────────
   useEffect(() => {
-    if (isNavigating && steps.length > 0 && currentStepIndex < steps.length - 1 && myLoc) {
-      const nextStep = steps[currentStepIndex + 1];
-      const nextLoc = nextStep.maneuver.location; // [lng, lat]
-      const dist = getDistanceMeters(myLoc[0], myLoc[1], nextLoc[1], nextLoc[0]);
-      if (dist < 25) { // within 25 meters of the turn, advance step
-        setCurrentStepIndex(prev => prev + 1);
-      }
-    }
-  }, [isNavigating, myLoc, steps, currentStepIndex]);
+    if (!isNavigating || !steps.length || stepIdx >= steps.length - 1 || !myLoc) return;
+    const next = steps[stepIdx + 1];
+    const d = distM(myLoc[0], myLoc[1], next.maneuver.location[1], next.maneuver.location[0]);
+    if (d < 25) setStepIdx(p => p + 1);
+  }, [isNavigating, myLoc, steps, stepIdx]);
 
-  // Keep map centered on user when navigating
-  useEffect(() => {
-    if (isNavigating && myLoc) {
-      // Centering is handled directly by the NavigationCenterer component inside the map canvas
-    }
-  }, [isNavigating, myLoc]);
-
-  // Pin Current Location Action
+  // ── Handlers ──────────────────────────────────────────────────────────────
   const handlePinLocation = async (item) => {
-    if (!window.confirm(`Pin your current GPS location for ${item.customer_name || item.customer}?`)) return;
-    if (!navigator.geolocation) {
-      return toast.error('GPS is not supported on this device');
-    }
+    if (!window.confirm(`Pin your GPS for ${item.customer_name || item.customer}?`)) return;
+    if (!navigator.geolocation) return toast.error('GPS not available');
     setLoading(true);
     navigator.geolocation.getCurrentPosition(
-      async (pos) => {
+      async pos => {
         try {
           const fields = {
-            latitude: pos.coords.latitude.toString(),
-            longitude: pos.coords.longitude.toString()
+            latitude:  pos.coords.latitude.toString(),
+            longitude: pos.coords.longitude.toString(),
           };
-          const orderId = item.order_id || item.id;
-          await ordersAPI.updateCustomFields(orderId, fields);
-          toast.success('Location pinned successfully!');
+          await ordersAPI.updateCustomFields(item.order_id || item.id, fields);
+          toast.success('Location pinned!');
           loadAssigned();
-          setSelectedItem(prev => ({ ...prev, custom_fields: { ...prev.custom_fields, ...fields } }));
+          setSelectedItem(p => ({ ...p, custom_fields: { ...p?.custom_fields, ...fields } }));
           setFlyTarget([pos.coords.latitude, pos.coords.longitude]);
-        } catch (err) {
-          toast.error('Failed to pin location');
-        } finally {
-          setLoading(false);
-        }
+        } catch { toast.error('Failed to pin location'); }
+        finally { setLoading(false); }
       },
-      (err) => {
-        toast.error('Failed to get location: ' + err.message);
-        setLoading(false);
-      },
+      err => { toast.error('GPS error: ' + err.message); setLoading(false); },
       { enableHighAccuracy: true }
     );
   };
 
   const handleSelectRoute = (item) => {
-    if (isNavigating) return; // Lock list during navigation
+    if (isNavigating) return;
     setSelectedItem(item);
     const lat = parseFloat(item.custom_fields?.latitude);
     const lng = parseFloat(item.custom_fields?.longitude);
-    if (!isNaN(lat) && !isNaN(lng)) {
-      setFlyTarget([lat, lng]);
-    } else {
-      setFlyTarget(null);
-      setRoute(null);
-      setSteps([]);
-    }
+    if (!isNaN(lat) && !isNaN(lng)) setFlyTarget([lat, lng]);
+    else { setFlyTarget(null); setRoute(null); setSteps([]); }
   };
 
-  const mappedItems = assigned.filter(item => {
-    const lat = parseFloat(item.custom_fields?.latitude);
-    const lng = parseFloat(item.custom_fields?.longitude);
+  const handleStartNavigation = () => {
+    setIsNavigating(true);
+    setAutoCenter(true);
+    setForceCenter(c => c + 1);
+  };
+
+  const handleReCenter = () => {
+    setAutoCenter(true);
+    setForceCenter(c => c + 1); // triggers NavigationCenterer even if myLoc unchanged
+  };
+
+  const handleExitNavigation = () => {
+    setIsNavigating(false);
+    setFlyTarget(null);
+    setAutoCenter(true);
+  };
+
+  // ── Derived ───────────────────────────────────────────────────────────────
+  const mappedItems    = assigned.filter(i => {
+    const lat = parseFloat(i.custom_fields?.latitude);
+    const lng = parseFloat(i.custom_fields?.longitude);
     return !isNaN(lat) && !isNaN(lng);
   });
+  const defaultCenter  = myLoc || (mappedItems[0]
+    ? [parseFloat(mappedItems[0].custom_fields.latitude), parseFloat(mappedItems[0].custom_fields.longitude)]
+    : [9.9252, 78.1198]);
 
-  const defaultCenter = myLoc || (mappedItems.length > 0 ? [parseFloat(mappedItems[0].custom_fields.latitude), parseFloat(mappedItems[0].custom_fields.longitude)] : [9.9252, 78.1198]);
+  const routeColor   = '#1A73E8'; // Google Maps blue
+  const remainingDist = route ? route.distance.toFixed(1) : null;
+  const remainingEta  = route ? Math.round(route.duration) : null;
 
-  if (loading) {
-    return (
-      <div className="s-page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-        <div style={{ width: 32, height: 32, border: '3px solid var(--s-border)', borderTopColor: 'var(--s-primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="s-page" style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'60vh' }}>
+      <div style={{ width:32, height:32, border:'3px solid var(--s-border)', borderTopColor:'#1A73E8', borderRadius:'50%', animation:'sr-spin 0.8s linear infinite' }} />
+    </div>
+  );
 
   return (
-    <div className="s-page s-fade-in" style={{ padding: '0 0 16px 0', height: 'calc(100vh - 135px)', display: 'flex', flexDirection: 'column' }}>
-      
-      {/* ── Header (Hidden in Navigation Mode) ───────────────────────────── */}
+    <div className="s-page s-fade-in" style={{ padding:'0 0 16px 0', height:'calc(100vh - 135px)', display:'flex', flexDirection:'column' }}>
+
+      {/* ── Header (hidden in nav mode) ──────────────────────────────────── */}
       {!isNavigating && (
-        <div style={{ padding: '16px 16px 0', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding:'16px 16px 0', marginBottom:10, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <div>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--s-text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Navigation size={20} color="var(--s-primary)" />
+            <h2 style={{ fontSize:18, fontWeight:800, color:'var(--s-text)', margin:0, display:'flex', alignItems:'center', gap:8 }}>
+              <Navigation size={20} color="#1A73E8" />
               {useAllocations ? 'Scheduled Visits' : 'Assigned Routes'}
             </h2>
-            <p style={{ fontSize: 12, color: 'var(--s-text-3)', margin: '2px 0 0 0' }}>
-              {assigned.length} {useAllocations ? 'locations allocated for today' : 'locations assigned by Admin'}
+            <p style={{ fontSize:12, color:'var(--s-text-3)', margin:'2px 0 0 0' }}>
+              {assigned.length} location{assigned.length !== 1 ? 's' : ''} today
             </p>
           </div>
-          <button
-            onClick={() => loadAssigned()}
-            style={{ background: 'none', border: 'none', color: 'var(--s-text-3)', cursor: 'pointer', padding: 4 }}
-          >
+          <button onClick={() => loadAssigned()}
+            style={{ background:'none', border:'none', color:'var(--s-text-3)', cursor:'pointer', padding:4 }}>
             <RefreshCw size={16} />
           </button>
         </div>
       )}
 
       {assigned.length === 0 ? (
-        <div style={{ margin: '16px', background: 'var(--s-card)', border: '1px solid var(--s-border)', borderRadius: 16, padding: '40px 20px', textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-          <CheckCircle2 size={48} color="#10b981" style={{ marginBottom: 12, opacity: 0.8 }} />
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--s-text)', marginBottom: 6 }}>
-            All Clear!
-          </div>
-          <div style={{ fontSize: 13, color: 'var(--s-text-3)' }}>
-            No routes or customer visits assigned to you today.
-          </div>
+        <div style={{ margin:'16px', background:'var(--s-card)', border:'1px solid var(--s-border)', borderRadius:16, padding:'40px 20px', textAlign:'center', flex:1, display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center' }}>
+          <CheckCircle2 size={48} color="#34A853" style={{ marginBottom:12, opacity:0.8 }} />
+          <div style={{ fontSize:16, fontWeight:700, color:'var(--s-text)', marginBottom:6 }}>All Clear!</div>
+          <div style={{ fontSize:13, color:'var(--s-text-3)' }}>No routes assigned for today.</div>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          
-          {/* ── Map Container ─────────────────────────────────────────────────── */}
-          <div style={{ position: 'relative', flex: 1, borderRadius: isNavigating ? 0 : 16, overflow: 'hidden', border: isNavigating ? 'none' : '1px solid var(--s-border)', margin: isNavigating ? '0' : '0 16px 12px' }}>
+        <div style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0 }}>
+
+          {/* ── Map ──────────────────────────────────────────────────────── */}
+          <div style={{
+            position:'relative', flex:1,
+            borderRadius: isNavigating ? 0 : 16,
+            overflow:'hidden',
+            border: isNavigating ? 'none' : '1px solid var(--s-border)',
+            margin: isNavigating ? '0' : '0 16px 10px',
+          }}>
             <MapContainer
               center={defaultCenter}
               zoom={isNavigating ? 17 : 14}
-              style={{ height: '100%', width: '100%' }}
+              style={{ height:'100%', width:'100%' }}
               zoomControl={false}
             >
+              {/* Tile layer */}
               <TileLayer
-                attribution='&copy; Google Maps'
+                attribution="&copy; Google Maps"
                 url={mapType === 'hybrid'
                   ? "https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
-                  : "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
-                }
-                subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
+                  : "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"}
+                subdomains={['mt0','mt1','mt2','mt3']}
                 className={(isDark && mapType !== 'hybrid') ? 'leaflet-dark-filter' : ''}
               />
 
+              {/* Fly helper (non-nav) */}
               {flyTarget && !isNavigating && <FlyTo target={flyTarget} zoom={15} />}
 
-              {/* Map Interaction Listener (detect panning/zooming) */}
+              {/* Map interaction + auto-center */}
               <MapInteractionListener setAutoCenter={setAutoCenter} />
+              <NavigationCenterer
+                target={myLoc}
+                isNavigating={isNavigating}
+                autoCenter={autoCenter}
+                forceCenter={forceCenter}
+              />
 
-              {/* Instant smooth centering for active navigation */}
-              <NavigationCenterer target={myLoc} isNavigating={isNavigating} autoCenter={autoCenter} />
-
-              {/* Live Sales Person Location Marker */}
+              {/* My location */}
               {myLoc && (
-                isNavigating ? (
-                  <Marker
-                    position={myLoc}
-                    icon={createDrivingIcon('#3b82f6', myHeading)}
-                  />
-                ) : (
-                  <>
-                    <CircleMarker
-                      center={myLoc}
-                      radius={12}
-                      fillColor="#3b82f6"
-                      color="#ffffff"
-                      weight={2.5}
-                      fillOpacity={0.3}
-                    />
-                    <CircleMarker
-                      center={myLoc}
-                      radius={5.5}
-                      fillColor="#3b82f6"
-                      color="#ffffff"
-                      weight={2}
-                      fillOpacity={1}
-                    />
-                  </>
-                )
+                isNavigating
+                  ? <Marker position={myLoc} icon={createDrivingIcon(myHeading)} />
+                  : <Marker position={myLoc} icon={createLocDot()} />
               )}
 
-              {/* Road-snapped Route Polyline */}
-              {route && route.coordinates && (
+              {/* Route polyline — Google Maps style: white casing + blue line */}
+              {route?.coordinates?.length > 0 && (
                 <>
-                  <Polyline
-                    positions={route.coordinates}
-                    color={selectedItem?.status === 'PENDING' ? '#10b981' : '#3b82f6'}
-                    weight={7}
-                    opacity={0.3}
-                  />
-                  <Polyline
-                    positions={route.coordinates}
-                    color={selectedItem?.status === 'PENDING' ? '#10b981' : '#3b82f6'}
-                    weight={4}
-                    opacity={0.95}
-                  />
+                  {/* White border / casing */}
+                  <Polyline positions={route.coordinates} color="#ffffff" weight={11} opacity={0.85} />
+                  {/* Blue inner line */}
+                  <Polyline positions={route.coordinates} color={routeColor} weight={7} opacity={1} />
                 </>
               )}
 
-              {/* Assigned Location Markers */}
+              {/* Destination markers */}
               {!isNavigating && mappedItems.map(item => {
                 const lat = parseFloat(item.custom_fields.latitude);
                 const lng = parseFloat(item.custom_fields.longitude);
-                const isSelected = selectedItem?.id === item.id;
-                const icon = createCustomerMarkerIcon(item.customer_name || item.customer, item.status, isSelected);
-
+                const sel = selectedItem?.id === item.id;
                 return (
                   <Marker
                     key={item.id}
                     position={[lat, lng]}
-                    icon={icon}
+                    icon={createCustomerMarkerIcon(item.customer_name || item.customer, item.visit_status, sel)}
                     eventHandlers={{ click: () => handleSelectRoute(item) }}
                   />
                 );
               })}
+
+              {/* Destination pin in nav mode */}
+              {isNavigating && selectedItem?.custom_fields?.latitude && (
+                <CircleMarker
+                  center={[parseFloat(selectedItem.custom_fields.latitude), parseFloat(selectedItem.custom_fields.longitude)]}
+                  radius={10}
+                  fillColor="#e53935"
+                  color="#ffffff"
+                  weight={3}
+                  fillOpacity={1}
+                />
+              )}
             </MapContainer>
 
-            {/* Map Type Switcher Floating Overlay (Standard Mode) */}
-            {!isNavigating && (
-              <div style={{
-                position: 'absolute', bottom: selectedItem ? 200 : 12, left: 12, zIndex: 999,
-                background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)',
-                border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8,
-                padding: '4px', display: 'flex', gap: 4,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-              }}>
-                <button
-                  onClick={() => setMapType('roadmap')}
-                  style={{
-                    padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6,
-                    border: 'none', cursor: 'pointer',
-                    background: mapType === 'roadmap' ? '#3b82f6' : 'transparent',
-                    color: '#fff', transition: 'all 0.15s'
-                  }}
-                >
-                  🗺️ Street
-                </button>
-                <button
-                  onClick={() => setMapType('hybrid')}
-                  style={{
-                    padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6,
-                    border: 'none', cursor: 'pointer',
-                    background: mapType === 'hybrid' ? '#3b82f6' : 'transparent',
-                    color: '#fff', transition: 'all 0.15s'
-                  }}
-                >
-                  🛰️ Satellite
-                </button>
-              </div>
-            )}
-
-            {/* Map Type Switcher Floating Overlay during Navigation (HUD Mode) */}
-            {isNavigating && (
-              <div style={{
-                position: 'absolute', top: 140, right: 12, zIndex: 999,
-                background: 'rgba(15, 23, 42, 0.95)', backdropFilter: 'blur(6px)',
-                border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8,
-                padding: '4px', display: 'flex', flexDirection: 'column', gap: 4,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-              }}>
-                <button
-                  onClick={() => setMapType('roadmap')}
-                  style={{
-                    width: 32, height: 32, fontSize: 13, fontWeight: 700, borderRadius: 6,
-                    border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: mapType === 'roadmap' ? '#3b82f6' : 'transparent',
-                    color: '#fff', transition: 'all 0.15s'
-                  }}
-                  title="Street Map"
-                >
-                  🗺️
-                </button>
-                <button
-                  onClick={() => setMapType('hybrid')}
-                  style={{
-                    width: 32, height: 32, fontSize: 13, fontWeight: 700, borderRadius: 6,
-                    border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: mapType === 'hybrid' ? '#3b82f6' : 'transparent',
-                    color: '#fff', transition: 'all 0.15s'
-                  }}
-                  title="Satellite Map"
-                >
-                  🛰️
-                </button>
-              </div>
-            )}
-
-            {/* Turn-by-Turn Header Panel (Navigation Mode Only) */}
+            {/* ── Navigation HUD (top turn instruction) ──────────────────── */}
             {isNavigating && steps.length > 0 && (
               <div style={{
-                position: 'absolute', top: 12, left: 12, right: 12, zIndex: 999,
-                background: 'rgba(15, 23, 42, 0.95)', backdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14,
-                padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.6)'
+                position:'absolute', top:12, left:12, right:12, zIndex:999,
+                background:'rgba(15,23,42,0.96)', backdropFilter:'blur(12px)',
+                borderRadius:16, padding:'14px 16px',
+                boxShadow:'0 8px 32px rgba(0,0,0,0.6)',
+                border:'1px solid rgba(255,255,255,0.08)',
+                display:'flex', alignItems:'center', gap:14,
               }}>
+                {/* Turn icon */}
                 <div style={{
-                  background: 'rgba(59, 130, 246, 0.15)', width: 44, height: 44,
-                  borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0
+                  width:50, height:50, borderRadius:12,
+                  background:'rgba(26,115,232,0.18)',
+                  display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0,
                 }}>
-                  {getTurnIcon(steps[currentStepIndex])}
+                  <TurnIcon step={steps[stepIdx]} size={28} color="#1A73E8" />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ color: '#fff', fontSize: 16, fontWeight: 800, lineHeight: 1.3 }}>
-                    {formatStepInstruction(steps[currentStepIndex])}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ color:'#fff', fontSize:16, fontWeight:800, lineHeight:1.25, marginBottom:4 }}>
+                    {stepInstruction(steps[stepIdx])}
                   </div>
-                  {currentStepIndex < steps.length - 1 && (
-                    <div style={{ color: '#94a3b8', fontSize: 12.5, marginTop: 3, fontWeight: 600 }}>
-                      Then: {formatStepInstruction(steps[currentStepIndex + 1]).split(' (')[0]}
+                  {stepIdx < steps.length - 1 && (
+                    <div style={{ color:'#94a3b8', fontSize:12, fontWeight:600 }}>
+                      Then: {stepInstruction(steps[stepIdx + 1]).replace(/ in \d+m$/, '')}
                     </div>
                   )}
                 </div>
               </div>
             )}
 
-            {/* GPS Status Overlay (Standard Mode Only) */}
+            {/* ── Speed + ETA bar (bottom of map, nav mode) ──────────────── */}
+            {isNavigating && route && (
+              <div style={{
+                position:'absolute', bottom: autoCenter ? 64 : 64, left:12, right:12, zIndex:999,
+                background:'rgba(15,23,42,0.96)', backdropFilter:'blur(10px)',
+                borderRadius:14, padding:'10px 16px',
+                boxShadow:'0 4px 16px rgba(0,0,0,0.5)',
+                border:'1px solid rgba(255,255,255,0.08)',
+                display:'flex', justifyContent:'space-between', alignItems:'center', gap:12,
+              }}>
+                {/* Speed */}
+                <div style={{ display:'flex', alignItems:'baseline', gap:4 }}>
+                  <span style={{ fontSize:28, fontWeight:900, color:'#fff', fontVariantNumeric:'tabular-nums', lineHeight:1 }}>
+                    {Math.round(mySpeed)}
+                  </span>
+                  <span style={{ fontSize:11, color:'#94a3b8', fontWeight:600 }}>km/h</span>
+                </div>
+                {/* ETA */}
+                <div style={{ textAlign:'center' }}>
+                  <div style={{ fontSize:18, fontWeight:800, color:'#1A73E8' }}>{remainingEta} min</div>
+                  <div style={{ fontSize:11, color:'#94a3b8', fontWeight:600 }}>ETA</div>
+                </div>
+                {/* Distance */}
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontSize:18, fontWeight:800, color:'#fff' }}>{remainingDist} km</div>
+                  <div style={{ fontSize:11, color:'#94a3b8', fontWeight:600 }}>remaining</div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Re-Center button (shows when panned away) ───────────────── */}
+            {!autoCenter && myLoc && (
+              <button
+                onClick={handleReCenter}
+                style={{
+                  position:'absolute',
+                  bottom: isNavigating ? 136 : (selectedItem ? 210 : 20),
+                  right:12,
+                  zIndex:1001,
+                  width:44, height:44,
+                  background:'rgba(15,23,42,0.96)', backdropFilter:'blur(8px)',
+                  color:'#1A73E8', border:'1px solid rgba(26,115,232,0.4)',
+                  borderRadius:12,
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  boxShadow:'0 4px 16px rgba(0,0,0,0.4)',
+                  cursor:'pointer',
+                }}
+                title="Re-center map"
+              >
+                <LocateFixed size={20} />
+              </button>
+            )}
+
+            {/* ── Exit Navigation button ──────────────────────────────────── */}
+            {isNavigating && (
+              <button
+                onClick={handleExitNavigation}
+                style={{
+                  position:'absolute', bottom:12, left:'50%', transform:'translateX(-50%)',
+                  zIndex:1000,
+                  background:'rgba(229,57,53,0.95)', color:'#fff',
+                  border:'1px solid rgba(255,255,255,0.2)', borderRadius:24,
+                  padding:'11px 28px', fontSize:14, fontWeight:800,
+                  display:'flex', alignItems:'center', gap:8,
+                  boxShadow:'0 4px 20px rgba(229,57,53,0.45)', cursor:'pointer',
+                  backdropFilter:'blur(8px)',
+                }}
+              >
+                <X size={16} /> Exit Navigation
+              </button>
+            )}
+
+            {/* ── Map type switcher (non-nav) ──────────────────────────────── */}
             {!isNavigating && (
               <div style={{
-                position: 'absolute', top: 12, right: 12, zIndex: 999,
-                background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)',
-                border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
-                padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6,
+                position:'absolute', bottom: selectedItem ? 210 : 12, left:12, zIndex:999,
+                background:'rgba(15,23,42,0.92)', backdropFilter:'blur(6px)',
+                border:'1px solid rgba(255,255,255,0.1)', borderRadius:10,
+                padding:'4px', display:'flex', gap:4,
+              }}>
+                {[['roadmap','🗺️ Street'],['hybrid','🛰️ Sat']].map(([t, label]) => (
+                  <button key={t} onClick={() => setMapType(t)} style={{
+                    padding:'4px 10px', fontSize:11, fontWeight:700, borderRadius:8,
+                    border:'none', cursor:'pointer',
+                    background: mapType === t ? '#1A73E8' : 'transparent',
+                    color:'#fff', transition:'all 0.15s',
+                  }}>{label}</button>
+                ))}
+              </div>
+            )}
+
+            {/* ── Map type switcher (nav mode, compact) ───────────────────── */}
+            {isNavigating && (
+              <div style={{
+                position:'absolute', top:88, right:12, zIndex:999,
+                background:'rgba(15,23,42,0.92)', backdropFilter:'blur(6px)',
+                border:'1px solid rgba(255,255,255,0.1)', borderRadius:10,
+                padding:'4px', display:'flex', flexDirection:'column', gap:4,
+              }}>
+                {[['roadmap','🗺️'],['hybrid','🛰️']].map(([t, label]) => (
+                  <button key={t} onClick={() => setMapType(t)} style={{
+                    width:34, height:34, fontSize:15, borderRadius:8,
+                    border:'none', cursor:'pointer',
+                    background: mapType === t ? '#1A73E8' : 'transparent',
+                    color:'#fff', display:'flex', alignItems:'center', justifyContent:'center',
+                  }}>{label}</button>
+                ))}
+              </div>
+            )}
+
+            {/* ── GPS indicator (non-nav) ──────────────────────────────────── */}
+            {!isNavigating && (
+              <div style={{
+                position:'absolute', top:12, right:12, zIndex:999,
+                background:'rgba(15,23,42,0.92)', backdropFilter:'blur(6px)',
+                border:'1px solid rgba(255,255,255,0.08)', borderRadius:8,
+                padding:'5px 10px', display:'flex', alignItems:'center', gap:6,
               }}>
                 <div style={{
-                  width: 8, height: 8, borderRadius: '50%',
-                  background: gpsStatus === 'active' ? '#22c55e' : (gpsStatus === 'acquiring' ? '#f59e0b' : '#ef4444'),
-                  animation: gpsStatus === 'active' ? 'live-pulse-dot 1.5s infinite' : 'none'
+                  width:8, height:8, borderRadius:'50%',
+                  background: gpsStatus === 'active' ? '#34A853' : gpsStatus === 'acquiring' ? '#FBBC04' : '#ea4335',
+                  animation: gpsStatus === 'active' ? 'sr-dot 1.5s infinite' : 'none',
                 }} />
-                <span style={{ color: '#fff', fontSize: 11, fontWeight: 600 }}>
-                  {gpsStatus === 'active' && 'GPS Active'}
-                  {gpsStatus === 'acquiring' && 'Acquiring GPS...'}
-                  {gpsStatus === 'error' && 'GPS Error'}
+                <span style={{ color:'#fff', fontSize:11, fontWeight:600 }}>
+                  {gpsStatus === 'active' ? 'GPS' : gpsStatus === 'acquiring' ? 'Finding GPS…' : 'No GPS'}
                 </span>
               </div>
             )}
 
-            {/* Floating Navigation Status Overlay (Navigation Mode Only) */}
-            {isNavigating && route && (
-              <div style={{
-                position: 'absolute', bottom: 84, left: 12, right: 12, zIndex: 999,
-                background: 'rgba(15, 23, 42, 0.95)', backdropFilter: 'blur(8px)',
-                borderRadius: 12, padding: '10px 14px', border: '1px solid rgba(255,255,255,0.1)',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.5)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Clock size={15} color="#3b82f6" />
-                  <span style={{ color: '#fff', fontSize: 12.5, fontWeight: 700 }}>
-                    {Math.round(route.duration)} mins remaining
-                  </span>
-                </div>
-                <div style={{ color: '#94a3b8', fontSize: 12.5, fontWeight: 700 }}>
-                  {route.distance.toFixed(1)} km left
-                </div>
-              </div>
-            )}
-
-            {/* Standard Bottom Card for Selected Destination */}
+            {/* ── Destination bottom card (non-nav) ───────────────────────── */}
             {!isNavigating && selectedItem && (
               <div style={{
-                position: 'absolute', bottom: 12, left: 12, right: 12, zIndex: 999,
-                background: 'var(--s-card)', border: '1px solid var(--s-border)',
-                borderRadius: 14, padding: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-                display: 'flex', flexDirection: 'column', gap: 8
+                position:'absolute', bottom:12, left:12, right:12, zIndex:999,
+                background:'var(--s-card)', border:'1px solid var(--s-border)',
+                borderRadius:16, padding:14,
+                boxShadow:'0 8px 32px rgba(0,0,0,0.4)',
+                display:'flex', flexDirection:'column', gap:10,
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                {/* Header row */}
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--s-text)' }}>
+                    <div style={{ fontSize:15, fontWeight:800, color:'var(--s-text)' }}>
                       {selectedItem.customer_name || selectedItem.customer}
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--s-text-3)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span>{selectedItem.invoice_number || selectedItem.order_number}</span>
-                      {selectedItem.status === 'PENDING' && (
-                        <span className="s-chip green" style={{ fontSize: 8, padding: '1px 4px', fontWeight: 800 }}>LEAD</span>
-                      )}
+                    <div style={{ fontSize:12, color:'var(--s-text-3)', marginTop:2 }}>
+                      {selectedItem.invoice_number || selectedItem.order_number}
                     </div>
                   </div>
                   <button
                     onClick={() => { setSelectedItem(null); setRoute(null); setSteps([]); }}
-                    style={{ background: 'none', border: 'none', color: 'var(--s-text-3)', cursor: 'pointer', padding: 2 }}
-                  >
+                    style={{ background:'none', border:'none', color:'var(--s-text-3)', cursor:'pointer', padding:4 }}>
                     <X size={16} />
                   </button>
                 </div>
 
-                {/* Distance & Duration */}
-                {selectedItem.custom_fields?.latitude && selectedItem.custom_fields?.longitude ? (
+                {/* Route info */}
+                {selectedItem.custom_fields?.latitude ? (
                   route ? (
-                    <div style={{ display: 'flex', gap: 12, background: 'rgba(255,255,255,0.03)', padding: '6px 10px', borderRadius: 8, border: '1px solid var(--s-border)' }}>
-                      <div style={{ fontSize: 12, color: 'var(--s-text-2)' }}>
-                        🚗 <strong>{route.distance.toFixed(1)} km</strong> to customer
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--s-text-2)' }}>
-                        ⏱ <strong>{Math.round(route.duration)} mins</strong> travel time
-                      </div>
+                    <div style={{ display:'flex', gap:14, background:'rgba(26,115,232,0.06)', padding:'8px 12px', borderRadius:10, border:'1px solid rgba(26,115,232,0.15)' }}>
+                      <div style={{ fontSize:13, color:'var(--s-text-2)' }}>🚗 <strong>{route.distance.toFixed(1)} km</strong></div>
+                      <div style={{ fontSize:13, color:'var(--s-text-2)' }}>⏱ <strong>{Math.round(route.duration)} min</strong></div>
                     </div>
                   ) : (
-                    <div style={{ fontSize: 12, color: 'var(--s-text-3)', padding: '6px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
-                      Calculating route...
-                    </div>
+                    <div style={{ fontSize:12, color:'var(--s-text-3)', padding:'6px 0' }}>Calculating route…</div>
                   )
                 ) : (
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', background: 'rgba(239,68,68,0.08)', padding: '8px 10px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
+                  <div style={{ display:'flex', gap:6, alignItems:'center', background:'rgba(234,67,53,0.07)', padding:'8px 10px', borderRadius:10, border:'1px solid rgba(234,67,53,0.2)', color:'#ea4335' }}>
                     <AlertTriangle size={14} />
-                    <span style={{ fontSize: 11.5, fontWeight: 600 }}>No GPS coordinates set for this customer.</span>
+                    <span style={{ fontSize:12, fontWeight:600 }}>No GPS coordinates set for this customer.</span>
                   </div>
                 )}
 
-                {/* Admin Instructions Notes */}
+                {/* Admin instructions */}
                 {useAllocations && selectedItem.notes && (
-                  <div style={{ fontSize: 12, color: 'var(--s-text-2)', background: 'rgba(59,130,246,0.06)', padding: '8px 10px', borderRadius: 8, border: '1px solid rgba(59,130,246,0.15)', lineHeight: 1.4, textAlign: 'left' }}>
-                    <strong>Admin Instructions:</strong> {selectedItem.notes}
+                  <div style={{ fontSize:12, color:'var(--s-text-2)', background:'rgba(59,130,246,0.06)', padding:'8px 10px', borderRadius:10, border:'1px solid rgba(59,130,246,0.15)', lineHeight:1.4 }}>
+                    <strong>Admin Notes:</strong> {selectedItem.notes}
                   </div>
                 )}
 
-                {/* Actions */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
-                  {/* Status update buttons if using allocations */}
+                {/* Action buttons */}
+                <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                  {/* Visit status */}
                   {useAllocations && selectedItem.visit_status === 'PENDING' && (
-                    <div style={{ display: 'flex', gap: 6, width: '100%' }}>
-                      <button
-                        onClick={() => handleUpdateVisitStatus(selectedItem.id, 'COMPLETED')}
-                        style={{
-                          flex: 1, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                          color: '#fff', border: 'none', borderRadius: 10, padding: '10px 14px',
-                          fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                          cursor: 'pointer', boxShadow: '0 4px 12px rgba(16,185,129,0.2)'
-                        }}
-                      >
-                        ✓ Mark Visited
+                    <div style={{ display:'flex', gap:6, width:'100%' }}>
+                      <button onClick={() => handleUpdateVisitStatus(selectedItem.id, 'COMPLETED')}
+                        style={{ flex:1, background:'linear-gradient(135deg,#34A853,#1a9e5c)', color:'#fff', border:'none', borderRadius:10, padding:'10px', fontSize:13, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                        <Check size={15}/> Visited
                       </button>
-                      <button
-                        onClick={() => handleUpdateVisitStatus(selectedItem.id, 'SKIPPED')}
-                        style={{
-                          flex: 1, background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                          color: '#fff', border: 'none', borderRadius: 10, padding: '10px 14px',
-                          fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                          cursor: 'pointer', boxShadow: '0 4px 12px rgba(239,68,68,0.2)'
-                        }}
-                      >
-                        ✗ Skip Visit
+                      <button onClick={() => handleUpdateVisitStatus(selectedItem.id, 'SKIPPED')}
+                        style={{ flex:1, background:'linear-gradient(135deg,#ea4335,#c62828)', color:'#fff', border:'none', borderRadius:10, padding:'10px', fontSize:13, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                        <X size={15}/> Skip
                       </button>
                     </div>
                   )}
                   {useAllocations && selectedItem.visit_status !== 'PENDING' && (
-                    <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid var(--s-border)' }}>
-                      <span style={{ fontSize: 12.5, color: 'var(--s-text-2)', fontWeight: 600 }}>
-                        Visit Status: <strong style={{ color: selectedItem.visit_status === 'COMPLETED' ? '#10b981' : '#f87171' }}>{selectedItem.visit_status}</strong>
+                    <div style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 12px', background:'rgba(255,255,255,0.03)', borderRadius:10, border:'1px solid var(--s-border)' }}>
+                      <span style={{ fontSize:12.5, color:'var(--s-text-2)', fontWeight:600 }}>
+                        Status: <strong style={{ color: selectedItem.visit_status === 'COMPLETED' ? '#34A853' : '#ea4335' }}>{selectedItem.visit_status}</strong>
                       </span>
-                      <button 
-                        onClick={() => handleUpdateVisitStatus(selectedItem.id, 'PENDING')}
-                        style={{ background: 'none', border: 'none', color: 'var(--s-primary)', cursor: 'pointer', padding: 2, textDecoration: 'underline', fontSize: 12, fontWeight: 700 }}
-                      >
-                        Reset Status
+                      <button onClick={() => handleUpdateVisitStatus(selectedItem.id, 'PENDING')}
+                        style={{ background:'none', border:'none', color:'#1A73E8', cursor:'pointer', fontSize:12, fontWeight:700, textDecoration:'underline' }}>
+                        Reset
                       </button>
                     </div>
                   )}
 
+                  {/* Start nav / pin */}
                   {selectedItem.custom_fields?.latitude && selectedItem.custom_fields?.longitude ? (
-                    <button
-                      onClick={() => { setIsNavigating(true); setAutoCenter(true); if (myLoc) setFlyTarget(myLoc); }}
-                      style={{
-                        flex: 2,
-                        background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                        color: '#fff', border: 'none', borderRadius: 10,
-                        padding: '10px 14px', fontSize: 13, fontWeight: 700,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                        cursor: 'pointer', boxShadow: '0 4px 12px rgba(59,130,246,0.3)'
-                      }}
-                    >
-                      <Navigation size={14} fill="#fff" />
-                      Start Navigation
+                    <button onClick={handleStartNavigation}
+                      style={{ flex:2, background:'linear-gradient(135deg,#1A73E8,#1557b0)', color:'#fff', border:'none', borderRadius:10, padding:'11px 14px', fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', gap:6, cursor:'pointer', boxShadow:'0 4px 14px rgba(26,115,232,0.35)' }}>
+                      <Navigation size={15} fill="#fff" /> Start Navigation
                     </button>
                   ) : (
-                    <button
-                      onClick={() => handlePinLocation(selectedItem)}
-                      style={{
-                        flex: 2,
-                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                        color: '#fff', border: 'none', borderRadius: 10,
-                        padding: '10px 14px', fontSize: 13, fontWeight: 700,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                        cursor: 'pointer', boxShadow: '0 4px 12px rgba(16,185,129,0.3)'
-                      }}
-                    >
-                      <MapPin size={14} />
-                      Pin Current Location
+                    <button onClick={() => handlePinLocation(selectedItem)}
+                      style={{ flex:2, background:'linear-gradient(135deg,#34A853,#1a9e5c)', color:'#fff', border:'none', borderRadius:10, padding:'11px 14px', fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', gap:6, cursor:'pointer', boxShadow:'0 4px 14px rgba(52,168,83,0.35)' }}>
+                      <MapPin size={15} /> Pin Location
                     </button>
                   )}
 
+                  {/* Call */}
                   {selectedItem.custom_fields?.phone && (
-                    <button
-                      onClick={() => window.open(`tel:${selectedItem.custom_fields.phone}`, '_system')}
-                      style={{
-                        flex: 1, background: 'var(--s-surface)', border: '1px solid var(--s-border)',
-                        color: 'var(--s-text)', borderRadius: 10, padding: '10px',
-                        fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      📞 Call
+                    <button onClick={() => window.open(`tel:${selectedItem.custom_fields.phone}`, '_system')}
+                      style={{ flex:1, background:'var(--s-surface)', border:'1px solid var(--s-border)', color:'var(--s-text)', borderRadius:10, padding:'11px', fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+                      📞
                     </button>
                   )}
 
-                  {selectedItem.custom_fields?.latitude && selectedItem.custom_fields?.longitude && (
-                    <button
-                      onClick={() => handlePinLocation(selectedItem)}
-                      style={{
-                        flex: 1, background: 'var(--s-surface)', border: '1px solid var(--s-border)',
-                        color: 'var(--s-text)', borderRadius: 10, padding: '10px',
-                        fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        cursor: 'pointer'
-                      }}
-                      title="Update GPS Location"
-                    >
-                      📍 Re-Pin
+                  {/* Re-pin */}
+                  {selectedItem.custom_fields?.latitude && (
+                    <button onClick={() => handlePinLocation(selectedItem)}
+                      style={{ flex:1, background:'var(--s-surface)', border:'1px solid var(--s-border)', color:'var(--s-text)', borderRadius:10, padding:'11px', fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}
+                      title="Update GPS">
+                      📍
                     </button>
                   )}
                 </div>
               </div>
             )}
-
-            {/* Re-Center Button */}
-            {!autoCenter && myLoc && (
-              <button
-                onClick={() => {
-                  setAutoCenter(true);
-                  if (myLoc) {
-                    setFlyTarget(myLoc);
-                  }
-                }}
-                style={{
-                  position: 'absolute',
-                  bottom: isNavigating ? 140 : (selectedItem ? 200 : 20),
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  zIndex: 1000,
-                  background: '#3b82f6',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 20,
-                  padding: '10px 20px',
-                  fontSize: 13,
-                  fontWeight: 800,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  boxShadow: '0 6px 20px rgba(59,130,246,0.45)',
-                  cursor: 'pointer',
-                  border: '1px solid rgba(255,255,255,0.2)'
-                }}
-              >
-                🎯 Re-Center Map
-              </button>
-            )}
-
-            {/* Navigation Mode Stop Button */}
-            {isNavigating && (
-              <button
-                onClick={() => {
-                  setIsNavigating(false);
-                  setFlyTarget(null);
-                }}
-                style={{
-                  position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 1000,
-                  background: '#ef4444', color: '#fff', border: 'none', borderRadius: 30,
-                  padding: '12px 24px', fontSize: 13, fontWeight: 800,
-                  display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 20px rgba(239,68,68,0.4)',
-                  cursor: 'pointer', border: '1px solid rgba(255,255,255,0.2)'
-                }}
-              >
-                <X size={15} />
-                <span>Exit Navigation</span>
-              </button>
-            )}
           </div>
 
-          {/* ── List of Assigned Locations (Hidden in Navigation Mode) ────────── */}
+          {/* ── Visits list (non-nav) ─────────────────────────────────────── */}
           {!isNavigating && (
-            <div style={{ padding: '0 16px', flexShrink: 0 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--s-text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-                {useAllocations ? 'Allocated Route Sequence' : 'Assigned Visits'}
+            <div style={{ padding:'0 16px', flexShrink:0 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--s-text-3)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>
+                {useAllocations ? 'Route Sequence' : 'Assigned Visits'}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 180, overflowY: 'auto' }}>
+              <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:180, overflowY:'auto' }}>
                 {assigned.map(item => {
-                  const isSelected = selectedItem?.id === item.id;
+                  const sel    = selectedItem?.id === item.id;
                   const hasGps = item.custom_fields?.latitude && item.custom_fields?.longitude;
-                  
-                  let visitStatusLabel = null;
-                  if (useAllocations) {
-                    const statusColor = item.visit_status === 'COMPLETED' ? '#10b981' : item.visit_status === 'SKIPPED' ? '#ef4444' : '#64748b';
-                    visitStatusLabel = (
-                      <span style={{ fontSize: 9, fontWeight: 700, color: statusColor, padding: '1px 5px', border: `1px solid ${statusColor}40`, borderRadius: 10, textTransform: 'uppercase', marginLeft: 8 }}>
-                        {item.visit_status}
-                      </span>
-                    );
-                  }
-
+                  const vsColor = item.visit_status === 'COMPLETED' ? '#34A853' : item.visit_status === 'SKIPPED' ? '#ea4335' : '#94a3b8';
                   return (
-                    <div
-                      key={item.id}
-                      onClick={() => handleSelectRoute(item)}
+                    <div key={item.id} onClick={() => handleSelectRoute(item)}
                       style={{
-                        background: isSelected ? 'rgba(59,130,246,0.08)' : 'var(--s-card)',
-                        border: `1px solid ${isSelected ? 'var(--s-primary)' : 'var(--s-border)'}`,
-                        borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center',
-                        justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.15s'
-                      }}
-                    >
-                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        background: sel ? 'rgba(26,115,232,0.07)' : 'var(--s-card)',
+                        border:`1px solid ${sel ? '#1A73E8' : 'var(--s-border)'}`,
+                        borderRadius:12, padding:'11px 14px',
+                        display:'flex', alignItems:'center', justifyContent:'space-between',
+                        cursor:'pointer', transition:'all 0.12s',
+                      }}>
+                      <div style={{ display:'flex', gap:10, alignItems:'center' }}>
                         {useAllocations && (
-                          <div style={{
-                            width: 22, height: 22, borderRadius: '50%', background: 'var(--s-border)',
-                            color: 'var(--s-text-2)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 11, fontWeight: 800
-                          }}>{item.sequence}</div>
+                          <div style={{ width:22, height:22, borderRadius:'50%', background: sel ? '#1A73E8' : 'var(--s-border)', color: sel ? '#fff' : 'var(--s-text-2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800 }}>
+                            {item.sequence}
+                          </div>
                         )}
                         <div>
-                          <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--s-text)', marginBottom: 2, display: 'flex', alignItems: 'center' }}>
+                          <div style={{ fontSize:13.5, fontWeight:700, color:'var(--s-text)', display:'flex', alignItems:'center', gap:6 }}>
                             {item.customer_name || item.customer}
-                            {visitStatusLabel}
+                            {useAllocations && (
+                              <span style={{ fontSize:9, fontWeight:800, color:vsColor, border:`1px solid ${vsColor}40`, padding:'1px 5px', borderRadius:99 }}>
+                                {item.visit_status}
+                              </span>
+                            )}
                           </div>
-                          <div style={{ fontSize: 11.5, color: 'var(--s-text-3)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div style={{ fontSize:11.5, color:'var(--s-text-3)', display:'flex', gap:6, marginTop:1 }}>
                             <span>{item.invoice_number || item.order_number}</span>
-                            {item.status === 'PENDING' && !useAllocations && <span className="s-chip green" style={{ fontSize: 8, padding: '0px 4px' }}>LEAD</span>}
-                            {item.is_lead_order && <span className="s-chip green" style={{ fontSize: 8, padding: '0px 4px' }}>LEAD</span>}
-                            <span style={{ color: hasGps ? '#10b981' : '#f59e0b' }}>
-                              {hasGps ? '• GPS Pinned' : '• No GPS'}
+                            <span style={{ color: hasGps ? '#34A853' : '#FBBC04' }}>
+                              {hasGps ? '• GPS ✓' : '• No GPS'}
                             </span>
                           </div>
                         </div>
                       </div>
-                      <ChevronRight size={16} color={isSelected ? 'var(--s-primary)' : 'var(--s-text-3)'} />
+                      <ChevronRight size={16} color={sel ? '#1A73E8' : 'var(--s-text-3)'} />
                     </div>
                   );
                 })}
@@ -988,19 +819,12 @@ export default function SalesRoute() {
         </div>
       )}
 
-      {/* CSS Animations */}
+      {/* ── CSS ──────────────────────────────────────────────────────────────── */}
       <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-        @keyframes route-live-ring {
-          0% { transform: scale(1); opacity: 0.6; }
-          100% { transform: scale(2.2); opacity: 0; }
-        }
-        @keyframes live-pulse-dot {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.6; transform: scale(1.3); }
-        }
+        @keyframes sr-spin  { to { transform: rotate(360deg); } }
+        @keyframes sr-dot   { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.35)} }
+        @keyframes sr-pulse { 0%,100%{opacity:.5;transform:scale(1)} 50%{opacity:.15;transform:scale(1.7)} }
+        @keyframes sr-ring  { 0%{transform:scale(1);opacity:.5} 100%{transform:scale(2.2);opacity:0} }
       `}</style>
     </div>
   );
