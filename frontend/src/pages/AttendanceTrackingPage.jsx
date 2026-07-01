@@ -284,8 +284,8 @@ export default function AttendanceTrackingPage() {
   const { theme } = useTheme();
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   const tileUrl = isDark
-    ? 'https://{s.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-    : 'https://{s.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
 
   const [activeSessions, setActiveSessions]   = useState([]);
   const [history, setHistory]                 = useState([]);
