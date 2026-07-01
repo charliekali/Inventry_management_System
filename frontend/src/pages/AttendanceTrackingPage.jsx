@@ -390,6 +390,7 @@ export default function AttendanceTrackingPage() {
   const [activeSessions, setActiveSessions]   = useState([]);
   const [history, setHistory]                 = useState([]);
   const [selectedSession, setSelectedSession] = useState(null);
+  const [historySearch, setHistorySearch]     = useState('');
   
   // GPS Trail & Playback States
   const [sessionPings, setSessionPings]       = useState([]);
@@ -749,122 +750,229 @@ export default function AttendanceTrackingPage() {
         ))}
       </div>
 
-      {/* ══════════════ LIVE MAP TAB ═══════════════════════════════════════ */}
-      {tab === 'live' && (
+      {/* ══════════════ MAP PLAYBACK TAB (LIVE & HISTORY) ═══════════════════════ */}
+      {(tab === 'live' || tab === 'history') && (
         <div style={{ display: 'flex', gap: 16, flex: 1, minHeight: 0 }}>
 
-          {/* ── Sidebar: Active Staff List ─────────────────────────────── */}
+          {/* ── Sidebar: Active / History List ─────────────────────────── */}
           <div style={{
             width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8,
             overflowY: 'auto', paddingBottom: 8,
           }}>
-            {/* Historical selected session info block */}
-            {selectedSession && !activeSessions.some(s => s.id === selectedSession.id) && (
-              <div style={{
-                background: 'rgba(245, 158, 11, 0.08)',
-                border: '1.5px dashed #f59e0b',
-                borderRadius: 'var(--radius-md)',
-                padding: '12px 14px',
-                marginBottom: 8,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 6
-              }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  🕒 Historical Playback
-                </div>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                  {selectedSession.user_name}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-                  Session: {new Date(selectedSession.clock_in_at).toLocaleDateString()}
-                </div>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => {
-                    setSelectedSession(null);
-                    setPlaybackIndex(0);
-                    setIsPlaying(false);
-                  }}
-                  style={{ marginTop: 4, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
-                >
-                  ◀ Close Playback
-                </button>
-              </div>
-            )}
-
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-              {activeSessions.length > 0 ? `${activeSessions.length} Active Now` : 'No Active Staff'}
-            </div>
-
-            {loading && (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
-                <div className="loading-spinner" />
-              </div>
-            )}
-
-            {!loading && loadError && (
-              <div style={{ textAlign: 'center', padding: '24px 16px', color: '#ef4444', fontSize: 13 }}>
-                <AlertCircle size={28} style={{ marginBottom: 8, opacity: 0.5 }} />
-                <div>{loadError}</div>
-              </div>
-            )}
-
-            {!loading && !loadError && activeSessions.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--color-text-muted)', fontSize: 13 }}>
-                <WifiOff size={28} style={{ marginBottom: 8, opacity: 0.4 }} />
-                <div>No staff are currently clocked in.</div>
-              </div>
-            )}
-
-            {activeSessions.map((session, idx) => {
-              const color = getColor(idx);
-              const isSelected = selectedSession?.id === session.id;
-              const initials = (session.user_name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-              return (
-                <button
-                  key={session.id}
-                  onClick={() => handleSelectSession(session)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '12px 14px', textAlign: 'left',
-                    background: isSelected ? `${color}18` : 'var(--color-bg-card)',
-                    border: `1.5px solid ${isSelected ? color : 'var(--color-border)'}`,
-                    borderRadius: 'var(--radius-md)', cursor: 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                >
+            {tab === 'live' ? (
+              <>
+                {/* Historical selected session info block */}
+                {selectedSession && !activeSessions.some(s => s.id === selectedSession.id) && (
                   <div style={{
-                    width: 40, height: 40, borderRadius: '50%', background: color,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: '#fff', fontWeight: 900, fontSize: 13, flexShrink: 0,
-                    border: '2px solid white',
-                    boxShadow: isSelected ? `0 0 0 3px ${color}40` : '0 1px 4px rgba(0,0,0,0.2)',
+                    background: 'rgba(245, 158, 11, 0.08)',
+                    border: '1.5px dashed #f59e0b',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '12px 14px',
+                    marginBottom: 8,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6
                   }}>
-                    {initials}
+                    <div style={{ fontSize: 10, fontWeight: 800, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      🕒 Historical Playback
+                    </div>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                      {selectedSession.user_name}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                      Session: {new Date(selectedSession.clock_in_at).toLocaleDateString()}
+                    </div>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        setSelectedSession(null);
+                        setPlaybackIndex(0);
+                        setIsPlaying(false);
+                      }}
+                      style={{ marginTop: 4, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                    >
+                      ◀ Close Playback
+                    </button>
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {session.user_name}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                      In since {fmtTime(session.clock_in_at)} · {fmtDuration(session.duration_minutes)}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2, fontWeight: 600 }}>
-                      🚗 {session.distance_km?.toFixed(2) || '0.00'} km @ {session.current_speed_kmph?.toFixed(1) || '0.0'} km/h
-                    </div>
-                    <div style={{ fontSize: 11, color: session.last_ping_at ? '#22c55e' : 'var(--color-text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: session.last_ping_at ? '#22c55e' : 'var(--color-text-muted)', flexShrink: 0 }} />
-                      {session.last_ping_at
-                        ? `Last ping ${new Date(session.last_ping_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                        : 'No GPS yet'
-                      }
-                    </div>
+                )}
+
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+                  {activeSessions.length > 0 ? `${activeSessions.length} Active Now` : 'No Active Staff'}
+                </div>
+
+                {loading && activeSessions.length === 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+                    <div className="loading-spinner" />
                   </div>
-                  <ChevronRight size={14} color={isSelected ? color : 'var(--color-text-muted)'} style={{ flexShrink: 0 }} />
-                </button>
-              );
-            })}
+                )}
+
+                {!loading && loadError && (
+                  <div style={{ textAlign: 'center', padding: '24px 16px', color: '#ef4444', fontSize: 13 }}>
+                    <AlertCircle size={28} style={{ marginBottom: 8, opacity: 0.5 }} />
+                    <div>{loadError}</div>
+                  </div>
+                )}
+
+                {!loading && !loadError && activeSessions.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--color-text-muted)', fontSize: 13 }}>
+                    <WifiOff size={28} style={{ marginBottom: 8, opacity: 0.4 }} />
+                    <div>No staff are currently clocked in.</div>
+                  </div>
+                )}
+
+                {activeSessions.map((session, idx) => {
+                  const color = getColor(idx);
+                  const isSelected = selectedSession?.id === session.id;
+                  const initials = (session.user_name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+                  return (
+                    <button
+                      key={session.id}
+                      onClick={() => handleSelectSession(session)}
+                      className={`card-list-item ${isSelected ? 'active' : ''}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        padding: '10px 12px',
+                        width: '100%',
+                        textAlign: 'left',
+                        background: isSelected ? `${color}10` : 'var(--color-bg-card)',
+                        border: `1.5px solid ${isSelected ? color : 'var(--color-border)'}`,
+                        borderRadius: 'var(--radius-md)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      <div style={{
+                        width: 32, height: 32, borderRadius: '50%', background: color,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#fff', fontWeight: 800, fontSize: 11, flexShrink: 0
+                      }}>
+                        {initials}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {session.user_name}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                          In since {fmtTime(session.clock_in_at)} · {fmtDuration(session.duration_minutes)}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2, fontWeight: 600 }}>
+                          🚗 {session.distance_km?.toFixed(2) || '0.00'} km @ {session.current_speed_kmph?.toFixed(1) || '0.0'} km/h
+                        </div>
+                        <div style={{ fontSize: 11, color: session.last_ping_at ? '#22c55e' : 'var(--color-text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: session.last_ping_at ? '#22c55e' : 'var(--color-text-muted)', flexShrink: 0 }} />
+                          {session.last_ping_at
+                            ? `Last ping ${new Date(session.last_ping_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                            : 'No GPS yet'
+                          }
+                        </div>
+                      </div>
+                      <ChevronRight size={14} color={isSelected ? color : 'var(--color-text-muted)'} style={{ flexShrink: 0 }} />
+                    </button>
+                  );
+                })}
+              </>
+            ) : (
+              <>
+                {/* Search Input for History */}
+                <div style={{ position: 'relative', marginBottom: 4 }}>
+                  <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
+                  <input
+                    type="text"
+                    placeholder="Search history..."
+                    value={historySearch}
+                    onChange={e => setHistorySearch(e.target.value)}
+                    style={{
+                      width: '100%', padding: '6px 10px 6px 28px',
+                      background: 'var(--color-bg-card)', border: '1px solid var(--color-border)',
+                      borderRadius: 8, fontSize: 12.5, color: 'var(--color-text-primary)',
+                      outline: 'none', boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                {selectedSession && (
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      setSelectedSession(null);
+                      setPlaybackIndex(0);
+                      setIsPlaying(false);
+                    }}
+                    style={{ marginBottom: 4, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                  >
+                    ◀ Close Playback
+                  </button>
+                )}
+
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4, marginTop: 4 }}>
+                  History ({history.filter(s => !historySearch || (s.user_name || '').toLowerCase().includes(historySearch.toLowerCase()) || (s.user_email || '').toLowerCase().includes(historySearch.toLowerCase())).length})
+                </div>
+
+                {loading && history.length === 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+                    <div className="loading-spinner" />
+                  </div>
+                )}
+
+                {!loading && history.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--color-text-muted)', fontSize: 13 }}>
+                    <History size={28} style={{ marginBottom: 8, opacity: 0.4 }} />
+                    <div>No tracking history found.</div>
+                  </div>
+                )}
+
+                {history.filter(s => !historySearch || (s.user_name || '').toLowerCase().includes(historySearch.toLowerCase()) || (s.user_email || '').toLowerCase().includes(historySearch.toLowerCase())).map((session, idx) => {
+                  const color = getColor(idx);
+                  const isSelected = selectedSession?.id === session.id;
+                  const initials = (session.user_name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+                  return (
+                    <button
+                      key={session.id}
+                      onClick={() => handleSelectSession(session)}
+                      className={`card-list-item ${isSelected ? 'active' : ''}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        padding: '10px 12px',
+                        width: '100%',
+                        textAlign: 'left',
+                        background: isSelected ? `${color}10` : 'var(--color-bg-card)',
+                        border: `1.5px solid ${isSelected ? color : 'var(--color-border)'}`,
+                        borderRadius: 'var(--radius-md)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      <div style={{
+                        width: 32, height: 32, borderRadius: '50%', background: color,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#fff', fontWeight: 800, fontSize: 11, flexShrink: 0
+                      }}>
+                        {initials}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {session.user_name}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                          {new Date(session.clock_in_at).toLocaleDateString()}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                          {fmtTime(session.clock_in_at)} → {session.clock_out_at ? fmtTime(session.clock_out_at) : 'Active'}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2, fontWeight: 600 }}>
+                          🚗 {session.distance_km?.toFixed(2) || '0.00'} km · {session.ping_count} pings
+                        </div>
+                      </div>
+                      <ChevronRight size={14} color={isSelected ? color : 'var(--color-text-muted)'} style={{ flexShrink: 0 }} />
+                    </button>
+                  );
+                })}
+              </>
+            )}
           </div>
 
           {/* ── Map + Playback Layout Column ─────────────────────────────── */}
@@ -962,21 +1070,37 @@ export default function AttendanceTrackingPage() {
                     icon={createUserIcon(selectedSession.user_name, selectedColor, true)}
                   >
                     <Popup>
-                      <div style={{ fontFamily: 'system-ui,sans-serif', minWidth: 160 }}>
-                        <div style={{ fontWeight: 850, fontSize: 14, marginBottom: 4 }}>{selectedSession.user_name}</div>
-                        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 2 }}>
-                          📍 {activePlaybackCoord[0].toFixed(5)}, {activePlaybackCoord[1].toFixed(5)}
-                        </div>
-                        {activePing && (
+                      <div style={{ fontFamily: 'system-ui,sans-serif', minWidth: 180 }}>
+                        <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 6 }}>{selectedSession.user_name}</div>
+                        {activePing ? (
                           <>
-                            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 2 }}>
-                              ⏱ Time: {new Date(activePing.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 4 }}>
+                              <strong>Time:</strong> {new Date(activePing.recorded_at).toLocaleTimeString()}
                             </div>
-                            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 2 }}>
-                              ⚡ Speed: {activePing.speed_kmph?.toFixed(1) || '0.0'} km/h
+                            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 4 }}>
+                              <strong>Accuracy:</strong> ±{activePing.accuracy?.toFixed(0) || '0'}m
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 4 }}>
+                              <strong>Speed:</strong> {(activePing.speed_kmph || 0).toFixed(1)} km/h
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 4 }}>
+                              <strong>Distance:</strong> {sessionPings.slice(0, playbackIndex + 1).reduce((acc, p) => acc + (p.distance_from_last_km || 0), 0).toFixed(2)} km
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 11, color: '#3b82f6', fontWeight: 600 }}>
+                              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#3b82f6' }} />
+                              Ping {playbackIndex + 1} of {sessionPings.length}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 4 }}>
+                              <strong>Status:</strong> {selectedSession.status}
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 4 }}>
+                              <strong>Total Distance:</strong> {selectedSession.distance_km?.toFixed(2) || '0.00'} km
                             </div>
                             <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                              🎯 Accuracy: ±{activePing.accuracy?.toFixed(0) || '0'}m
+                              <strong>Duration:</strong> {fmtDuration(selectedSession.duration_minutes)}
                             </div>
                           </>
                         )}
@@ -985,8 +1109,8 @@ export default function AttendanceTrackingPage() {
                   </Marker>
                 )}
 
-                {/* Render other active staff positions on map (excluding selected) */}
-                {activeSessions.map((session, idx) => {
+                {/* Render other active staff positions on map (excluding selected, only in live tab) */}
+                {tab === 'live' && activeSessions.map((session, idx) => {
                   const lat = parseFloat(session.last_lat);
                   const lng = parseFloat(session.last_lng);
                   if (isNaN(lat) || isNaN(lng)) return null;
@@ -1014,19 +1138,28 @@ export default function AttendanceTrackingPage() {
                 })}
               </MapContainer>
 
-              {/* Live indicator overlay */}
+              {/* Live/History indicator overlay */}
               <div style={{
                 position: 'absolute', top: 12, right: 12, zIndex: 999,
                 background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)',
                 border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
                 padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: 4,
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: loadError ? '#ef4444' : '#22c55e', animation: loadError ? 'none' : 'live-pulse 1.5s infinite' }} />
-                  <span style={{ color: '#fff', fontSize: 11, fontWeight: 600 }}>
-                    {loadError ? 'DISCONNECTED' : `LIVE · Refreshes every ${REFRESH_INTERVAL_MS / 1000}s`}
-                  </span>
-                </div>
+                {tab === 'live' ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: loadError ? '#ef4444' : '#22c55e', animation: loadError ? 'none' : 'live-pulse 1.5s infinite' }} />
+                    <span style={{ color: '#fff', fontSize: 11, fontWeight: 600 }}>
+                      {loadError ? 'DISCONNECTED' : `LIVE · Refreshes every ${REFRESH_INTERVAL_MS / 1000}s`}
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} />
+                    <span style={{ color: '#fff', fontSize: 11, fontWeight: 600 }}>
+                      HISTORY MODE
+                    </span>
+                  </div>
+                )}
                 {snapping && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 4, marginTop: 2 }}>
                     <Loader2 size={11} className="spin-icon" color="#3b82f6" />
@@ -1050,7 +1183,7 @@ export default function AttendanceTrackingPage() {
               )}
 
               {/* General No GPS data message */}
-              {!loading && activeSessions.length > 0 && activeSessions.every(s => !s.last_lat) && !selectedSession && (
+              {tab === 'live' && !loading && activeSessions.length > 0 && activeSessions.every(s => !s.last_lat) && !selectedSession && (
                 <div style={{
                   position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
                   zIndex: 999, background: 'rgba(0,0,0,0.8)', color: '#fff',
@@ -1201,69 +1334,6 @@ export default function AttendanceTrackingPage() {
         </div>
       )}
 
-      {/* ─── Attendance History Tab ────────────────────────────────────── */}
-      {tab === 'history' && (
-        <div className="card" style={{ flex: 1, overflow: 'hidden' }}>
-          <div className="table-wrapper" style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto' }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Staff Name</th>
-                  <th>Email</th>
-                  <th>Clock In</th>
-                  <th>Clock Out</th>
-                  <th>Duration</th>
-                  <th>Distance</th>
-                  <th>GPS Pings</th>
-                  <th>Status</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} style={{ textAlign: 'center', padding: 32, color: 'var(--color-text-muted)' }}>
-                      No attendance sessions recorded yet.
-                    </td>
-                  </tr>
-                ) : (
-                  history.map(s => (
-                    <tr key={s.id}>
-                      <td><div style={{ fontWeight: 700 }}>{s.user_name}</div></td>
-                      <td style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{s.user_email}</td>
-                      <td>{fmtDateTime(s.clock_in_at)}</td>
-                      <td>{s.clock_out_at ? fmtDateTime(s.clock_out_at) : <span style={{ color: '#22c55e', fontWeight: 600 }}>Active</span>}</td>
-                      <td><span className="badge badge-blue">{fmtDuration(s.duration_minutes)}</span></td>
-                      <td><span className="badge badge-purple">{s.distance_km?.toFixed(2) || '0.00'} km</span></td>
-                      <td><span className="badge badge-gray">{s.ping_count} pings</span></td>
-                      <td>
-                        {s.status === 'ACTIVE'
-                          ? <span className="badge badge-green">Active</span>
-                          : <span className="badge badge-gray">Ended</span>
-                        }
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={() => {
-                            setSelectedSession(s);
-                            setTab('live');
-                          }}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 12 }}
-                          title="Load and play the route trail of this session"
-                        >
-                          <Navigation size={12} />
-                          Play Route
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       {/* ─── GPS Logs Tab ────────────────────────────────────────────── */}
       {tab === 'logs' && (
