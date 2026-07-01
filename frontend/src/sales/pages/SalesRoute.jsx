@@ -28,6 +28,68 @@ function FlyTo({ target, zoom = 15 }) {
   return null;
 }
 
+// ── Helper to center map instantly during driving navigation ────────────────
+function NavigationCenterer({ target, isNavigating, autoCenter }) {
+  const map = useMap();
+  const lastTargetRef = useRef(null);
+
+  useEffect(() => {
+    if (!isNavigating || !target || !autoCenter) return;
+    
+    // Center immediately without slow animated panning
+    const hasShifted = !lastTargetRef.current || 
+      Math.abs(target[0] - lastTargetRef.current[0]) > 0.00003 ||
+      Math.abs(target[1] - lastTargetRef.current[1]) > 0.00003;
+
+    if (hasShifted) {
+      map.setView(target, 17, { animate: false });
+      lastTargetRef.current = target;
+    }
+  }, [target, isNavigating, autoCenter, map]);
+
+  return null;
+}
+
+// ── Listener to turn off follow mode if driver pans or zooms map ─────────────
+function MapInteractionListener({ setAutoCenter }) {
+  const map = useMap();
+  useEffect(() => {
+    const disableFollow = () => {
+      setAutoCenter(false);
+    };
+    map.on('dragstart', disableFollow);
+    map.on('zoomstart', disableFollow);
+    return () => {
+      map.off('dragstart', disableFollow);
+      map.off('zoomstart', disableFollow);
+    };
+  }, [map, setAutoCenter]);
+  return null;
+}
+
+// ── Custom driving arrow icon pointing in heading direction ──────────────────
+function createDrivingIcon(color, heading) {
+  const size = 40;
+  const rotation = heading != null && !isNaN(heading) ? heading : 0;
+  const html = `
+    <div style="
+      width: ${size}px; height: ${size}px;
+      display: flex; align-items: center; justify-content: center;
+      transform: rotate(${rotation}deg);
+      transition: transform 0.2s ease-out;
+    ">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L22 22L12 17L2 22L12 2Z" fill="${color}" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round" style="filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.3));" />
+      </svg>
+    </div>`;
+  return L.divIcon({
+    html,
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+}
+
 // ── GPS Distance Helper ──────────────────────────────────────────────────────
 function getDistanceMeters(lat1, lon1, lat2, lon2) {
   const R = 6371e3; // meters
@@ -42,6 +104,19 @@ function getDistanceMeters(lat1, lon1, lat2, lon2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 
   return R * c;
+}
+
+// ── Minimum Distance to Polyline Helper ──────────────────────────────────────
+function getMinDistanceToPolyline(lat, lng, polyline) {
+  if (!polyline || polyline.length === 0) return Infinity;
+  let minDistance = Infinity;
+  for (const pt of polyline) {
+    const dist = getDistanceMeters(lat, lng, pt[0], pt[1]);
+    if (dist < minDistance) {
+      minDistance = dist;
+    }
+  }
+  return minDistance;
 }
 
 // ── Format maneuver instruction ──────────────────────────────────────────────
@@ -119,6 +194,8 @@ export default function SalesRoute() {
   const [useAllocations, setUseAllocations] = useState(true);
   const [loading, setLoading] = useState(true);
   const [myLoc, setMyLoc] = useState(null);
+  const [myHeading, setMyHeading] = useState(null);
+  const [mapType, setMapType] = useState('roadmap'); // roadmap | hybrid
   const [selectedItem, setSelectedItem] = useState(null);
   const [route, setRoute] = useState(null);
   const [steps, setSteps] = useState([]);
@@ -128,6 +205,7 @@ export default function SalesRoute() {
 
   // Navigation Mode States
   const [isNavigating, setIsNavigating] = useState(false);
+  const [autoCenter, setAutoCenter] = useState(true);
 
   const watchIdRef = useRef(null);
 
@@ -188,6 +266,7 @@ export default function SalesRoute() {
       watchIdRef.current = navigator.geolocation.watchPosition(
         (pos) => {
           setMyLoc([pos.coords.latitude, pos.coords.longitude]);
+          setMyHeading(pos.coords.heading);
           setGpsStatus('active');
         },
         (err) => {
@@ -207,12 +286,21 @@ export default function SalesRoute() {
     };
   }, []);
 
-  // Fetch OSRM route & steps to selected destination
+  // Fetch OSRM route & steps to selected destination (Optimized with Off-Route detection)
   useEffect(() => {
     if (selectedItem && myLoc) {
       const lat = parseFloat(selectedItem.custom_fields?.latitude);
       const lng = parseFloat(selectedItem.custom_fields?.longitude);
       if (!isNaN(lat) && !isNaN(lng)) {
+        
+        // Check if route exists and driver is still close to the current path (< 100m)
+        if (route && route.coordinates && route.coordinates.length > 0) {
+          const distToRoute = getMinDistanceToPolyline(myLoc[0], myLoc[1], route.coordinates);
+          if (distToRoute < 100) {
+            return; // Driver is still on route, do not recalculate!
+          }
+        }
+
         const fetchRoute = async () => {
           const url = `https://router.project-osrm.org/route/v1/driving/${myLoc[1]},${myLoc[0]};${lng},${lat}?overview=full&geometries=geojson&steps=true`;
           try {
@@ -277,7 +365,7 @@ export default function SalesRoute() {
   // Keep map centered on user when navigating
   useEffect(() => {
     if (isNavigating && myLoc) {
-      setFlyTarget(myLoc);
+      // Centering is handled directly by the NavigationCenterer component inside the map canvas
     }
   }, [isNavigating, myLoc]);
 
@@ -392,33 +480,49 @@ export default function SalesRoute() {
             >
               <TileLayer
                 attribution='&copy; Google Maps'
-                url={tileUrl}
+                url={mapType === 'hybrid'
+                  ? "https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+                  : "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+                }
                 subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
-                className={isDark ? 'leaflet-dark-filter' : ''}
+                className={(isDark && mapType !== 'hybrid') ? 'leaflet-dark-filter' : ''}
               />
 
-              {flyTarget && <FlyTo target={flyTarget} zoom={isNavigating ? 17 : 15} />}
+              {flyTarget && !isNavigating && <FlyTo target={flyTarget} zoom={15} />}
+
+              {/* Map Interaction Listener (detect panning/zooming) */}
+              <MapInteractionListener setAutoCenter={setAutoCenter} />
+
+              {/* Instant smooth centering for active navigation */}
+              <NavigationCenterer target={myLoc} isNavigating={isNavigating} autoCenter={autoCenter} />
 
               {/* Live Sales Person Location Marker */}
               {myLoc && (
-                <>
-                  <CircleMarker
-                    center={myLoc}
-                    radius={12}
-                    fillColor="#3b82f6"
-                    color="#ffffff"
-                    weight={2.5}
-                    fillOpacity={0.3}
+                isNavigating ? (
+                  <Marker
+                    position={myLoc}
+                    icon={createDrivingIcon('#3b82f6', myHeading)}
                   />
-                  <CircleMarker
-                    center={myLoc}
-                    radius={5.5}
-                    fillColor="#3b82f6"
-                    color="#ffffff"
-                    weight={2}
-                    fillOpacity={1}
-                  />
-                </>
+                ) : (
+                  <>
+                    <CircleMarker
+                      center={myLoc}
+                      radius={12}
+                      fillColor="#3b82f6"
+                      color="#ffffff"
+                      weight={2.5}
+                      fillOpacity={0.3}
+                    />
+                    <CircleMarker
+                      center={myLoc}
+                      radius={5.5}
+                      fillColor="#3b82f6"
+                      color="#ffffff"
+                      weight={2}
+                      fillOpacity={1}
+                    />
+                  </>
+                )
               )}
 
               {/* Road-snapped Route Polyline */}
@@ -457,6 +561,76 @@ export default function SalesRoute() {
               })}
             </MapContainer>
 
+            {/* Map Type Switcher Floating Overlay (Standard Mode) */}
+            {!isNavigating && (
+              <div style={{
+                position: 'absolute', bottom: selectedItem ? 200 : 12, left: 12, zIndex: 999,
+                background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)',
+                border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8,
+                padding: '4px', display: 'flex', gap: 4,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+              }}>
+                <button
+                  onClick={() => setMapType('roadmap')}
+                  style={{
+                    padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6,
+                    border: 'none', cursor: 'pointer',
+                    background: mapType === 'roadmap' ? '#3b82f6' : 'transparent',
+                    color: '#fff', transition: 'all 0.15s'
+                  }}
+                >
+                  🗺️ Street
+                </button>
+                <button
+                  onClick={() => setMapType('hybrid')}
+                  style={{
+                    padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6,
+                    border: 'none', cursor: 'pointer',
+                    background: mapType === 'hybrid' ? '#3b82f6' : 'transparent',
+                    color: '#fff', transition: 'all 0.15s'
+                  }}
+                >
+                  🛰️ Satellite
+                </button>
+              </div>
+            )}
+
+            {/* Map Type Switcher Floating Overlay during Navigation (HUD Mode) */}
+            {isNavigating && (
+              <div style={{
+                position: 'absolute', top: 140, right: 12, zIndex: 999,
+                background: 'rgba(15, 23, 42, 0.95)', backdropFilter: 'blur(6px)',
+                border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8,
+                padding: '4px', display: 'flex', flexDirection: 'column', gap: 4,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+              }}>
+                <button
+                  onClick={() => setMapType('roadmap')}
+                  style={{
+                    width: 32, height: 32, fontSize: 13, fontWeight: 700, borderRadius: 6,
+                    border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: mapType === 'roadmap' ? '#3b82f6' : 'transparent',
+                    color: '#fff', transition: 'all 0.15s'
+                  }}
+                  title="Street Map"
+                >
+                  🗺️
+                </button>
+                <button
+                  onClick={() => setMapType('hybrid')}
+                  style={{
+                    width: 32, height: 32, fontSize: 13, fontWeight: 700, borderRadius: 6,
+                    border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: mapType === 'hybrid' ? '#3b82f6' : 'transparent',
+                    color: '#fff', transition: 'all 0.15s'
+                  }}
+                  title="Satellite Map"
+                >
+                  🛰️
+                </button>
+              </div>
+            )}
+
             {/* Turn-by-Turn Header Panel (Navigation Mode Only) */}
             {isNavigating && steps.length > 0 && (
               <div style={{
@@ -474,11 +648,11 @@ export default function SalesRoute() {
                   {getTurnIcon(steps[currentStepIndex])}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ color: '#fff', fontSize: 14, fontWeight: 700, lineHeight: 1.3 }}>
+                  <div style={{ color: '#fff', fontSize: 16, fontWeight: 800, lineHeight: 1.3 }}>
                     {formatStepInstruction(steps[currentStepIndex])}
                   </div>
                   {currentStepIndex < steps.length - 1 && (
-                    <div style={{ color: '#94a3b8', fontSize: 11.5, marginTop: 3, fontWeight: 600 }}>
+                    <div style={{ color: '#94a3b8', fontSize: 12.5, marginTop: 3, fontWeight: 600 }}>
                       Then: {formatStepInstruction(steps[currentStepIndex + 1]).split(' (')[0]}
                     </div>
                   )}
@@ -631,7 +805,7 @@ export default function SalesRoute() {
 
                   {selectedItem.custom_fields?.latitude && selectedItem.custom_fields?.longitude ? (
                     <button
-                      onClick={() => setIsNavigating(true)}
+                      onClick={() => { setIsNavigating(true); setAutoCenter(true); if (myLoc) setFlyTarget(myLoc); }}
                       style={{
                         flex: 2,
                         background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
@@ -691,6 +865,40 @@ export default function SalesRoute() {
                   )}
                 </div>
               </div>
+            )}
+
+            {/* Re-Center Button */}
+            {!autoCenter && myLoc && (
+              <button
+                onClick={() => {
+                  setAutoCenter(true);
+                  if (myLoc) {
+                    setFlyTarget(myLoc);
+                  }
+                }}
+                style={{
+                  position: 'absolute',
+                  bottom: isNavigating ? 140 : (selectedItem ? 200 : 20),
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 1000,
+                  background: '#3b82f6',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 20,
+                  padding: '10px 20px',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  boxShadow: '0 6px 20px rgba(59,130,246,0.45)',
+                  cursor: 'pointer',
+                  border: '1px solid rgba(255,255,255,0.2)'
+                }}
+              >
+                🎯 Re-Center Map
+              </button>
             )}
 
             {/* Navigation Mode Stop Button */}

@@ -35,14 +35,25 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
-        <!-- Background GPS Tracking Service -->
-        <service 
-            android:name=".TrackingService" 
-            android:foregroundServiceType="location" 
+        <!-- Background GPS Tracking Foreground Service -->
+        <service
+            android:name=".TrackingService"
+            android:foregroundServiceType="location"
             android:exported="false" />
+
+        <!-- Boot receiver — restarts GPS service after device reboot -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
-    <!-- Permissions -->
+    <!-- ── Permissions ────────────────────────────────────────────────── -->
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
@@ -56,4 +67,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- Boot receiver permission -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
 </manifest>
