@@ -204,27 +204,35 @@ function fmtDateTime(iso) {
 }
 
 /** Snap coordinates to roads using OSRM Match API */
+/** Snap coordinates to roads using OSRM Match API */
 async function snapToRoads(points) {
   if (!points || points.length < 2) return points;
 
-  // 1. Filter out duplicate or extremely close points
+  // 1. Filter out duplicate or extremely close points while tracking indices
   const filteredPoints = [];
-  for (const pt of points) {
+  const indexMapping = []; // maps original point index to filteredPoints index
+  for (let i = 0; i < points.length; i++) {
+    const pt = points[i];
     if (filteredPoints.length === 0) {
       filteredPoints.push(pt);
+      indexMapping.push(0);
     } else {
       const last = filteredPoints[filteredPoints.length - 1];
       if (Math.abs(pt[0] - last[0]) > 0.00002 || Math.abs(pt[1] - last[1]) > 0.00002) {
         filteredPoints.push(pt);
+        indexMapping.push(filteredPoints.length - 1);
+      } else {
+        indexMapping.push(filteredPoints.length - 1);
       }
     }
   }
-  if (filteredPoints.length < 2) return filteredPoints;
 
   // 2. Split into segments based on distance gaps (> 0.5 km)
   // Large distance gaps indicate offline periods or GPS jumps, which OSRM cannot match contiguously
   const segments = [];
+  const segmentIndices = [];
   let currentSegment = [filteredPoints[0]];
+  let currentSegmentIndices = [0];
 
   for (let i = 1; i < filteredPoints.length; i++) {
     const prev = filteredPoints[i - 1];
@@ -233,57 +241,84 @@ async function snapToRoads(points) {
     
     if (dist > 0.5) {
       segments.push(currentSegment);
+      segmentIndices.push(currentSegmentIndices);
       currentSegment = [curr];
+      currentSegmentIndices = [i];
     } else {
       currentSegment.push(curr);
+      currentSegmentIndices.push(i);
     }
   }
   segments.push(currentSegment);
+  segmentIndices.push(currentSegmentIndices);
 
   // 3. For each segment, chunk into sizes <= 50 and query OSRM Match API
-  const snappedPaths = [];
+  // We reconstruct snappedFilteredPoints to match the filteredPoints length 1-to-1
+  const snappedFilteredPoints = new Array(filteredPoints.length);
   const maxChunkSize = 50;
 
-  for (const segment of segments) {
+  for (let s = 0; s < segments.length; s++) {
+    const segment = segments[s];
+    const indices = segmentIndices[s];
+
     if (segment.length < 2) {
-      snappedPaths.push(...segment);
+      snappedFilteredPoints[indices[0]] = segment[0];
       continue;
     }
 
     const chunks = [];
+    const chunkIndices = [];
     for (let i = 0; i < segment.length; i += maxChunkSize - 1) {
       chunks.push(segment.slice(i, i + maxChunkSize));
+      chunkIndices.push(indices.slice(i, i + maxChunkSize));
       if (i + maxChunkSize >= segment.length) break;
     }
 
-    for (const chunk of chunks) {
-      if (chunk.length < 2) {
-        snappedPaths.push(...chunk);
-        continue;
-      }
+    for (let c = 0; c < chunks.length; c++) {
+      const chunk = chunks[c];
+      const origChunkIndices = chunkIndices[c];
+
       const coordString = chunk.map(p => `${p[1]},${p[0]}`).join(';');
       const url = `https://router.project-osrm.org/match/v1/driving/${coordString}?overview=full&geometries=geojson`;
       try {
         const response = await fetch(url);
         if (!response.ok) {
-          // Fallback to raw coordinates on non-ok response status (e.g. 400 Bad Request)
-          snappedPaths.push(...chunk);
+          for (let i = 0; i < chunk.length; i++) {
+            snappedFilteredPoints[origChunkIndices[i]] = chunk[i];
+          }
           continue;
         }
         const data = await response.json();
-        if (data.code === 'Ok' && data.matchings?.length > 0) {
-          snappedPaths.push(...data.matchings.flatMap(m =>
-            m.geometry.coordinates.map(c => [c[1], c[0]])
-          ));
+        if (data.code === 'Ok' && data.tracepoints?.length > 0) {
+          for (let i = 0; i < chunk.length; i++) {
+            const tp = data.tracepoints[i];
+            if (tp && tp.location) {
+              // Convert [lng, lat] to [lat, lng]
+              snappedFilteredPoints[origChunkIndices[i]] = [tp.location[1], tp.location[0]];
+            } else {
+              snappedFilteredPoints[origChunkIndices[i]] = chunk[i];
+            }
+          }
         } else {
-          snappedPaths.push(...chunk);
+          for (let i = 0; i < chunk.length; i++) {
+            snappedFilteredPoints[origChunkIndices[i]] = chunk[i];
+          }
         }
       } catch {
-        snappedPaths.push(...chunk);
+        for (let i = 0; i < chunk.length; i++) {
+          snappedFilteredPoints[origChunkIndices[i]] = chunk[i];
+        }
       }
     }
   }
-  return snappedPaths;
+
+  // 4. Map back to original points array length
+  const snappedOriginalPoints = [];
+  for (let i = 0; i < points.length; i++) {
+    const filteredIdx = indexMapping[i];
+    snappedOriginalPoints.push(snappedFilteredPoints[filteredIdx]);
+  }
+  return snappedOriginalPoints;
 }
 
 // ─── Export GPS logs to CSV ────────────────────────────────────────────────────
@@ -552,11 +587,18 @@ export default function AttendanceTrackingPage() {
 
   const stats = calculateStats();
   const activePing = sessionPings[playbackIndex];
-  const activePlaybackCoord = rawTrail[playbackIndex];
+  // Use snapped trail if available and matching rawTrail size, otherwise fall back to rawTrail
+  const activePlaybackCoord = (trail && trail.length === rawTrail.length)
+    ? trail[playbackIndex]
+    : rawTrail[playbackIndex];
 
   // Dynamic Polylines representation
-  const completedTrail = rawTrail.slice(0, playbackIndex + 1);
-  const remainingTrail = rawTrail.slice(playbackIndex);
+  const completedTrail = (trail && trail.length === rawTrail.length)
+    ? trail.slice(0, playbackIndex + 1)
+    : rawTrail.slice(0, playbackIndex + 1);
+  const remainingTrail = (trail && trail.length === rawTrail.length)
+    ? trail.slice(playbackIndex)
+    : rawTrail.slice(playbackIndex);
 
   // ─── GPS Logs helpers ───────────────────────────────────────────────────────
   const allSessions = [
@@ -795,23 +837,23 @@ export default function AttendanceTrackingPage() {
                 {/* Smooth playback map center helper */}
                 <PlaybackCenterer target={activePlaybackCoord} active={autoCenter && isPlaying} />
 
-                {/* Road-snapped trail in background (if loaded) */}
-                {trail.length > 1 && (
-                  <Polyline positions={trail} color={selectedColor} weight={6} opacity={0.15} />
+                {/* Raw GPS trail in background for reference (faint dashed) */}
+                {rawTrail.length > 1 && (
+                  <Polyline positions={rawTrail} color={selectedColor} weight={2} opacity={0.15} dashArray="5, 5" />
                 )}
 
-                {/* Completed raw GPS trail */}
+                {/* Completed snapped road-matched trail */}
                 {completedTrail.length > 1 && (
-                  <Polyline positions={completedTrail} color={selectedColor} weight={4} opacity={0.9} />
+                  <Polyline positions={completedTrail} color={selectedColor} weight={4.5} opacity={0.9} />
                 )}
 
-                {/* Remaining raw GPS trail (Dashed) */}
+                {/* Remaining snapped road-matched trail (Dashed) */}
                 {remainingTrail.length > 1 && (
-                  <Polyline positions={remainingTrail} color={selectedColor} weight={3} opacity={0.25} dashArray="5, 10" />
+                  <Polyline positions={remainingTrail} color={selectedColor} weight={3.5} opacity={0.3} dashArray="5, 10" />
                 )}
 
-                {/* Raw GPS ping dots (rendered only up to current playback index) */}
-                {rawTrail.slice(0, playbackIndex + 1).map((pt, idx) => (
+                {/* GPS ping dots (snapped to roads if available, rendered only up to current playback index) */}
+                {((trail && trail.length === rawTrail.length) ? trail : rawTrail).slice(0, playbackIndex + 1).map((pt, idx) => (
                   <CircleMarker
                     key={`raw-${idx}`}
                     center={pt}
@@ -836,28 +878,33 @@ export default function AttendanceTrackingPage() {
                   </CircleMarker>
                 ))}
 
-                {/* Stop Point Markers rendering stop duration in minutes */}
-                {stops.map((stop, sIdx) => (
-                  <Marker
-                    key={`stop-${sIdx}`}
-                    position={[stop.lat, stop.lng]}
-                    icon={createStopIcon(stop.durationMinutes)}
-                  >
-                    <Popup>
-                      <div style={{ fontFamily: 'system-ui,sans-serif', minWidth: 160 }}>
-                        <div style={{ fontWeight: 800, fontSize: 13, color: '#ef4444', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                          🛑 Stopped for {stop.durationMinutes} mins
+                {/* Stop Point Markers rendering stop duration in minutes (snapped to road if available) */}
+                {stops.map((stop, sIdx) => {
+                  const pos = (trail && trail.length === rawTrail.length && trail[stop.startIndex])
+                    ? trail[stop.startIndex]
+                    : [stop.lat, stop.lng];
+                  return (
+                    <Marker
+                      key={`stop-${sIdx}`}
+                      position={pos}
+                      icon={createStopIcon(stop.durationMinutes)}
+                    >
+                      <Popup>
+                        <div style={{ fontFamily: 'system-ui,sans-serif', minWidth: 160 }}>
+                          <div style={{ fontWeight: 800, fontSize: 13, color: '#ef4444', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            🛑 Stopped for {stop.durationMinutes} mins
+                          </div>
+                          <div style={{ fontSize: 11.5, color: 'var(--color-text-secondary)', marginBottom: 2 }}>
+                            <strong>Arrival:</strong> {fmtDateTime(stop.startTime)}
+                          </div>
+                          <div style={{ fontSize: 11.5, color: 'var(--color-text-secondary)' }}>
+                            <strong>Departure:</strong> {fmtDateTime(stop.endTime)}
+                          </div>
                         </div>
-                        <div style={{ fontSize: 11.5, color: 'var(--color-text-secondary)', marginBottom: 2 }}>
-                          <strong>Arrival:</strong> {fmtDateTime(stop.startTime)}
-                        </div>
-                        <div style={{ fontSize: 11.5, color: 'var(--color-text-secondary)' }}>
-                          <strong>Departure:</strong> {fmtDateTime(stop.endTime)}
-                        </div>
-                      </div>
-                    </Popup>
-                  </Marker>
-                ))}
+                      </Popup>
+                    </Marker>
+                  );
+                })}
 
                 {/* Playback Cursor Marker (Only if coordinate is valid) */}
                 {activePlaybackCoord && selectedSession && (

@@ -155,7 +155,10 @@ export default function SalesAttendance() {
           entry.latitude,
           entry.longitude,
           entry.accuracy,
-          entry.speed ?? null
+          entry.speed ?? null,
+          null,
+          null,
+          new Date(entry.cachedAt || Date.now()).toISOString()
         );
         // Successfully sent — remove from remaining
         remaining.shift();
@@ -210,8 +213,15 @@ export default function SalesAttendance() {
     if (now - lastPingTsRef.current < MIN_PING_MS) return;
     lastPingTsRef.current = now;
 
+    // GPS Accuracy Filter: Ignore updates with accuracy worse than 100 meters
+    if (accuracy > 100) {
+      console.warn(`Ignoring inaccurate location ping (accuracy: ${accuracy}m)`);
+      setLastAccuracy(Math.round(accuracy ?? 0));
+      return;
+    }
+
     try {
-      const res = await attendanceAPI.ping(sid, latitude, longitude, accuracy, speed);
+      const res = await attendanceAPI.ping(sid, latitude, longitude, accuracy, speed, null, null, new Date(now).toISOString());
       if (res.data?.session) {
         setActiveSession(res.data.session);
         setSessions(prev => prev.map(s => s.id === res.data.session.id ? res.data.session : s));

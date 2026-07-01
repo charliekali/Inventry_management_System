@@ -84,6 +84,32 @@ public class AttendanceController {
             return bad("Session is no longer active");
         }
 
+        double accuracy = 0.0;
+        if (body.get("accuracy") instanceof Number acc) {
+            accuracy = acc.doubleValue();
+        }
+
+        // GPS Accuracy Filter: Ignore pings with accuracy worse than 100 meters
+        if (accuracy > 100.0) {
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Location skipped due to low accuracy (" + accuracy + "m)"
+            ));
+        }
+
+        // Parse client-supplied timestamp (supports both epoch millis and ISO string)
+        Instant recordedAt = Instant.now();
+        if (body.get("recorded_at") != null) {
+            Object rec = body.get("recorded_at");
+            if (rec instanceof Number num) {
+                recordedAt = Instant.ofEpochMilli(num.longValue());
+            } else if (rec instanceof String str) {
+                try {
+                    recordedAt = Instant.parse(str);
+                } catch (Exception ignored) {}
+            }
+        }
+
         // Get the last recorded position to calculate distance and speed
         Optional<AttendanceLocation> lastLocOpt = locationRepo.findFirstByAttendanceIdOrderByRecordedAtDesc(id);
         double distFromLast = 0.0;
@@ -126,7 +152,7 @@ public class AttendanceController {
                         calculatedSpeed = clientSpeedMps * 3.6;
                     } else if (lastLoc.getRecordedAt() != null) {
                         // No valid GPS speed → estimate from distance / elapsed time
-                        long seconds = Duration.between(lastLoc.getRecordedAt(), Instant.now()).getSeconds();
+                        long seconds = Duration.between(lastLoc.getRecordedAt(), recordedAt).getSeconds();
                         if (seconds > 0 && distFromLast > 0) {
                             calculatedSpeed = (distFromLast / seconds) * 3600.0; // km/h
                         }
@@ -149,7 +175,7 @@ public class AttendanceController {
         }
 
         session.setCurrentSpeedKmph(calculatedSpeed);
-        applyGpsToSession(session, body);
+        applyGpsToSession(session, body, recordedAt);
         session.setPingCount(session.getPingCount() + 1);
         attendanceRepo.save(session);
 
@@ -167,7 +193,7 @@ public class AttendanceController {
         }
         loc.setSpeedKmph(calculatedSpeed);
         loc.setDistanceFromLastKm(distFromLast);
-        loc.setRecordedAt(Instant.now());
+        loc.setRecordedAt(recordedAt);
         locationRepo.save(loc);
 
         return ResponseEntity.ok(Map.of(
@@ -256,14 +282,14 @@ public class AttendanceController {
         return R * c; // returns distance in kilometers
     }
 
-    private void applyGpsToSession(Attendance session, Map<String, Object> body) {
+    private void applyGpsToSession(Attendance session, Map<String, Object> body, Instant recordedAt) {
         if (body.get("latitude") instanceof Number lat) {
             session.setLastLat(((Number) lat).doubleValue());
         }
         if (body.get("longitude") instanceof Number lng) {
             session.setLastLng(((Number) lng).doubleValue());
         }
-        session.setLastPingAt(Instant.now());
+        session.setLastPingAt(recordedAt);
     }
 
     private AttendanceLocation saveLocationPing(String attendanceId, Map<String, Object> body) {
