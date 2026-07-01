@@ -383,7 +383,7 @@ export default function SalesRoute() {
   );
 
   return (
-    <div className="s-page s-fade-in" style={{ padding:'0 0 16px 0', height:'calc(100vh - 135px)', display:'flex', flexDirection:'column' }}>
+    <div className="s-page s-fade-in" style={{ padding:0, height:'calc(100vh - 56px)', display:'flex', flexDirection:'column' }}>
 
       {/* ── Header (hidden in nav mode) ──────────────────────────────────── */}
       {!isNavigating && (
@@ -528,7 +528,7 @@ export default function SalesRoute() {
             {/* ── Speed + ETA bar (bottom of map, nav mode) ──────────────── */}
             {isNavigating && route && (
               <div style={{
-                position:'absolute', bottom: autoCenter ? 64 : 64, left:12, right:12, zIndex:999,
+                position:'absolute', bottom:56, left:12, right:12, zIndex:999,
                 background:'rgba(15,23,42,0.96)', backdropFilter:'blur(10px)',
                 borderRadius:14, padding:'10px 16px',
                 boxShadow:'0 4px 16px rgba(0,0,0,0.5)',
@@ -561,10 +561,10 @@ export default function SalesRoute() {
                 onClick={handleReCenter}
                 style={{
                   position:'absolute',
-                  bottom: isNavigating ? 136 : (selectedItem ? 210 : 20),
+                  bottom: isNavigating ? 120 : (selectedItem ? 100 : 16),
                   right:12,
                   zIndex:1001,
-                  width:44, height:44,
+                  width:42, height:42,
                   background:'rgba(15,23,42,0.96)', backdropFilter:'blur(8px)',
                   color:'#1A73E8', border:'1px solid rgba(26,115,232,0.4)',
                   borderRadius:12,
@@ -600,7 +600,7 @@ export default function SalesRoute() {
             {/* ── Map type switcher (non-nav) ──────────────────────────────── */}
             {!isNavigating && (
               <div style={{
-                position:'absolute', bottom: selectedItem ? 210 : 12, left:12, zIndex:999,
+                position:'absolute', bottom: selectedItem ? 100 : 12, left:12, zIndex:999,
                 background:'rgba(15,23,42,0.92)', backdropFilter:'blur(6px)',
                 border:'1px solid rgba(255,255,255,0.1)', borderRadius:10,
                 padding:'4px', display:'flex', gap:4,
@@ -654,110 +654,89 @@ export default function SalesRoute() {
               </div>
             )}
 
-            {/* ── Destination bottom card (non-nav) ───────────────────────── */}
+            {/* ── Destination bottom sheet (compact Google Maps style) ──────── */}
             {!isNavigating && selectedItem && (
               <div style={{
-                position:'absolute', bottom:12, left:12, right:12, zIndex:999,
-                background:'var(--s-card)', border:'1px solid var(--s-border)',
-                borderRadius:16, padding:14,
-                boxShadow:'0 8px 32px rgba(0,0,0,0.4)',
-                display:'flex', flexDirection:'column', gap:10,
+                position:'absolute', bottom:0, left:0, right:0, zIndex:999,
+                background:'var(--s-card)',
+                borderTop:'1px solid var(--s-border)',
+                borderRadius:'16px 16px 0 0',
+                padding:'10px 14px 12px',
+                boxShadow:'0 -4px 20px rgba(0,0,0,0.3)',
               }}>
-                {/* Header row */}
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                  <div>
-                    <div style={{ fontSize:15, fontWeight:800, color:'var(--s-text)' }}>
+                {/* Row 1: Name + route info + close */}
+                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:14, fontWeight:800, color:'var(--s-text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
                       {selectedItem.customer_name || selectedItem.customer}
                     </div>
-                    <div style={{ fontSize:12, color:'var(--s-text-3)', marginTop:2 }}>
-                      {selectedItem.invoice_number || selectedItem.order_number}
+                    <div style={{ fontSize:11, color:'var(--s-text-3)', display:'flex', gap:8, marginTop:1 }}>
+                      {route ? (
+                        <><span>🚗 {route.distance.toFixed(1)} km</span><span>⏱ {Math.round(route.duration)} min</span></>
+                      ) : selectedItem.custom_fields?.latitude ? (
+                        <span>Routing…</span>
+                      ) : (
+                        <span style={{ color:'#ea4335' }}>No GPS pinned</span>
+                      )}
+                      {useAllocations && selectedItem.visit_status !== 'PENDING' && (
+                        <span style={{ color: selectedItem.visit_status === 'COMPLETED' ? '#34A853' : '#ea4335', fontWeight:700 }}>
+                          • {selectedItem.visit_status}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => { setSelectedItem(null); setRoute(null); setSteps([]); }}
-                    style={{ background:'none', border:'none', color:'var(--s-text-3)', cursor:'pointer', padding:4 }}>
+                  <button onClick={() => { setSelectedItem(null); setRoute(null); setSteps([]); }}
+                    style={{ background:'none', border:'none', color:'var(--s-text-3)', cursor:'pointer', padding:4, flexShrink:0 }}>
                     <X size={16} />
                   </button>
                 </div>
 
-                {/* Route info */}
-                {selectedItem.custom_fields?.latitude ? (
-                  route ? (
-                    <div style={{ display:'flex', gap:14, background:'rgba(26,115,232,0.06)', padding:'8px 12px', borderRadius:10, border:'1px solid rgba(26,115,232,0.15)' }}>
-                      <div style={{ fontSize:13, color:'var(--s-text-2)' }}>🚗 <strong>{route.distance.toFixed(1)} km</strong></div>
-                      <div style={{ fontSize:13, color:'var(--s-text-2)' }}>⏱ <strong>{Math.round(route.duration)} min</strong></div>
-                    </div>
-                  ) : (
-                    <div style={{ fontSize:12, color:'var(--s-text-3)', padding:'6px 0' }}>Calculating route…</div>
-                  )
-                ) : (
-                  <div style={{ display:'flex', gap:6, alignItems:'center', background:'rgba(234,67,53,0.07)', padding:'8px 10px', borderRadius:10, border:'1px solid rgba(234,67,53,0.2)', color:'#ea4335' }}>
-                    <AlertTriangle size={14} />
-                    <span style={{ fontSize:12, fontWeight:600 }}>No GPS coordinates set for this customer.</span>
-                  </div>
-                )}
-
-                {/* Admin instructions */}
-                {useAllocations && selectedItem.notes && (
-                  <div style={{ fontSize:12, color:'var(--s-text-2)', background:'rgba(59,130,246,0.06)', padding:'8px 10px', borderRadius:10, border:'1px solid rgba(59,130,246,0.15)', lineHeight:1.4 }}>
-                    <strong>Admin Notes:</strong> {selectedItem.notes}
-                  </div>
-                )}
-
-                {/* Action buttons */}
-                <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
-                  {/* Visit status */}
-                  {useAllocations && selectedItem.visit_status === 'PENDING' && (
-                    <div style={{ display:'flex', gap:6, width:'100%' }}>
-                      <button onClick={() => handleUpdateVisitStatus(selectedItem.id, 'COMPLETED')}
-                        style={{ flex:1, background:'linear-gradient(135deg,#34A853,#1a9e5c)', color:'#fff', border:'none', borderRadius:10, padding:'10px', fontSize:13, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
-                        <Check size={15}/> Visited
-                      </button>
-                      <button onClick={() => handleUpdateVisitStatus(selectedItem.id, 'SKIPPED')}
-                        style={{ flex:1, background:'linear-gradient(135deg,#ea4335,#c62828)', color:'#fff', border:'none', borderRadius:10, padding:'10px', fontSize:13, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
-                        <X size={15}/> Skip
-                      </button>
-                    </div>
-                  )}
-                  {useAllocations && selectedItem.visit_status !== 'PENDING' && (
-                    <div style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 12px', background:'rgba(255,255,255,0.03)', borderRadius:10, border:'1px solid var(--s-border)' }}>
-                      <span style={{ fontSize:12.5, color:'var(--s-text-2)', fontWeight:600 }}>
-                        Status: <strong style={{ color: selectedItem.visit_status === 'COMPLETED' ? '#34A853' : '#ea4335' }}>{selectedItem.visit_status}</strong>
-                      </span>
-                      <button onClick={() => handleUpdateVisitStatus(selectedItem.id, 'PENDING')}
-                        style={{ background:'none', border:'none', color:'#1A73E8', cursor:'pointer', fontSize:12, fontWeight:700, textDecoration:'underline' }}>
-                        Reset
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Start nav / pin */}
+                {/* Row 2: Compact action buttons — single horizontal row */}
+                <div style={{ display:'flex', gap:6 }}>
+                  {/* Primary action: Navigate or Pin */}
                   {selectedItem.custom_fields?.latitude && selectedItem.custom_fields?.longitude ? (
                     <button onClick={handleStartNavigation}
-                      style={{ flex:2, background:'linear-gradient(135deg,#1A73E8,#1557b0)', color:'#fff', border:'none', borderRadius:10, padding:'11px 14px', fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', gap:6, cursor:'pointer', boxShadow:'0 4px 14px rgba(26,115,232,0.35)' }}>
-                      <Navigation size={15} fill="#fff" /> Start Navigation
+                      style={{ flex:1, background:'#1A73E8', color:'#fff', border:'none', borderRadius:10, padding:'9px 0', fontSize:12.5, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', gap:5, cursor:'pointer' }}>
+                      <Navigation size={14} fill="#fff" /> Navigate
                     </button>
                   ) : (
                     <button onClick={() => handlePinLocation(selectedItem)}
-                      style={{ flex:2, background:'linear-gradient(135deg,#34A853,#1a9e5c)', color:'#fff', border:'none', borderRadius:10, padding:'11px 14px', fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', gap:6, cursor:'pointer', boxShadow:'0 4px 14px rgba(52,168,83,0.35)' }}>
-                      <MapPin size={15} /> Pin Location
+                      style={{ flex:1, background:'#34A853', color:'#fff', border:'none', borderRadius:10, padding:'9px 0', fontSize:12.5, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', gap:5, cursor:'pointer' }}>
+                      <MapPin size={14} /> Pin GPS
+                    </button>
+                  )}
+
+                  {/* Visit status buttons (only if allocation + PENDING) */}
+                  {useAllocations && selectedItem.visit_status === 'PENDING' && (
+                    <>
+                      <button onClick={() => handleUpdateVisitStatus(selectedItem.id, 'COMPLETED')}
+                        style={{ width:42, background:'#34A853', color:'#fff', border:'none', borderRadius:10, padding:'9px 0', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}
+                        title="Mark Visited">
+                        <Check size={16} />
+                      </button>
+                      <button onClick={() => handleUpdateVisitStatus(selectedItem.id, 'SKIPPED')}
+                        style={{ width:42, background:'#ea4335', color:'#fff', border:'none', borderRadius:10, padding:'9px 0', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}
+                        title="Skip Visit">
+                        <X size={16} />
+                      </button>
+                    </>
+                  )}
+
+                  {/* Reset (if not PENDING) */}
+                  {useAllocations && selectedItem.visit_status !== 'PENDING' && (
+                    <button onClick={() => handleUpdateVisitStatus(selectedItem.id, 'PENDING')}
+                      style={{ width:42, background:'var(--s-surface)', border:'1px solid var(--s-border)', color:'#1A73E8', borderRadius:10, padding:'9px 0', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:11, fontWeight:700 }}
+                      title="Reset Status">
+                      <RefreshCw size={14} />
                     </button>
                   )}
 
                   {/* Call */}
                   {selectedItem.custom_fields?.phone && (
                     <button onClick={() => window.open(`tel:${selectedItem.custom_fields.phone}`, '_system')}
-                      style={{ flex:1, background:'var(--s-surface)', border:'1px solid var(--s-border)', color:'var(--s-text)', borderRadius:10, padding:'11px', fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
-                      📞
-                    </button>
-                  )}
-
-                  {/* Re-pin */}
-                  {selectedItem.custom_fields?.latitude && (
-                    <button onClick={() => handlePinLocation(selectedItem)}
-                      style={{ flex:1, background:'var(--s-surface)', border:'1px solid var(--s-border)', color:'var(--s-text)', borderRadius:10, padding:'11px', fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}
-                      title="Update GPS">
-                      📍
+                      style={{ width:42, background:'var(--s-surface)', border:'1px solid var(--s-border)', color:'var(--s-text)', borderRadius:10, padding:'9px 0', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}
+                      title="Call">
+                      <PhoneCall size={14} />
                     </button>
                   )}
                 </div>
@@ -765,13 +744,13 @@ export default function SalesRoute() {
             )}
           </div>
 
-          {/* ── Visits list (non-nav) ─────────────────────────────────────── */}
-          {!isNavigating && (
-            <div style={{ padding:'0 16px', flexShrink:0 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:'var(--s-text-3)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>
-                {useAllocations ? 'Route Sequence' : 'Assigned Visits'}
+          {/* ── Visits list (non-nav) — compact horizontal scroll ─────────── */}
+          {!isNavigating && !selectedItem && (
+            <div style={{ padding:'0 16px 8px', flexShrink:0 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'var(--s-text-3)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>
+                {useAllocations ? 'Route' : 'Visits'} ({assigned.length})
               </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:180, overflowY:'auto' }}>
+              <div style={{ display:'flex', flexDirection:'column', gap:5, maxHeight:140, overflowY:'auto' }}>
                 {assigned.map(item => {
                   const sel    = selectedItem?.id === item.id;
                   const hasGps = item.custom_fields?.latitude && item.custom_fields?.longitude;
@@ -781,34 +760,33 @@ export default function SalesRoute() {
                       style={{
                         background: sel ? 'rgba(26,115,232,0.07)' : 'var(--s-card)',
                         border:`1px solid ${sel ? '#1A73E8' : 'var(--s-border)'}`,
-                        borderRadius:12, padding:'11px 14px',
+                        borderRadius:10, padding:'8px 12px',
                         display:'flex', alignItems:'center', justifyContent:'space-between',
                         cursor:'pointer', transition:'all 0.12s',
                       }}>
-                      <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+                      <div style={{ display:'flex', gap:8, alignItems:'center', minWidth:0 }}>
                         {useAllocations && (
-                          <div style={{ width:22, height:22, borderRadius:'50%', background: sel ? '#1A73E8' : 'var(--s-border)', color: sel ? '#fff' : 'var(--s-text-2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800 }}>
+                          <div style={{ width:20, height:20, borderRadius:'50%', background: sel ? '#1A73E8' : 'var(--s-border)', color: sel ? '#fff' : 'var(--s-text-2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:800, flexShrink:0 }}>
                             {item.sequence}
                           </div>
                         )}
-                        <div>
-                          <div style={{ fontSize:13.5, fontWeight:700, color:'var(--s-text)', display:'flex', alignItems:'center', gap:6 }}>
+                        <div style={{ minWidth:0 }}>
+                          <div style={{ fontSize:13, fontWeight:700, color:'var(--s-text)', display:'flex', alignItems:'center', gap:5, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
                             {item.customer_name || item.customer}
                             {useAllocations && (
-                              <span style={{ fontSize:9, fontWeight:800, color:vsColor, border:`1px solid ${vsColor}40`, padding:'1px 5px', borderRadius:99 }}>
+                              <span style={{ fontSize:8, fontWeight:800, color:vsColor, border:`1px solid ${vsColor}40`, padding:'1px 4px', borderRadius:99, flexShrink:0 }}>
                                 {item.visit_status}
                               </span>
                             )}
                           </div>
-                          <div style={{ fontSize:11.5, color:'var(--s-text-3)', display:'flex', gap:6, marginTop:1 }}>
-                            <span>{item.invoice_number || item.order_number}</span>
+                          <div style={{ fontSize:11, color:'var(--s-text-3)', display:'flex', gap:5 }}>
                             <span style={{ color: hasGps ? '#34A853' : '#FBBC04' }}>
-                              {hasGps ? '• GPS ✓' : '• No GPS'}
+                              {hasGps ? 'GPS ✓' : 'No GPS'}
                             </span>
                           </div>
                         </div>
                       </div>
-                      <ChevronRight size={16} color={sel ? '#1A73E8' : 'var(--s-text-3)'} />
+                      <ChevronRight size={14} color={sel ? '#1A73E8' : 'var(--s-text-3)'} />
                     </div>
                   );
                 })}
