@@ -38,9 +38,7 @@ function MapEvents({ onClick }) {
 export default function OrderPage() {
   const { theme } = useTheme();
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  const tileUrl = isDark
-    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-    : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+  const tileUrl = "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}";
 
   const navigate = useNavigate();
   const { hasPermission, user } = useAuth();
@@ -76,6 +74,19 @@ export default function OrderPage() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  const [editLat, setEditLat] = useState(null);
+  const [editLng, setEditLng] = useState(null);
+  const [isEditingLoc, setIsEditingLoc] = useState(false);
+
+  // Reset location edit state when selected order changes
+  useEffect(() => {
+    if (!selectedOrder) {
+      setIsEditingLoc(false);
+      setEditLat(null);
+      setEditLng(null);
+    }
+  }, [selectedOrder]);
 
   // Creation Form
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -760,6 +771,128 @@ export default function OrderPage() {
 
               <div className="divider" style={{ margin: '16px 0' }}></div>
 
+              {/* Visit Location / Mapping */}
+              <div style={{ marginBottom: 20 }}>
+                <span className="form-label" style={{ fontSize: 10, display: 'block', marginBottom: 6 }}>Visit Location / Coordinate Allocation</span>
+                <div style={{ display: 'flex', gap: 12, flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', gap: 10, fontSize: 13.5, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div>
+                      Latitude: <strong style={{ color: 'var(--color-text-primary)' }}>{selectedOrder.custom_fields?.latitude || 'Not set'}</strong>
+                    </div>
+                    <div>
+                      Longitude: <strong style={{ color: 'var(--color-text-primary)' }}>{selectedOrder.custom_fields?.longitude || 'Not set'}</strong>
+                    </div>
+                    {hasPermission('ORDERS:EDIT') && (
+                      <button 
+                        type="button" 
+                        className="btn btn-ghost btn-xs text-primary" 
+                        style={{ padding: '2px 8px', fontSize: 12, height: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
+                        onClick={() => {
+                          const lat = parseFloat(selectedOrder.custom_fields?.latitude);
+                          const lng = parseFloat(selectedOrder.custom_fields?.longitude);
+                          setEditLat(!isNaN(lat) ? lat : 9.9252);
+                          setEditLng(!isNaN(lng) ? lng : 78.1198);
+                          setIsEditingLoc(true);
+                        }}
+                      >
+                        ✏️ {selectedOrder.custom_fields?.latitude ? 'Edit Location' : 'Allocate Location'}
+                      </button>
+                    )}
+                  </div>
+
+                  {isEditingLoc && (
+                    <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: 12, background: 'rgba(255,255,255,0.01)' }} className="fade-in">
+                      <div style={{ marginBottom: 10, fontSize: 12, color: 'var(--color-text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>📍 Click on the map below to choose coordinates:</span>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-xs"
+                            style={{ padding: '2px 6px', fontSize: 11 }}
+                            onClick={() => setIsEditingLoc(false)}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-xs"
+                            style={{ padding: '2px 8px', fontSize: 11 }}
+                            onClick={async () => {
+                              try {
+                                const fields = {
+                                  latitude: editLat.toString(),
+                                  longitude: editLng.toString()
+                                };
+                                await ordersAPI.updateCustomFields(selectedOrder.id, fields);
+                                toast.success('Visit location updated successfully!');
+                                setSelectedOrder(prev => ({
+                                  ...prev,
+                                  custom_fields: {
+                                    ...prev.custom_fields,
+                                    ...fields
+                                  }
+                                }));
+                                loadOrders();
+                                setIsEditingLoc(false);
+                              } catch (err) {
+                                toast.error('Failed to update visit location');
+                              }
+                            }}
+                          >
+                            Save Location
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div style={{ height: 220, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+                        <MapContainer
+                          center={[editLat || 9.9252, editLng || 78.1198]}
+                          zoom={13}
+                          style={{ height: '100%', width: '100%' }}
+                        >
+                          <TileLayer
+                            attribution='&copy; Google Maps'
+                            url={tileUrl}
+                            subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
+                            className={isDark ? 'leaflet-dark-filter' : ''}
+                          />
+                          <MapEvents onClick={(lat, lng) => {
+                            setEditLat(lat);
+                            setEditLng(lng);
+                          }} />
+                          {editLat && editLng && (
+                            <Marker position={[editLat, editLng]} icon={defaultMarkerIcon} />
+                          )}
+                        </MapContainer>
+                      </div>
+                    </div>
+                  )}
+
+                  {!isEditingLoc && selectedOrder.custom_fields?.latitude && (
+                    <div style={{ height: 180, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+                      <MapContainer
+                        center={[parseFloat(selectedOrder.custom_fields.latitude), parseFloat(selectedOrder.custom_fields.longitude)]}
+                        zoom={14}
+                        style={{ height: '100%', width: '100%' }}
+                        zoomControl={false}
+                        dragging={false}
+                        scrollWheelZoom={false}
+                        doubleClickZoom={false}
+                        boxZoom={false}
+                      >
+                        <TileLayer
+                          attribution='&copy; Google Maps'
+                          url={tileUrl}
+                          subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
+                          className={isDark ? 'leaflet-dark-filter' : ''}
+                        />
+                        <Marker position={[parseFloat(selectedOrder.custom_fields.latitude), parseFloat(selectedOrder.custom_fields.longitude)]} icon={defaultMarkerIcon} />
+                      </MapContainer>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="form-group">
                 <span className="form-label" style={{ fontSize: 10 }}>Internal Notes / Remarks</span>
                 <p style={{ fontStyle: 'italic', fontSize: 13.5, background: 'rgba(255,255,255,0.03)', padding: 10, borderRadius: 'var(--radius-sm)' }}>
@@ -979,7 +1112,10 @@ export default function OrderPage() {
                   style={{ height: '100%', width: '100%' }}
                 >
                   <TileLayer
+                    attribution='&copy; Google Maps'
                     url={tileUrl}
+                    subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
+                    className={isDark ? 'leaflet-dark-filter' : ''}
                   />
                   <MapEvents onClick={(lat, lng) => {
                     setTaskLat(lat);
