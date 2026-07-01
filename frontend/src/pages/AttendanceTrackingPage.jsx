@@ -205,8 +205,9 @@ function fmtDateTime(iso) {
 
 /** Snap coordinates to roads using OSRM Match API */
 /** Snap coordinates to roads using OSRM Match API */
+/** Snap coordinates to roads using OSRM Match API */
 async function snapToRoads(points) {
-  if (!points || points.length < 2) return points;
+  if (!points || points.length < 2) return { snappedPoints: points, snappedGeometry: points };
 
   // 1. Filter out duplicate or extremely close points while tracking indices
   const filteredPoints = [];
@@ -255,6 +256,7 @@ async function snapToRoads(points) {
   // 3. For each segment, chunk into sizes <= 50 and query OSRM Match API
   // We reconstruct snappedFilteredPoints to match the filteredPoints length 1-to-1
   const snappedFilteredPoints = new Array(filteredPoints.length);
+  const snappedGeometry = [];
   const maxChunkSize = 50;
 
   for (let s = 0; s < segments.length; s++) {
@@ -263,6 +265,7 @@ async function snapToRoads(points) {
 
     if (segment.length < 2) {
       snappedFilteredPoints[indices[0]] = segment[0];
+      snappedGeometry.push(segment[0]);
       continue;
     }
 
@@ -286,6 +289,7 @@ async function snapToRoads(points) {
           for (let i = 0; i < chunk.length; i++) {
             snappedFilteredPoints[origChunkIndices[i]] = chunk[i];
           }
+          snappedGeometry.push(...chunk);
           continue;
         }
         const data = await response.json();
@@ -299,15 +303,25 @@ async function snapToRoads(points) {
               snappedFilteredPoints[origChunkIndices[i]] = chunk[i];
             }
           }
+          if (data.matchings && data.matchings.length > 0) {
+            const geom = data.matchings.flatMap(m =>
+              m.geometry.coordinates.map(c => [c[1], c[0]])
+            );
+            snappedGeometry.push(...geom);
+          } else {
+            snappedGeometry.push(...chunk);
+          }
         } else {
           for (let i = 0; i < chunk.length; i++) {
             snappedFilteredPoints[origChunkIndices[i]] = chunk[i];
           }
+          snappedGeometry.push(...chunk);
         }
       } catch {
         for (let i = 0; i < chunk.length; i++) {
           snappedFilteredPoints[origChunkIndices[i]] = chunk[i];
         }
+        snappedGeometry.push(...chunk);
       }
     }
   }
@@ -318,7 +332,21 @@ async function snapToRoads(points) {
     const filteredIdx = indexMapping[i];
     snappedOriginalPoints.push(snappedFilteredPoints[filteredIdx]);
   }
-  return snappedOriginalPoints;
+
+  // Filter out consecutive duplicate coordinates from the high-res geometry to keep the path clean
+  const uniqueGeometry = [];
+  for (const pt of snappedGeometry) {
+    if (uniqueGeometry.length === 0) {
+      uniqueGeometry.push(pt);
+    } else {
+      const last = uniqueGeometry[uniqueGeometry.length - 1];
+      if (pt[0] !== last[0] || pt[1] !== last[1]) {
+        uniqueGeometry.push(pt);
+      }
+    }
+  }
+
+  return { snappedPoints: snappedOriginalPoints, snappedGeometry: uniqueGeometry };
 }
 
 // ─── Export GPS logs to CSV ────────────────────────────────────────────────────
@@ -365,7 +393,8 @@ export default function AttendanceTrackingPage() {
   
   // GPS Trail & Playback States
   const [sessionPings, setSessionPings]       = useState([]);
-  const [trail, setTrail]                     = useState([]);
+  const [trail, setTrail]                     = useState([]); // snapped high-res geometry for road line
+  const [snappedPoints, setSnappedPoints]     = useState([]); // 1-to-1 snapped points for playbacks/cursor
   const [rawTrail, setRawTrail]               = useState([]);
   const [stops, setStops]                     = useState([]);
   const [snapping, setSnapping]               = useState(false);
@@ -429,6 +458,7 @@ export default function AttendanceTrackingPage() {
   useEffect(() => {
     if (!selectedSession) {
       setTrail([]);
+      setSnappedPoints([]);
       setRawTrail([]);
       setSessionPings([]);
       setStops([]);
@@ -453,11 +483,13 @@ export default function AttendanceTrackingPage() {
         setStops(detectedStops);
 
         // Snap path to roads
-        const snapped = await snapToRoads(pts);
-        setTrail(snapped);
+        const { snappedPoints: sPoints, snappedGeometry: sGeom } = await snapToRoads(pts);
+        setSnappedPoints(sPoints);
+        setTrail(sGeom);
       })
       .catch(() => {
         setTrail([]);
+        setSnappedPoints([]);
         setRawTrail([]);
         setSessionPings([]);
         setStops([]);
@@ -587,17 +619,39 @@ export default function AttendanceTrackingPage() {
 
   const stats = calculateStats();
   const activePing = sessionPings[playbackIndex];
-  // Use snapped trail if available and matching rawTrail size, otherwise fall back to rawTrail
-  const activePlaybackCoord = (trail && trail.length === rawTrail.length)
-    ? trail[playbackIndex]
+  // Use 1-to-1 snapped points for positioning the playback cursor
+  const activePlaybackCoord = (snappedPoints && snappedPoints.length === rawTrail.length)
+    ? snappedPoints[playbackIndex]
     : rawTrail[playbackIndex];
 
-  // Dynamic Polylines representation
-  const completedTrail = (trail && trail.length === rawTrail.length)
-    ? trail.slice(0, playbackIndex + 1)
+  // Find the index in high-res trail geometry closest to the current playback coordinate
+  // This allows splitting the smooth road-matched curves exactly at the cursor position
+  const getTrailSplitIndex = () => {
+    if (!trail || trail.length === 0 || !activePlaybackCoord) return 0;
+    let minDistance = Infinity;
+    let closestIndex = 0;
+    const [cLat, cLng] = activePlaybackCoord;
+    for (let i = 0; i < trail.length; i++) {
+      const [tLat, tLng] = trail[i];
+      const dLat = tLat - cLat;
+      const dLng = tLng - cLng;
+      const distSq = dLat * dLat + dLng * dLng;
+      if (distSq < minDistance) {
+        minDistance = distSq;
+        closestIndex = i;
+      }
+    }
+    return closestIndex;
+  };
+
+  const splitIndex = getTrailSplitIndex();
+
+  // Dynamic Polylines representation following smooth road curves
+  const completedTrail = trail && trail.length > 0
+    ? trail.slice(0, splitIndex + 1)
     : rawTrail.slice(0, playbackIndex + 1);
-  const remainingTrail = (trail && trail.length === rawTrail.length)
-    ? trail.slice(playbackIndex)
+  const remainingTrail = trail && trail.length > 0
+    ? trail.slice(splitIndex)
     : rawTrail.slice(playbackIndex);
 
   // ─── GPS Logs helpers ───────────────────────────────────────────────────────
@@ -837,23 +891,18 @@ export default function AttendanceTrackingPage() {
                 {/* Smooth playback map center helper */}
                 <PlaybackCenterer target={activePlaybackCoord} active={autoCenter && isPlaying} />
 
-                {/* Raw GPS trail in background for reference (faint dashed) */}
-                {rawTrail.length > 1 && (
-                  <Polyline positions={rawTrail} color={selectedColor} weight={2} opacity={0.15} dashArray="5, 5" />
-                )}
-
-                {/* Completed snapped road-matched trail */}
+                {/* Completed snapped road-matched trail (smooth curve following road network) */}
                 {completedTrail.length > 1 && (
                   <Polyline positions={completedTrail} color={selectedColor} weight={4.5} opacity={0.9} />
                 )}
 
-                {/* Remaining snapped road-matched trail (Dashed) */}
+                {/* Remaining snapped road-matched trail (Dashed, smooth curve following road network) */}
                 {remainingTrail.length > 1 && (
                   <Polyline positions={remainingTrail} color={selectedColor} weight={3.5} opacity={0.3} dashArray="5, 10" />
                 )}
 
                 {/* GPS ping dots (snapped to roads if available, rendered only up to current playback index) */}
-                {((trail && trail.length === rawTrail.length) ? trail : rawTrail).slice(0, playbackIndex + 1).map((pt, idx) => (
+                {((snappedPoints && snappedPoints.length === rawTrail.length) ? snappedPoints : rawTrail).slice(0, playbackIndex + 1).map((pt, idx) => (
                   <CircleMarker
                     key={`raw-${idx}`}
                     center={pt}
@@ -880,8 +929,8 @@ export default function AttendanceTrackingPage() {
 
                 {/* Stop Point Markers rendering stop duration in minutes (snapped to road if available) */}
                 {stops.map((stop, sIdx) => {
-                  const pos = (trail && trail.length === rawTrail.length && trail[stop.startIndex])
-                    ? trail[stop.startIndex]
+                  const pos = (snappedPoints && snappedPoints.length === rawTrail.length && snappedPoints[stop.startIndex])
+                    ? snappedPoints[stop.startIndex]
                     : [stop.lat, stop.lng];
                   return (
                     <Marker
