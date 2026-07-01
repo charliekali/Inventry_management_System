@@ -240,9 +240,9 @@ async function snapToRoads(points) {
   }
   segments.push(currentSegment);
 
-  // 3. For each segment, chunk into sizes <= 90 and query OSRM Match API
+  // 3. For each segment, chunk into sizes <= 50 and query OSRM Match API
   const snappedPaths = [];
-  const maxChunkSize = 90;
+  const maxChunkSize = 50;
 
   for (const segment of segments) {
     if (segment.length < 2) {
