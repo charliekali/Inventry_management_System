@@ -35,19 +35,31 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
-        <!-- Background GPS Tracking Foreground Service -->
+        <!-- Background GPS Tracking Foreground Service
+             stopWithTask=false ensures onTaskRemoved() fires when app is swiped -->
         <service
             android:name=".TrackingService"
             android:foregroundServiceType="location"
+            android:stopWithTask="false"
             android:exported="false" />
 
-        <!-- Boot receiver — restarts GPS service after device reboot -->
+        <!-- Boot receiver — restarts GPS service after device reboot or app update -->
         <receiver
             android:name=".BootReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- AlarmManager watchdog receiver — checks every 60s if tracking service is alive -->
+        <receiver
+            android:name=".TrackingWatchdog"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.ttrims.ims.TRACKING_WATCHDOG" />
             </intent-filter>
         </receiver>
 
@@ -70,5 +82,9 @@
 
     <!-- Boot receiver permission -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- AlarmManager exact alarms for watchdog (Android 12+) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
 </manifest>
