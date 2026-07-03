@@ -85,6 +85,8 @@ public class ProductController {
         p.setCategory(body.get("category") == null ? null : body.get("category").toString());
         Double ms = getDouble(body.get("min_stock"));
         p.setMinStock(ms != null ? ms : 0.0);
+        Double dv = getDouble(body.get("deduction_value"));
+        p.setDeductionValue(dv != null ? dv : 0.0);
         Double sellingPrice = null;
         Double costPrice = null;
         if (body.containsKey("selling_price")) {
@@ -118,6 +120,10 @@ public class ProductController {
         if (body.containsKey("min_stock")) {
             Double ms = getDouble(body.get("min_stock"));
             p.setMinStock(ms != null ? ms : 0.0);
+        }
+        if (body.containsKey("deduction_value")) {
+            Double dv = getDouble(body.get("deduction_value"));
+            p.setDeductionValue(dv != null ? dv : 0.0);
         }
         if (body.containsKey("is_active")) p.setActive(Boolean.TRUE.equals(body.get("is_active")));
         if (body.containsKey("selling_price") || body.containsKey("cost_price")) {
@@ -240,6 +246,7 @@ public class ProductController {
         dto.put("category", p.getCategory() != null ? p.getCategory() : "");
         dto.put("description", p.getDescription() != null ? p.getDescription() : "");
         dto.put("min_stock", p.getMinStock());
+        dto.put("deduction_value", p.getDeductionValue());
         dto.put("selling_price", p.getSellingPrice());
         dto.put("cost_price", p.getCostPrice());
         dto.put("pack_size_g", p.getPackSizeG());

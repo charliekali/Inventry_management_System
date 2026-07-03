@@ -43,6 +43,7 @@ export default function StockInPage() {
   const [quickType, setQuickType] = useState('FINISHED_GOOD');
   const [quickUnit, setQuickUnit] = useState('PCS');
   const [quickMinStock, setQuickMinStock] = useState('0');
+  const [quickDeductionValue, setQuickDeductionValue] = useState('0');
   const [quickCategory, setQuickCategory] = useState('');
   const [quickDesc, setQuickDesc] = useState('');
   const [quickSubmitting, setQuickSubmitting] = useState(false);
@@ -176,6 +177,7 @@ export default function StockInPage() {
         type: quickType,
         unit: quickUnit,
         min_stock: parseFloat(quickMinStock) || 0,
+        deduction_value: parseFloat(quickDeductionValue) || 0,
         description: quickDesc,
         category: quickCategory
       };
@@ -281,6 +283,7 @@ export default function StockInPage() {
                         setQuickType(stockType === 'ALL' ? 'FINISHED_GOOD' : stockType);
                         setQuickUnit('PCS');
                         setQuickMinStock('0');
+                        setQuickDeductionValue('0');
                         setQuickCategory('');
                         setQuickDesc('');
                         setShowQuickAddModal(true);
@@ -366,6 +369,17 @@ export default function StockInPage() {
                   onChange={e => setQuantity(e.target.value)}
                   required={isRequired('quantity')}
                 />
+                {(() => {
+                  const p = products.find(prod => prod.id === productId);
+                  if (p && p.deduction_value > 0) {
+                    return (
+                      <div style={{ fontSize: 12, color: '#f59e0b', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span>⚠️ A deduction of <strong>{p.deduction_value} {p.unit}</strong> will be applied. Net stock added: <strong>{quantity ? Math.max(0, parseFloat(quantity) - p.deduction_value).toFixed(2) : '0.00'} {p.unit}</strong></span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             )}
 
@@ -535,22 +549,35 @@ export default function StockInPage() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Category</label>
-                  <select 
+                  <label className="form-label">Deduction Value</label>
+                  <input 
+                    type="number" 
+                    step="any"
                     className="form-control" 
-                    value={quickCategory} 
-                    onChange={e => setQuickCategory(e.target.value)}
-                  >
-                    <option value="">Select Category...</option>
-                    {categories.map(c => (
-                      <optgroup key={c.category} label={c.category}>
-                        {c.subcategories.map(sub => (
-                          <option key={sub} value={`${c.category} - ${sub}`}>{c.category} - ${sub}</option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
+                    value={quickDeductionValue} 
+                    onChange={e => setQuickDeductionValue(e.target.value)} 
+                    placeholder="0"
+                    required 
+                  />
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Category</label>
+                <select 
+                  className="form-control" 
+                  value={quickCategory} 
+                  onChange={e => setQuickCategory(e.target.value)}
+                >
+                  <option value="">Select Category...</option>
+                  {categories.map(c => (
+                    <optgroup key={c.category} label={c.category}>
+                      {c.subcategories.map(sub => (
+                        <option key={sub} value={`${c.category} - ${sub}`}>{c.category} - ${sub}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
               </div>
 
               <div className="form-group">

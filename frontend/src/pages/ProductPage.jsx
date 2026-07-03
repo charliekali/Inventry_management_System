@@ -114,6 +114,7 @@ export default function ProductPage() {
   const [pType, setPType] = useState('FINISHED_GOOD');
   const [pUnit, setPUnit] = useState('PCS');
   const [pMinStock, setPMinStock] = useState('0');
+  const [pDeductionValue, setPDeductionValue] = useState('0');
   const [pDesc, setPDesc] = useState('');
   const [pCategory, setPCategory] = useState('');
 
@@ -160,6 +161,7 @@ export default function ProductPage() {
         type: pType,
         unit: pUnit,
         min_stock: parseFloat(pMinStock) || 0,
+        deduction_value: parseFloat(pDeductionValue) || 0,
         description: pDesc,
         category: pCategory,
         pack_size_g: pType === 'FINISHED_GOOD' && pPackSizeG ? parseFloat(pPackSizeG) : null,
@@ -195,6 +197,7 @@ export default function ProductPage() {
     setPType('FINISHED_GOOD');
     setPUnit('PCS');
     setPMinStock('0');
+    setPDeductionValue('0');
     setPDesc('');
     setPCategory('');
     setPPackSizeG('');
@@ -213,6 +216,7 @@ export default function ProductPage() {
     setPType(p.type);
     setPUnit(p.unit || 'PCS');
     setPMinStock(p.min_stock.toString());
+    setPDeductionValue((p.deduction_value !== undefined && p.deduction_value !== null) ? p.deduction_value.toString() : '0');
     setPDesc(p.description || '');
     setPCategory(p.category || '');
     setPPackSizeG(p.pack_size_g ? p.pack_size_g.toString() : '');
@@ -411,6 +415,7 @@ export default function ProductPage() {
                   <th>Category</th>
                   <th>Type</th>
                   <th>Min</th>
+                  <th>Deduction</th>
                   {isSuperAdmin && <th>Selling Price</th>}
                   {isSuperAdmin && <th>Cost Price</th>}
                   <th style={{ textAlign: 'right' }}>Actions</th>
@@ -448,6 +453,7 @@ export default function ProductPage() {
                         </span>
                       </td>
                       <td>{p.min_stock}</td>
+                      <td>{p.deduction_value || 0}</td>
                       {isSuperAdmin && <td>₹{(p.selling_price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>}
                       {isSuperAdmin && <td>₹{(p.cost_price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>}
                       <td style={{ textAlign: 'right' }}>
@@ -525,7 +531,7 @@ export default function ProductPage() {
                 </div>
               </div>
 
-              <div className="form-row-3">
+              <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Type</label>
                   <select 
@@ -552,7 +558,9 @@ export default function ProductPage() {
                     required
                   />
                 </div>
+              </div>
 
+              <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Min Stock Level</label>
                   <input 
@@ -561,6 +569,19 @@ export default function ProductPage() {
                     className="form-control" 
                     value={pMinStock} 
                     onChange={(e) => setPMinStock(e.target.value)} 
+                    placeholder="0.0"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Deduction Value</label>
+                  <input 
+                    type="number" 
+                    step="any"
+                    className="form-control" 
+                    value={pDeductionValue} 
+                    onChange={(e) => setPDeductionValue(e.target.value)} 
                     placeholder="0.0"
                     required
                   />

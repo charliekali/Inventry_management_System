@@ -42,6 +42,7 @@ export default function WarehouseStockIn() {
   const [quickType, setQuickType] = useState('FINISHED_GOOD');
   const [quickUnit, setQuickUnit] = useState('PCS');
   const [quickMinStock, setQuickMinStock] = useState('0');
+  const [quickDeductionValue, setQuickDeductionValue] = useState('0');
   const [quickCategory, setQuickCategory] = useState('');
   const [quickDesc, setQuickDesc] = useState('');
   const [quickSubmitting, setQuickSubmitting] = useState(false);
@@ -125,6 +126,7 @@ export default function WarehouseStockIn() {
         type: quickType,
         unit: quickUnit,
         min_stock: parseFloat(quickMinStock) || 0,
+        deduction_value: parseFloat(quickDeductionValue) || 0,
         description: quickDesc,
         category: quickCategory
       };
@@ -238,6 +240,7 @@ export default function WarehouseStockIn() {
                       setQuickType(stockType === 'ALL' ? 'FINISHED_GOOD' : stockType);
                       setQuickUnit('PCS');
                       setQuickMinStock('0');
+                      setQuickDeductionValue('0');
                       setQuickCategory('');
                       setQuickDesc('');
                       setShowQuickAddModal(true);
@@ -277,6 +280,17 @@ export default function WarehouseStockIn() {
                   placeholder="0.00"
                   required
                 />
+                {(() => {
+                  const p = products.find(prod => prod.id === productId);
+                  if (p && p.deduction_value > 0) {
+                    return (
+                      <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>
+                        ⚠️ Deducting <strong>{p.deduction_value} {p.unit}</strong>. Net: <strong>{quantity ? Math.max(0, parseFloat(quantity) - p.deduction_value).toFixed(2) : '0.00'} {p.unit}</strong>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
               <div className="w-form-group" style={{ flex: 1 }}>
                 <label className="w-label">Unit</label>
@@ -392,18 +406,19 @@ export default function WarehouseStockIn() {
               </select>
             </div>
 
+            <div className="w-form-group">
+              <label className="w-label">Unit of Measure *</label>
+              <input 
+                type="text" 
+                className="w-input" 
+                value={quickUnit} 
+                onChange={e => setQuickUnit(e.target.value)} 
+                placeholder="PCS"
+                required 
+              />
+            </div>
+
             <div style={{ display: 'flex', gap: 10 }}>
-              <div className="w-form-group" style={{ flex: 1.2 }}>
-                <label className="w-label">Unit of Measure</label>
-                <input 
-                  type="text" 
-                  className="w-input" 
-                  value={quickUnit} 
-                  onChange={e => setQuickUnit(e.target.value)} 
-                  placeholder="PCS"
-                  required 
-                />
-              </div>
               <div className="w-form-group" style={{ flex: 1 }}>
                 <label className="w-label">Min Stock</label>
                 <input 
@@ -412,6 +427,18 @@ export default function WarehouseStockIn() {
                   className="w-input" 
                   value={quickMinStock} 
                   onChange={e => setQuickMinStock(e.target.value)} 
+                  placeholder="0"
+                  required 
+                />
+              </div>
+              <div className="w-form-group" style={{ flex: 1 }}>
+                <label className="w-label">Deduction Value</label>
+                <input 
+                  type="number" 
+                  step="any"
+                  className="w-input" 
+                  value={quickDeductionValue} 
+                  onChange={e => setQuickDeductionValue(e.target.value)} 
                   placeholder="0"
                   required 
                 />

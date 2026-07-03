@@ -56,6 +56,9 @@ public class Product {
     @Column(name = "min_stock")
     private Double minStock = 0.0;
 
+    @Column(name = "deduction_value")
+    private Double deductionValue = 0.0;
+
     @Column(name = "is_active")
     private boolean active = true;
 
@@ -101,6 +104,8 @@ public class Product {
     public void setCostPrice(Double costPrice) { this.costPrice = costPrice; }
     public Double getMinStock() { return minStock; }
     public void setMinStock(Double minStock) { this.minStock = minStock; }
+    public Double getDeductionValue() { return deductionValue; }
+    public void setDeductionValue(Double deductionValue) { this.deductionValue = deductionValue; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
     public LocalDateTime getCreatedAt() { return createdAt; }

@@ -120,6 +120,23 @@ public class TransactionController {
         Product product = productRepo.findById(productId).orElse(null);
         if (product == null || !product.isActive()) return Map.of("error", "Product not found");
 
+        String remarks = (String) body.get("remarks");
+        if (type == StockTransaction.Type.IN) {
+            double deduction = product.getDeductionValue() != null ? product.getDeductionValue() : 0.0;
+            if (deduction > 0) {
+                quantity = quantity - deduction;
+                if (quantity <= 0) {
+                    return Map.of("error", "Quantity after deduction must be positive. Deduction: " + deduction + " " + product.getUnit());
+                }
+                String note = "[Deducted " + deduction + " " + product.getUnit() + "]";
+                if (remarks == null || remarks.isBlank()) {
+                    remarks = note;
+                } else {
+                    remarks = remarks + " " + note;
+                }
+            }
+        }
+
         Warehouse warehouse = warehouseRepo.findById(warehouseId).orElse(null);
         if (warehouse == null) return Map.of("error", "Warehouse not found");
 
@@ -148,7 +165,7 @@ public class TransactionController {
         tx.setQuantity(quantity);
         tx.setUnit((String) body.getOrDefault("unit", product.getUnit()));
         tx.setReferenceDoc((String) body.get("reference_doc"));
-        tx.setRemarks((String) body.get("remarks"));
+        tx.setRemarks(remarks);
         tx.setPerformedBy(auth.currentUser());
         tx.setTransactionDate(txDate);
 
