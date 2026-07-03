@@ -38,7 +38,7 @@ function MapEvents({ onClick }) {
 export default function OrderPage() {
   const { theme } = useTheme();
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  const tileUrl = "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}";
+  const tileUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
   const navigate = useNavigate();
   const { hasPermission, user } = useAuth();
@@ -851,9 +851,8 @@ export default function OrderPage() {
                           style={{ height: '100%', width: '100%' }}
                         >
                           <TileLayer
-                            attribution='&copy; Google Maps'
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                             url={tileUrl}
-                            subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
                             className={isDark ? 'leaflet-dark-filter' : ''}
                           />
                           <MapEvents onClick={(lat, lng) => {
@@ -881,9 +880,8 @@ export default function OrderPage() {
                         boxZoom={false}
                       >
                         <TileLayer
-                          attribution='&copy; Google Maps'
+                          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                           url={tileUrl}
-                          subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
                           className={isDark ? 'leaflet-dark-filter' : ''}
                         />
                         <Marker position={[parseFloat(selectedOrder.custom_fields.latitude), parseFloat(selectedOrder.custom_fields.longitude)]} icon={defaultMarkerIcon} />
@@ -1112,9 +1110,8 @@ export default function OrderPage() {
                   style={{ height: '100%', width: '100%' }}
                 >
                   <TileLayer
-                    attribution='&copy; Google Maps'
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url={tileUrl}
-                    subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
                     className={isDark ? 'leaflet-dark-filter' : ''}
                   />
                   <MapEvents onClick={(lat, lng) => {

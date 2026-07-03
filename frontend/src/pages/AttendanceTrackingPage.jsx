@@ -987,12 +987,11 @@ export default function AttendanceTrackingPage() {
                 zoomControl={true}
               >
                 <TileLayer
-                  attribution='&copy; Google Maps'
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                   url={mapType === 'hybrid'
-                    ? "https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
-                    : "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+                    ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                    : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   }
-                  subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
                 />
 
                 {/* Auto-center when first data arrives */}

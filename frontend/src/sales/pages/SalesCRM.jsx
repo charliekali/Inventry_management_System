@@ -425,7 +425,7 @@ export default function SalesCRM() {
   const navigate = useNavigate();
   const { theme } = useTheme();
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  const tileUrl = "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}";
+  const tileUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
   const { hasPermission } = useAuth();
   const location   = useLocation();
@@ -836,9 +836,8 @@ export default function SalesCRM() {
                 zoomControl={false}
               >
                 <TileLayer
-                  attribution='&copy; Google Maps'
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                   url={tileUrl}
-                  subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
                   className={isDark ? 'leaflet-dark-filter' : ''}
                 />
 
