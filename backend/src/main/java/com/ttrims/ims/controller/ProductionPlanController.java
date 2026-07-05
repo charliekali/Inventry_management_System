@@ -236,22 +236,27 @@ public class ProductionPlanController {
 
         double actualQty = ((Number) actualQtyObj).doubleValue();
 
-        double wastagePct = body.containsKey("wastage_pct") && body.get("wastage_pct") != null
-            ? ((Number) body.get("wastage_pct")).doubleValue()
+        double actualWastage = body.containsKey("actual_wastage") && body.get("actual_wastage") != null
+            ? ((Number) body.get("actual_wastage")).doubleValue()
             : 0.0;
-        double damagePct = body.containsKey("damage_pct") && body.get("damage_pct") != null
-            ? ((Number) body.get("damage_pct")).doubleValue()
+        double actualDamage = body.containsKey("actual_damage") && body.get("actual_damage") != null
+            ? ((Number) body.get("actual_damage")).doubleValue()
             : 0.0;
         if (actualQty <= 0) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Actual quantity must be positive"));
         }
 
-        if (actualQty > plan.getPlannedQuantity()) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Actual quantity cannot exceed planned quantity of " + plan.getPlannedQuantity()));
+        if (actualQty + actualWastage + actualDamage > plan.getPlannedQuantity()) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Total actual processed quantity (good + wastage + damage) cannot exceed planned quantity of " + plan.getPlannedQuantity()));
         }
 
-        // Calculate proportional factor
-        double ratio = actualQty / plan.getPlannedQuantity();
+        // Calculate proportional factor based on total raw material output equivalents processed
+        double totalProcessed = actualQty + actualWastage + actualDamage;
+        double ratio = totalProcessed / plan.getPlannedQuantity();
+
+        double totalRunQty = actualQty + actualWastage + actualDamage;
+        double wastagePct = totalRunQty > 0 ? (actualWastage / totalRunQty) * 100.0 : 0.0;
+        double damagePct = totalRunQty > 0 ? (actualDamage / totalRunQty) * 100.0 : 0.0;
 
         List<ProductionPlanIngredient> ingredients = planIngRepo.findByProductionPlanId(plan.getId());
         List<StockTransaction> transactionsToSave = new ArrayList<>();
@@ -334,6 +339,8 @@ public class ProductionPlanController {
         customMap.put("production_plan_id", plan.getId());
         customMap.put("wastage_pct", String.valueOf(wastagePct));
         customMap.put("damage_pct", String.valueOf(damagePct));
+        customMap.put("actual_wastage", String.valueOf(actualWastage));
+        customMap.put("actual_damage", String.valueOf(actualDamage));
         txIn.setCustomFields(customMap);
 
         transactionsToSave.add(txIn);

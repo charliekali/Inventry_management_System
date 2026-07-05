@@ -256,10 +256,10 @@ export const productionPlansAPI = {
   create: (data) => api.post('/production-plans', data),
   list: () => api.get('/production-plans'),
   myToday: () => api.get('/production-plans/my-today'),
-  recordActual: (id, actualQuantity, wastagePct, damagePct) => api.post(`/production-plans/${id}/actual`, { 
+  recordActual: (id, actualQuantity, actualWastage, actualDamage) => api.post(`/production-plans/${id}/actual`, { 
     actual_quantity: actualQuantity,
-    wastage_pct: wastagePct,
-    damage_pct: damagePct
+    actual_wastage: actualWastage,
+    actual_damage: actualDamage
   }),
 };
 

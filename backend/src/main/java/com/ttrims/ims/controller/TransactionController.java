@@ -381,10 +381,15 @@ public class TransactionController {
         txIn.setPerformedBy(auth.currentUser());
         txIn.setTransactionDate(txDate);
 
+        double actualWastage = quantity * (wastagePct / 100.0);
+        double actualDamage = quantity * (damagePct / 100.0);
+
         Map<String, String> customMap = new HashMap<>();
         customMap.put("production_run_id", prodRunRef);
         customMap.put("wastage_pct", String.valueOf(wastagePct));
         customMap.put("damage_pct", String.valueOf(damagePct));
+        customMap.put("actual_wastage", String.valueOf(actualWastage));
+        customMap.put("actual_damage", String.valueOf(actualDamage));
         txIn.setCustomFields(customMap);
 
         transactionsToSave.add(txIn);
@@ -474,16 +479,25 @@ public class TransactionController {
 
             double wastage = 0.0;
             double damage = 0.0;
+            double actualWastage = 0.0;
+            double actualDamage = 0.0;
             if (produced.getCustomFields() != null) {
                 try {
                     String wStr = produced.getCustomFields().get("wastage_pct");
                     if (wStr != null) wastage = Double.parseDouble(wStr);
                     String dStr = produced.getCustomFields().get("damage_pct");
                     if (dStr != null) damage = Double.parseDouble(dStr);
+                    
+                    String awStr = produced.getCustomFields().get("actual_wastage");
+                    if (awStr != null) actualWastage = Double.parseDouble(awStr);
+                    String adStr = produced.getCustomFields().get("actual_damage");
+                    if (adStr != null) actualDamage = Double.parseDouble(adStr);
                 } catch (Exception ignored) {}
             }
             run.put("wastage_pct", wastage);
             run.put("damage_pct", damage);
+            run.put("actual_wastage", actualWastage);
+            run.put("actual_damage", actualDamage);
             run.put("ingredients", consumedItems);
 
             runs.add(run);

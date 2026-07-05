@@ -60,22 +60,35 @@ export default function YieldAnalyticsPage() {
     const wastage = run.wastage_pct || 0;
     const damage = run.damage_pct || 0;
     
+    const actualWastageVal = run.actual_wastage !== undefined && run.actual_wastage !== null ? run.actual_wastage : null;
+    const actualDamageVal = run.actual_damage !== undefined && run.actual_damage !== null ? run.actual_damage : null;
+    
     const isKg = run.unit?.toUpperCase() === 'KG';
     
-    // Scale factor to find total raw input
-    const lossMultiplier = 1.0 - ((wastage + damage) / 100.0);
-    const totalInput = lossMultiplier > 0 ? (qty / lossMultiplier) : qty;
+    let totalInput = 0;
+    let finalWastage = 0;
+    let finalDamage = 0;
+    
+    if (actualWastageVal !== null && actualDamageVal !== null) {
+      totalInput = qty + actualWastageVal + actualDamageVal;
+      finalWastage = actualWastageVal;
+      finalDamage = actualDamageVal;
+    } else {
+      const lossMultiplier = 1.0 - ((wastage + damage) / 100.0);
+      totalInput = lossMultiplier > 0 ? (qty / lossMultiplier) : qty;
+      finalWastage = totalInput * (wastage / 100.0);
+      finalDamage = totalInput * (damage / 100.0);
+    }
     
     if (isKg) {
       totalInputKg += totalInput;
       totalOutputKg += qty;
-      totalWastageKg += totalInput * (wastage / 100.0);
-      totalDamageKg += totalInput * (damage / 100.0);
+      totalWastageKg += finalWastage;
+      totalDamageKg += finalDamage;
     } else {
       totalPacksProduced += qty;
-      // If packs unit, we can approximate packaging damage by pouch counts
-      totalWastageKg += totalInput * (wastage / 100.0); // raw material equivalent
-      totalDamageKg += totalInput * (damage / 100.0);
+      totalWastageKg += finalWastage;
+      totalDamageKg += finalDamage;
     }
   });
 

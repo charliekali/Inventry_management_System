@@ -6,6 +6,7 @@ import {
   Info, Warehouse, Package, RefreshCw, AlertCircle, ArrowRight, User
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 
 export default function ProductionRunPage() {
   const navigate = useNavigate();
@@ -369,12 +370,14 @@ export default function ProductionRunPage() {
           <h2>Create Production Plan</h2>
           <p>Plan a daily production run and lock raw materials without moving them out yet</p>
         </div>
-        <div className="page-header-right">
-          <Link to="/products" className="btn btn-secondary btn-sm">
-            <Package size={14} />
-            Configure Recipes
-          </Link>
-        </div>
+        {!Capacitor.isNativePlatform() && (
+          <div className="page-header-right">
+            <Link to="/products" className="btn btn-secondary btn-sm">
+              <Package size={14} />
+              Configure Recipes
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="production-run-layout">

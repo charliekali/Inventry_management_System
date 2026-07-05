@@ -16,12 +16,12 @@ const CORE_TABS = [
   { path: '/production',          label: 'Home',    Icon: Home,          key: 'home',    perm: null },
   { path: '/production/plan',     label: 'Plan',    Icon: Factory,       key: 'plan',    perm: 'PRODUCTION:PLAN' },
   { path: '/production/actual',   label: 'Actuals', Icon: ClipboardList, key: 'actuals', perm: 'PRODUCTION:RUN' },
-  { path: '/production/recipes',  label: 'Recipes', Icon: ListPlus,      key: 'recipes', perm: 'BOM:VIEW' },
 ];
 
 const DRAWER_ITEMS = [
   { path: '/production/runs',     label: 'Runs Ledger',Icon: ClipboardList,key: 'runs',      perm: 'PRODUCTION:RUN', bg: 'rgba(59,130,246,0.15)', color: '#3b82f6' },
   { path: '/production/history',  label: 'History', Icon: History,       key: 'history', perm: 'PRODUCTION:HISTORY', bg: 'rgba(16,185,129,0.15)', color: '#10b981' },
+  { path: '/production/recipes',  label: 'Recipes', Icon: ListPlus,      key: 'recipes', perm: 'BOM:VIEW', bg: 'rgba(236,72,153,0.15)', color: '#ec4899' },
   { path: '/production/key-registry', label: 'Keys',   Icon: KeyRound,      key: 'keys',    perm: null, bg: 'rgba(6,182,212,0.15)', color: '#06b6d4' },
   { path: '/production/profile',  label: 'Me',      Icon: User,          key: 'profile', perm: null, bg: 'rgba(99,102,241,0.15)', color: '#6366f1' },
 ];

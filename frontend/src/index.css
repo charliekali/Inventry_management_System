@@ -1882,19 +1882,56 @@ body.native-app tbody td::before {
 /* Native-looking Dialogs & Modals */
 body.native-app .modal-overlay,
 body.native-app .modal-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+  z-index: 1000 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
   backdrop-filter: blur(12px) !important;
   -webkit-backdrop-filter: blur(12px) !important;
 }
 
+body.native-app .modal-card,
 body.native-app .modal-content,
 body.native-app .modal-dialog {
   border-radius: 24px !important;
   border: 1px solid var(--color-border) !important;
   background: var(--color-bg-card) !important;
   box-shadow: var(--shadow-lg) !important;
-  padding: 24px 20px !important;
-  max-width: 92vw !important;
-  margin: 0 auto;
+  padding: 20px !important;
+  width: 100% !important;
+  max-width: 480px !important;
+  margin: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+body.native-app .modal-header {
+  padding: 0 0 14px 0 !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  margin-bottom: 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+body.native-app .modal-body {
+  padding: 0 !important;
+  margin-bottom: 20px !important;
+}
+
+body.native-app .modal-footer {
+  padding: 14px 0 0 0 !important;
+  border-top: 1px solid var(--color-border) !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 12px !important;
 }
 
 /* Beautiful custom back button and sticky headers on native pages */
@@ -1905,4 +1942,18 @@ body.native-app .mobile-native-header {
   border-bottom: 1px solid var(--color-border) !important;
   box-shadow: var(--shadow-sm) !important;
 }
+
+/* Vertical Form Layout Stacking on Mobile APK */
+body.native-app .form-row,
+body.native-app .form-row-3 {
+  grid-template-columns: 1fr !important;
+  gap: 12px !important;
+}
+
+body.native-app .form-group {
+  margin-bottom: 10px !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
 

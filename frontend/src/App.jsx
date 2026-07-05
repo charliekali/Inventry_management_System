@@ -50,9 +50,6 @@ import SalesApp from './sales/SalesApp';
 import ProductionApp from './production/ProductionApp';
 import WarehouseApp from './warehouse/WarehouseApp';
 
-// FOR TESTING MOBILE APK LAYOUT IN BROWSER
-Capacitor.isNativePlatform = () => true;
-
 // Protected Route Guard
 function ProtectedRoute({ children, perm }) {
   const { user, loading, hasPermission } = useAuth();

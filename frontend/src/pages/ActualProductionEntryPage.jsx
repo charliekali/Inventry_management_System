@@ -15,8 +15,8 @@ export default function ActualProductionEntryPage() {
   // Modal State
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [actualQuantity, setActualQuantity] = useState('');
-  const [wastagePct, setWastagePct] = useState('0');
-  const [damagePct, setDamagePct] = useState('0');
+  const [actualWastage, setActualWastage] = useState('0');
+  const [actualDamage, setActualDamage] = useState('0');
   const [submitting, setSubmitting] = useState(false);
 
   const loadPlans = async () => {
@@ -38,15 +38,15 @@ export default function ActualProductionEntryPage() {
   const handleOpenEntry = (plan) => {
     setSelectedPlan(plan);
     setActualQuantity(plan.planned_quantity.toString());
-    setWastagePct('0');
-    setDamagePct('0');
+    setActualWastage('0');
+    setActualDamage('0');
   };
 
   const handleCloseEntry = () => {
     setSelectedPlan(null);
     setActualQuantity('');
-    setWastagePct('0');
-    setDamagePct('0');
+    setActualWastage('0');
+    setActualDamage('0');
   };
 
   const handleSubmitActual = async (e) => {
@@ -58,18 +58,19 @@ export default function ActualProductionEntryPage() {
       return toast.error('Please enter a valid actual quantity');
     }
 
-    if (actualQtyNum > selectedPlan.planned_quantity) {
-      return toast.error(`Actual quantity cannot exceed planned quantity of ${selectedPlan.planned_quantity} ${selectedPlan.product_unit}`);
+    const wastageNum = parseFloat(actualWastage);
+    if (isNaN(wastageNum) || wastageNum < 0) {
+      return toast.error('Please enter a valid wastage quantity');
     }
 
-    const wastageNum = parseFloat(wastagePct);
-    if (isNaN(wastageNum) || wastageNum < 0 || wastageNum > 99) {
-      return toast.error('Please enter a valid wastage percentage (0-99)');
+    const damageNum = parseFloat(actualDamage);
+    if (isNaN(damageNum) || damageNum < 0) {
+      return toast.error('Please enter a valid damage quantity');
     }
 
-    const damageNum = parseFloat(damagePct);
-    if (isNaN(damageNum) || damageNum < 0 || damageNum > 99) {
-      return toast.error('Please enter a valid damage percentage (0-99)');
+    const totalActual = actualQtyNum + wastageNum + damageNum;
+    if (totalActual > selectedPlan.planned_quantity) {
+      return toast.error(`Total processed quantity (${totalActual} ${selectedPlan.product_unit}) cannot exceed planned quantity of ${selectedPlan.planned_quantity} ${selectedPlan.product_unit}`);
     }
 
     setSubmitting(true);
@@ -98,6 +99,11 @@ export default function ActualProductionEntryPage() {
 
     return matchesSearch && matchesStatus;
   });
+
+  const actualQtyNum = parseFloat(actualQuantity) || 0;
+  const wastageNum = parseFloat(actualWastage) || 0;
+  const damageNum = parseFloat(actualDamage) || 0;
+  const totalActual = actualQtyNum + wastageNum + damageNum;
 
   return (
     <div className="fade-in">
@@ -363,34 +369,46 @@ export default function ActualProductionEntryPage() {
 
                 <div className="form-row" style={{ display: 'flex', gap: 12, marginTop: 12 }}>
                   <div className="form-group" style={{ flex: 1 }}>
-                    <label className="form-label">Process Wastage %</label>
-                    <input 
-                      type="number" step="any" min="0" max="99" placeholder="0%"
-                      className="form-control"
-                      value={wastagePct}
-                      onChange={e => setWastagePct(e.target.value)}
-                    />
+                    <label className="form-label">Actual Process Wastage ({selectedPlan.product_unit})</label>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <input 
+                        type="number" step="any" min="0" placeholder="0.00"
+                        className="form-control"
+                        value={actualWastage}
+                        onChange={e => setActualWastage(e.target.value)}
+                        style={{ paddingRight: 40 }}
+                      />
+                      <span style={{ position: 'absolute', right: 12, fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)' }}>
+                        {selectedPlan.product_unit}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="form-group" style={{ flex: 1 }}>
-                    <label className="form-label">Damage / Rejection %</label>
-                    <input 
-                      type="number" step="any" min="0" max="99" placeholder="0%"
-                      className="form-control"
-                      value={damagePct}
-                      onChange={e => setDamagePct(e.target.value)}
-                    />
+                    <label className="form-label">Actual Damage / Rejection ({selectedPlan.product_unit})</label>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <input 
+                        type="number" step="any" min="0" placeholder="0.00"
+                        className="form-control"
+                        value={actualDamage}
+                        onChange={e => setActualDamage(e.target.value)}
+                        style={{ paddingRight: 40 }}
+                      />
+                      <span style={{ position: 'absolute', right: 12, fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)' }}>
+                        {selectedPlan.product_unit}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {parseFloat(actualQuantity) > selectedPlan.planned_quantity && (
+                {totalActual > selectedPlan.planned_quantity && (
                   <div style={{
                     display: 'flex', gap: 8, alignItems: 'center', marginTop: 12,
                     color: 'var(--color-danger)', fontSize: 12, fontWeight: 600,
                     background: 'var(--color-danger-bg)', padding: '8px 12px', borderRadius: 8
                   }}>
                     <AlertTriangle size={14} />
-                    <span>Actual quantity cannot exceed the planned quantity.</span>
+                    <span>Total processed (good + wastage + damage) cannot exceed the planned quantity.</span>
                   </div>
                 )}
               </div>
@@ -402,7 +420,7 @@ export default function ActualProductionEntryPage() {
                 <button 
                   type="submit" 
                   className="btn btn-primary" 
-                  disabled={submitting || !actualQuantity || parseFloat(actualQuantity) <= 0 || parseFloat(actualQuantity) > selectedPlan.planned_quantity}
+                  disabled={submitting || !actualQuantity || actualQtyNum <= 0 || totalActual > selectedPlan.planned_quantity}
                 >
                   <Check size={16} />
                   {submitting ? 'Recording...' : 'Submit & Stock Out'}
