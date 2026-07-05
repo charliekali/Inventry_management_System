@@ -1,6 +1,9 @@
 package com.ttrims.ims.controller;
 
 import com.ttrims.ims.service.AuthHelper;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.ss.util.CellRangeAddressList;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -10,9 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.StringWriter;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.sql.ResultSetMetaData;
 import java.util.*;
@@ -30,9 +32,6 @@ public class DataPortabilityController {
         this.auth = auth;
     }
 
-    /**
-     * Helper to check if a table name is safe and exists in the public schema.
-     */
     private boolean isSafeTableName(String tableName) {
         if (tableName == null || !tableName.matches("^[a-zA-Z0-9_]+$")) {
             return false;
@@ -48,10 +47,6 @@ public class DataPortabilityController {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * GET /api/data-portability/tables
-     * Returns a list of all tables with their row counts.
-     */
     @GetMapping("/tables")
     public ResponseEntity<?> listTables() {
         auth.requirePermission("ROLES:VIEW");
@@ -59,7 +54,6 @@ public class DataPortabilityController {
         List<Map<String, Object>> result = new ArrayList<>();
 
         for (String name : tableNames) {
-            // Exclude flyway or database migration tables if any
             if (name.startsWith("flyway") || name.startsWith("schema_version")) {
                 continue;
             }
@@ -70,20 +64,12 @@ public class DataPortabilityController {
                 map.put("rowCount", count != null ? count : 0);
                 result.add(map);
             } catch (Exception e) {
-                // Ignore tables that can't be queried
             }
         }
-
-        // Sort by table name
         result.sort(Comparator.comparing(m -> m.get("name").toString()));
-
         return ResponseEntity.ok(Map.of("success", true, "data", result));
     }
 
-    /**
-     * GET /api/data-portability/export/{tableName}
-     * Exports a table to CSV.
-     */
     @GetMapping("/export/{tableName}")
     public ResponseEntity<?> exportTable(@PathVariable String tableName) {
         auth.requirePermission("ROLES:VIEW");
@@ -91,56 +77,72 @@ public class DataPortabilityController {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Invalid or unsafe table name"));
         }
 
-        try {
-            StringWriter writer = new StringWriter();
+        try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("Export");
+            
+            CellStyle headerStyle = workbook.createCellStyle();
+            headerStyle.setFillForegroundColor(IndexedColors.PALE_BLUE.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerStyle.setFont(headerFont);
+
             jdbcTemplate.query("SELECT * FROM " + tableName, rs -> {
-                ResultSetMetaData metaData = rs.getMetaData();
-                int columnCount = metaData.getColumnCount();
+                try {
+                    ResultSetMetaData metaData = rs.getMetaData();
+                    int columnCount = metaData.getColumnCount();
 
-                // Write Header
-                for (int i = 1; i <= columnCount; i++) {
-                    writer.write(escapeCsv(metaData.getColumnName(i)));
-                    if (i < columnCount) writer.write(",");
-                }
-                writer.write("\n");
-
-                // Write Rows
-                while (rs.next()) {
+                    Row headerRow = sheet.createRow(0);
                     for (int i = 1; i <= columnCount; i++) {
-                        Object val = rs.getObject(i);
-                        String strVal = "";
-                        if (val != null) {
-                            if (val instanceof byte[]) {
-                                strVal = new String((byte[]) val, StandardCharsets.UTF_8);
-                            } else {
-                                strVal = val.toString();
+                        Cell cell = headerRow.createCell(i - 1);
+                        cell.setCellValue(metaData.getColumnName(i));
+                        cell.setCellStyle(headerStyle);
+                    }
+
+                    int rowIndex = 1;
+                    while (rs.next()) {
+                        Row row = sheet.createRow(rowIndex++);
+                        for (int i = 1; i <= columnCount; i++) {
+                            Object val = rs.getObject(i);
+                            Cell cell = row.createCell(i - 1);
+                            if (val != null) {
+                                if (val instanceof Number) {
+                                    cell.setCellValue(((Number) val).doubleValue());
+                                } else if (val instanceof Boolean) {
+                                    cell.setCellValue((Boolean) val);
+                                } else if (val instanceof byte[]) {
+                                    cell.setCellValue(new String((byte[]) val, StandardCharsets.UTF_8));
+                                } else {
+                                    cell.setCellValue(val.toString());
+                                }
                             }
                         }
-                        writer.write(escapeCsv(strVal));
-                        if (i < columnCount) writer.write(",");
                     }
-                    writer.write("\n");
+                    
+                    for (int i = 1; i <= columnCount; i++) {
+                        sheet.autoSizeColumn(i - 1);
+                    }
+                } catch (Exception ex) {
+                    throw new RuntimeException(ex);
                 }
                 return null;
             });
 
-            byte[] csvBytes = writer.toString().getBytes(StandardCharsets.UTF_8);
+            workbook.write(baos);
+            byte[] excelBytes = baos.toByteArray();
+            
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.parseMediaType("text/csv"));
-            headers.setContentDispositionFormData("attachment", tableName + "_export.csv");
+            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+            headers.setContentDispositionFormData("attachment", tableName + "_export.xlsx");
             headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
 
-            return new ResponseEntity<>(csvBytes, headers, HttpStatus.OK);
+            return new ResponseEntity<>(excelBytes, headers, HttpStatus.OK);
 
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("success", false, "message", "Failed to export table: " + e.getMessage()));
         }
     }
 
-    /**
-     * GET /api/data-portability/template/{tableName}
-     * Generates a blank CSV template with only the column headers.
-     */
     @GetMapping("/template/{tableName}")
     public ResponseEntity<?> getTemplate(@PathVariable String tableName) {
         auth.requirePermission("ROLES:VIEW");
@@ -148,7 +150,16 @@ public class DataPortabilityController {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Invalid or unsafe table name"));
         }
 
-        try {
+        try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("Template");
+
+            CellStyle headerStyle = workbook.createCellStyle();
+            headerStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerStyle.setFont(headerFont);
+
             List<Map<String, Object>> columnsMetadata = jdbcTemplate.queryForList(
                     "SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ? ORDER BY ordinal_position",
                     tableName.toLowerCase()
@@ -160,44 +171,180 @@ public class DataPortabilityController {
                     })
                     .collect(Collectors.toList());
 
-            String header = filteredColumns.stream()
-                    .map(m -> m.get("column_name").toString())
-                    .map(this::escapeCsv)
-                    .collect(Collectors.joining(","));
+            Map<String, String> refDataRangeMap = new HashMap<>();
+            Map<String, String> refDataDemoMap = new HashMap<>();
+            
+            Sheet refSheet = workbook.createSheet("_RefData");
+            workbook.setSheetHidden(workbook.getSheetIndex(refSheet), true);
+            
+            if (filteredColumns.stream().anyMatch(c -> c.get("column_name").toString().toLowerCase().equals("product_id") || c.get("column_name").toString().toLowerCase().equals("raw_material_id"))) {
+                List<String> list = new ArrayList<>();
+                try {
+                    jdbcTemplate.query("SELECT id, code, name FROM products", rs -> {
+                        list.add(rs.getString("id") + " - [" + rs.getString("code") + "] " + rs.getString("name"));
+                    });
+                } catch(Exception e) {}
+                if (!list.isEmpty()) {
+                    int col = refDataRangeMap.size();
+                    for (int i=0; i<list.size(); i++) {
+                        Row r = refSheet.getRow(i); if (r==null) r=refSheet.createRow(i);
+                        r.createCell(col).setCellValue(list.get(i));
+                    }
+                    String colLetter = org.apache.poi.ss.util.CellReference.convertNumToColString(col);
+                    refDataRangeMap.put("product", "_RefData!$" + colLetter + "$1:$" + colLetter + "$" + list.size());
+                    refDataDemoMap.put("product", list.get(0));
+                }
+            }
 
-            String demoData = filteredColumns.stream()
-                    .map(m -> {
-                        String type = m.get("data_type").toString().toLowerCase();
-                        String colName = m.get("column_name").toString().toLowerCase();
-                        if (type.contains("int") || type.contains("numeric") || type.contains("double")) {
-                            return "1";
-                        } else if (type.contains("date") || type.contains("timestamp")) {
-                            return "2023-01-01 10:00:00";
-                        } else if (type.contains("bool")) {
-                            return "true";
-                        } else {
-                            return "Sample " + colName;
-                        }
-                    })
-                    .map(this::escapeCsv)
-                    .collect(Collectors.joining(","));
+            if (filteredColumns.stream().anyMatch(c -> c.get("column_name").toString().toLowerCase().equals("warehouse_id"))) {
+                List<String> list = new ArrayList<>();
+                try {
+                    jdbcTemplate.query("SELECT id, name FROM warehouses", rs -> {
+                        list.add(rs.getString("id") + " - " + rs.getString("name"));
+                    });
+                } catch(Exception e) {}
+                if (!list.isEmpty()) {
+                    int col = refDataRangeMap.size();
+                    for (int i=0; i<list.size(); i++) {
+                        Row r = refSheet.getRow(i); if (r==null) r=refSheet.createRow(i);
+                        r.createCell(col).setCellValue(list.get(i));
+                    }
+                    String colLetter = org.apache.poi.ss.util.CellReference.convertNumToColString(col);
+                    refDataRangeMap.put("warehouse", "_RefData!$" + colLetter + "$1:$" + colLetter + "$" + list.size());
+                    refDataDemoMap.put("warehouse", list.get(0));
+                }
+            }
 
-            byte[] csvBytes = (header + "\n" + demoData + "\n").getBytes(StandardCharsets.UTF_8);
+            if (filteredColumns.stream().anyMatch(c -> c.get("column_name").toString().toLowerCase().equals("section_id"))) {
+                List<String> list = new ArrayList<>();
+                try {
+                    jdbcTemplate.query("SELECT id, name FROM warehouse_sections", rs -> {
+                        list.add(rs.getString("id") + " - " + rs.getString("name"));
+                    });
+                } catch(Exception e) {}
+                if (!list.isEmpty()) {
+                    int col = refDataRangeMap.size();
+                    for (int i=0; i<list.size(); i++) {
+                        Row r = refSheet.getRow(i); if (r==null) r=refSheet.createRow(i);
+                        r.createCell(col).setCellValue(list.get(i));
+                    }
+                    String colLetter = org.apache.poi.ss.util.CellReference.convertNumToColString(col);
+                    refDataRangeMap.put("section", "_RefData!$" + colLetter + "$1:$" + colLetter + "$" + list.size());
+                    refDataDemoMap.put("section", list.get(0));
+                }
+            }
+
+            Row headerRow = sheet.createRow(0);
+            
+            Cell seqHeader = headerRow.createCell(0);
+            seqHeader.setCellValue("# (Seq)");
+            seqHeader.setCellStyle(headerStyle);
+
+            int colIdx = 1;
+            for (Map<String, Object> m : filteredColumns) {
+                Cell cell = headerRow.createCell(colIdx++);
+                cell.setCellValue(m.get("column_name").toString());
+                cell.setCellStyle(headerStyle);
+            }
+
+            Cell mathHeader = headerRow.createCell(colIdx);
+            mathHeader.setCellValue("Demo Math");
+            mathHeader.setCellStyle(headerStyle);
+
+            Row demoRow = sheet.createRow(1);
+            demoRow.createCell(0).setCellFormula("ROW()-1");
+
+            colIdx = 1;
+            DataValidationHelper validationHelper = sheet.getDataValidationHelper();
+            for (Map<String, Object> m : filteredColumns) {
+                Cell cell = demoRow.createCell(colIdx);
+                String type = m.get("data_type").toString().toLowerCase();
+                String colName = m.get("column_name").toString().toLowerCase();
+                
+                if (colName.equals("product_id") || colName.equals("raw_material_id")) {
+                    String range = refDataRangeMap.get("product");
+                    if (range != null) {
+                        try {
+                            CellRangeAddressList addressList = new CellRangeAddressList(1, 1000, colIdx, colIdx);
+                            DataValidationConstraint constraint = validationHelper.createFormulaListConstraint(range);
+                            DataValidation validation = validationHelper.createValidation(constraint, addressList);
+                            validation.setShowErrorBox(true);
+                            sheet.addValidationData(validation);
+                            cell.setCellValue(refDataDemoMap.get("product"));
+                        } catch (Exception ex) {}
+                    } else {
+                        cell.setCellValue("Sample " + colName);
+                    }
+                } else if (colName.equals("warehouse_id")) {
+                    String range = refDataRangeMap.get("warehouse");
+                    if (range != null) {
+                        try {
+                            CellRangeAddressList addressList = new CellRangeAddressList(1, 1000, colIdx, colIdx);
+                            DataValidationConstraint constraint = validationHelper.createFormulaListConstraint(range);
+                            DataValidation validation = validationHelper.createValidation(constraint, addressList);
+                            validation.setShowErrorBox(true);
+                            sheet.addValidationData(validation);
+                            cell.setCellValue(refDataDemoMap.get("warehouse"));
+                        } catch (Exception ex) {}
+                    } else {
+                        cell.setCellValue("Sample " + colName);
+                    }
+                } else if (colName.equals("section_id")) {
+                    String range = refDataRangeMap.get("section");
+                    if (range != null) {
+                        try {
+                            CellRangeAddressList addressList = new CellRangeAddressList(1, 1000, colIdx, colIdx);
+                            DataValidationConstraint constraint = validationHelper.createFormulaListConstraint(range);
+                            DataValidation validation = validationHelper.createValidation(constraint, addressList);
+                            validation.setShowErrorBox(true);
+                            sheet.addValidationData(validation);
+                            cell.setCellValue(refDataDemoMap.get("section"));
+                        } catch (Exception ex) {}
+                    } else {
+                        cell.setCellValue("Sample " + colName);
+                    }
+                } else if (type.contains("bool")) {
+                    cell.setCellValue("TRUE");
+                    try {
+                        CellRangeAddressList addressList = new CellRangeAddressList(1, 1000, colIdx, colIdx);
+                        DataValidationConstraint constraint = validationHelper.createExplicitListConstraint(new String[]{"TRUE", "FALSE"});
+                        DataValidation validation = validationHelper.createValidation(constraint, addressList);
+                        validation.setShowErrorBox(true);
+                        sheet.addValidationData(validation);
+                    } catch (Exception ex) {
+                        // Ignore validation error on some environments
+                    }
+                } else if (type.contains("int") || type.contains("numeric") || type.contains("double")) {
+                    cell.setCellValue(1.0);
+                } else if (type.contains("date") || type.contains("timestamp")) {
+                    cell.setCellValue("2023-01-01 10:00:00");
+                } else {
+                    cell.setCellValue("Sample " + colName);
+                }
+                colIdx++;
+            }
+
+            demoRow.createCell(colIdx).setCellFormula("SUM(B2:C2)");
+
+            for (int i = 0; i <= colIdx; i++) {
+                sheet.autoSizeColumn(i);
+            }
+
+            workbook.write(baos);
+            byte[] excelBytes = baos.toByteArray();
+            
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.parseMediaType("text/csv"));
-            headers.setContentDispositionFormData("attachment", tableName + "_template.csv");
+            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+            headers.setContentDispositionFormData("attachment", tableName + "_template.xlsx");
             headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
 
-            return new ResponseEntity<>(csvBytes, headers, HttpStatus.OK);
+            return new ResponseEntity<>(excelBytes, headers, HttpStatus.OK);
+
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("success", false, "message", "Failed to generate template: " + e.getMessage()));
         }
     }
 
-    /**
-     * POST /api/data-portability/import/{tableName}
-     * Imports data from a CSV file into the table.
-     */
     @PostMapping("/import/{tableName}")
     @Transactional
     public ResponseEntity<?> importTable(@PathVariable String tableName, @RequestParam("file") MultipartFile file) {
@@ -207,21 +354,24 @@ public class DataPortabilityController {
         }
 
         if (file.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Please upload a non-empty CSV file"));
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Please upload a non-empty file"));
         }
 
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
-            String headerLine = reader.readLine();
-            if (headerLine == null) {
-                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "CSV file is empty"));
+        try (InputStream is = file.getInputStream(); XSSFWorkbook workbook = new XSSFWorkbook(is)) {
+            Sheet sheet = workbook.getSheetAt(0);
+            Iterator<Row> rowIterator = sheet.iterator();
+
+            if (!rowIterator.hasNext()) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "File is empty"));
             }
 
-            List<String> csvHeaders = parseCsvLine(headerLine);
-            if (csvHeaders.isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "No columns found in CSV header"));
+            Row headerRow = rowIterator.next();
+            List<String> excelHeaders = new ArrayList<>();
+            for (int i = 0; i < headerRow.getLastCellNum(); i++) {
+                Cell cell = headerRow.getCell(i);
+                excelHeaders.add(getCellValueAsString(cell).trim().toLowerCase());
             }
 
-            // Get actual columns of the table to prevent injecting invalid columns
             List<Map<String, Object>> columnsMetadata = jdbcTemplate.queryForList(
                     "SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ?",
                     tableName.toLowerCase()
@@ -230,80 +380,64 @@ public class DataPortabilityController {
                     .map(m -> m.get("column_name").toString().toLowerCase())
                     .collect(Collectors.toSet());
 
-            // Map CSV headers to valid columns
             List<String> matchedColumns = new ArrayList<>();
             List<Integer> matchedIndices = new ArrayList<>();
-            for (int i = 0; i < csvHeaders.size(); i++) {
-                String header = csvHeaders.get(i).trim().toLowerCase();
-                if (validColumns.contains(header)) {
+            for (int i = 0; i < excelHeaders.size(); i++) {
+                String header = excelHeaders.get(i);
+                if (validColumns.contains(header) && !header.equals("id")) {
                     matchedColumns.add(header);
                     matchedIndices.add(i);
                 }
             }
 
             if (matchedColumns.isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "No matching columns found between CSV and database table"));
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "No matching columns found between Excel and database table"));
             }
 
-            boolean hasIdColumn = matchedColumns.contains("id");
-            String sql;
-            if (hasIdColumn) {
-                // Build UPSERT query: INSERT ... ON CONFLICT (id) DO UPDATE SET ...
-                String columnsList = String.join(", ", matchedColumns);
-                String placeholders = matchedColumns.stream().map(c -> "?").collect(Collectors.joining(", "));
-                String updateSet = matchedColumns.stream()
-                        .filter(c -> !c.equals("id"))
-                        .map(c -> c + " = EXCLUDED." + c)
-                        .collect(Collectors.joining(", "));
+            String columnsList = String.join(", ", matchedColumns);
+            String placeholders = matchedColumns.stream().map(c -> "?").collect(Collectors.joining(", "));
+            String sql = String.format("INSERT INTO %s (%s) VALUES (%s)", tableName, columnsList, placeholders);
 
-                if (updateSet.isEmpty()) {
-                    // Only id column exists
-                    sql = String.format("INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (id) DO NOTHING", tableName, columnsList, placeholders);
-                } else {
-                    sql = String.format("INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (id) DO UPDATE SET %s", tableName, columnsList, placeholders, updateSet);
-                }
-            } else {
-                // Simple INSERT
-                String columnsList = String.join(", ", matchedColumns);
-                String placeholders = matchedColumns.stream().map(c -> "?").collect(Collectors.joining(", "));
-                sql = String.format("INSERT INTO %s (%s) VALUES (%s)", tableName, columnsList, placeholders);
-            }
-
-            String line;
             int importedCount = 0;
-            while ((line = reader.readLine()) != null) {
-                if (line.trim().isEmpty()) continue;
-                List<String> values = parseCsvLine(line);
+            while (rowIterator.hasNext()) {
+                Row row = rowIterator.next();
                 
                 boolean isDemoData = false;
                 for (int i = 0; i < matchedColumns.size(); i++) {
                     int csvIndex = matchedIndices.get(i);
-                    String val = csvIndex < values.size() ? values.get(csvIndex) : null;
+                    String val = getCellValueAsString(row.getCell(csvIndex));
                     if (val != null && val.equals("Sample " + matchedColumns.get(i))) {
                         isDemoData = true;
                         break;
                     }
                 }
+                
                 if (isDemoData) {
                     continue;
                 }
 
                 Object[] params = new Object[matchedColumns.size()];
-
+                boolean hasData = false;
+                
                 for (int i = 0; i < matchedColumns.size(); i++) {
                     int csvIndex = matchedIndices.get(i);
-                    String val = csvIndex < values.size() ? values.get(csvIndex) : null;
+                    String val = getCellValueAsString(row.getCell(csvIndex));
                     
-                    // Handle empty/null values
                     if (val == null || val.trim().isEmpty()) {
                         params[i] = null;
                     } else {
+                        if (matchedColumns.get(i).endsWith("_id") && val.contains(" - ")) {
+                            val = val.split(" - ")[0].trim();
+                        }
                         params[i] = val;
+                        hasData = true;
                     }
                 }
-
-                jdbcTemplate.update(sql, params);
-                importedCount++;
+                
+                if (hasData) {
+                    jdbcTemplate.update(sql, params);
+                    importedCount++;
+                }
             }
 
             return ResponseEntity.ok(Map.of("success", true, "message", String.format("Successfully imported %d rows into %s", importedCount, tableName)));
@@ -313,37 +447,28 @@ public class DataPortabilityController {
         }
     }
 
-    private String escapeCsv(String value) {
-        if (value == null) return "";
-        String escaped = value.replace("\"", "\"\"");
-        if (escaped.contains(",") || escaped.contains("\n") || escaped.contains("\r") || escaped.contains("\"")) {
-            return "\"" + escaped + "\"";
-        }
-        return escaped;
-    }
-
-    private List<String> parseCsvLine(String line) {
-        List<String> result = new ArrayList<>();
-        boolean inQuotes = false;
-        StringBuilder sb = new StringBuilder();
-
-        for (int i = 0; i < line.length(); i++) {
-            char c = line.charAt(i);
-            if (c == '"') {
-                if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
-                    sb.append('"'); // escaped quote
-                    i++;
-                } else {
-                    inQuotes = !inQuotes;
+    private String getCellValueAsString(Cell cell) {
+        if (cell == null) return "";
+        switch (cell.getCellType()) {
+            case STRING: return cell.getStringCellValue();
+            case NUMERIC:
+                if (DateUtil.isCellDateFormatted(cell)) {
+                    return cell.getLocalDateTimeCellValue().toString();
                 }
-            } else if (c == ',' && !inQuotes) {
-                result.add(sb.toString());
-                sb.setLength(0);
-            } else {
-                sb.append(c);
-            }
+                double d = cell.getNumericCellValue();
+                if (d == (long) d) {
+                    return String.valueOf((long) d);
+                }
+                return String.valueOf(d);
+            case BOOLEAN: return String.valueOf(cell.getBooleanCellValue());
+            case FORMULA:
+                switch (cell.getCachedFormulaResultType()) {
+                    case NUMERIC: return String.valueOf(cell.getNumericCellValue());
+                    case STRING: return cell.getStringCellValue();
+                    case BOOLEAN: return String.valueOf(cell.getBooleanCellValue());
+                    default: return "";
+                }
+            default: return "";
         }
-        result.add(sb.toString());
-        return result;
     }
 }
