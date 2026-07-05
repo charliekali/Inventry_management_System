@@ -38,7 +38,7 @@ public interface StockTransactionRepository extends JpaRepository<StockTransacti
     @Query("SELECT COALESCE(SUM(t.quantity),0) FROM StockTransaction t WHERE t.type = 'OUT' AND t.transactionDate = :date")
     Double sumOutByDate(@Param("date") LocalDate date);
 
-    @Query("SELECT t FROM StockTransaction t WHERE t.referenceDoc LIKE 'PROD-RUN-%' ORDER BY t.createdAt DESC")
+    @Query("SELECT t FROM StockTransaction t WHERE t.referenceDoc LIKE 'PROD-RUN-%' OR t.referenceDoc LIKE 'PLAN-%' ORDER BY t.createdAt DESC")
     java.util.List<StockTransaction> findProductionTransactions();
 
     @Query("SELECT t FROM StockTransaction t ORDER BY t.createdAt DESC, t.grNumber DESC")

@@ -70,7 +70,7 @@ function ProtectedRoute({ children, perm }) {
   // Restrict access based on role category or role name for non-Super Admins
   if (user.role !== 'Super Admin' && user.role_category !== 'Super Admin') {
     const category = user.role_category;
-    
+
     // 1. Warehouse people can ONLY access /warehouse
     if (category === 'Warehouse') {
       if (!location.pathname.startsWith('/warehouse')) {
@@ -149,7 +149,7 @@ function AuthenticatedLayout({ children }) {
   ];
 
   const isHome = location.pathname === '/dashboard' || location.pathname === '/';
-  
+
   if (Capacitor.isNativePlatform()) {
     const showHeader = !isHome && location.pathname !== '/login';
     return (
@@ -166,8 +166,8 @@ function AuthenticatedLayout({ children }) {
             zIndex: 100,
             gap: 12
           }}>
-            <button 
-              className="btn btn-ghost btn-icon" 
+            <button
+              className="btn btn-ghost btn-icon"
               onClick={() => navigate(-1)}
               style={{ padding: 8, minWidth: 'auto', display: 'flex', alignItems: 'center', background: 'transparent', border: 'none', color: 'var(--color-text-primary)', cursor: 'pointer' }}
             >
@@ -186,7 +186,7 @@ function AuthenticatedLayout({ children }) {
       </div>
     );
   }
-  
+
   return (
     <div className="app-layout">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
@@ -200,8 +200,8 @@ function AuthenticatedLayout({ children }) {
               <Menu size={20} />
             </button>
             {!isHome && (
-              <button 
-                className="btn btn-ghost btn-icon back-btn" 
+              <button
+                className="btn btn-ghost btn-icon back-btn"
                 onClick={() => navigate(-1)}
                 title="Go Back"
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -222,7 +222,7 @@ function AuthenticatedLayout({ children }) {
         <div className="page-content">
           {children}
         </div>
-        
+
         {/* Mobile Bottom Navigation */}
         <nav className="bottom-nav">
           {ADMIN_TABS.map(({ path, label, Icon }) => {
@@ -259,7 +259,7 @@ function AuthenticatedLayout({ children }) {
 function App() {
   useEffect(() => {
     const isNative = Capacitor.isNativePlatform();
-    
+
     // Add class to body for mobile styling overrides
     document.body.classList.toggle('native-app', isNative);
 
@@ -304,313 +304,313 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-      <Router>
-        <Routes>
-          {/* Public Login Route */}
-          <Route path="/login" element={<LoginPage />} />
+        <Router>
+          <Routes>
+            {/* Public Login Route */}
+            <Route path="/login" element={<LoginPage />} />
 
-          {/* Protected Routes */}
-          <Route path="/dashboard" element={
-            <ProtectedRoute>
-              <AuthenticatedLayout>
-                <DashboardPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            {/* Protected Routes */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <AuthenticatedLayout>
+                  <DashboardPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/dashboard/production" element={
-            <ProtectedRoute perm="STOCK:VIEW">
-              <AuthenticatedLayout>
-                <ProductionDashboard />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/dashboard/production" element={
+              <ProtectedRoute perm="STOCK:VIEW">
+                <AuthenticatedLayout>
+                  <ProductionDashboard />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/dashboard/warehouse" element={
-            <ProtectedRoute perm="STOCK:VIEW">
-              <AuthenticatedLayout>
-                <WarehouseDashboard />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/dashboard/warehouse" element={
+              <ProtectedRoute perm="STOCK:VIEW">
+                <AuthenticatedLayout>
+                  <WarehouseDashboard />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/dashboard/sales" element={
-            <ProtectedRoute perm="ORDERS:VIEW">
-              <AuthenticatedLayout>
-                <SalesDashboard />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/dashboard/sales" element={
+              <ProtectedRoute perm="ORDERS:VIEW">
+                <AuthenticatedLayout>
+                  <SalesDashboard />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/stock-in" element={
-            <ProtectedRoute perm="TRANSACTIONS:STOCK_IN">
-              <AuthenticatedLayout>
-                <StockInPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/stock-in" element={
+              <ProtectedRoute perm="TRANSACTIONS:STOCK_IN">
+                <AuthenticatedLayout>
+                  <StockInPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/stock-out" element={
-            <ProtectedRoute perm="TRANSACTIONS:STOCK_OUT">
-              <AuthenticatedLayout>
-                <StockOutPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/stock-out" element={
+              <ProtectedRoute perm="TRANSACTIONS:STOCK_OUT">
+                <AuthenticatedLayout>
+                  <StockOutPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/production-run" element={
-            <ProtectedRoute perm="PRODUCTION:PLAN">
-              <AuthenticatedLayout>
-                <ProductionRunPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/production-run" element={
+              <ProtectedRoute perm="PRODUCTION:PLAN">
+                <AuthenticatedLayout>
+                  <ProductionRunPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/actual-production" element={
-            <ProtectedRoute perm="PRODUCTION:RUN">
-              <AuthenticatedLayout>
-                <ActualProductionEntryPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/actual-production" element={
+              <ProtectedRoute perm="PRODUCTION:RUN">
+                <AuthenticatedLayout>
+                  <ActualProductionEntryPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/production-history" element={
-            <ProtectedRoute perm="PRODUCTION:HISTORY">
-              <AuthenticatedLayout>
-                <ProductionHistoryPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/production-history" element={
+              <ProtectedRoute perm="PRODUCTION:HISTORY">
+                <AuthenticatedLayout>
+                  <ProductionHistoryPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/yield-analytics" element={
-            <ProtectedRoute perm="TRANSACTIONS:VIEW">
-              <AuthenticatedLayout>
-                <YieldAnalyticsPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/yield-analytics" element={
+              <ProtectedRoute perm="TRANSACTIONS:VIEW">
+                <AuthenticatedLayout>
+                  <YieldAnalyticsPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/transactions" element={
-            <ProtectedRoute perm="TRANSACTIONS:VIEW">
-              <AuthenticatedLayout>
-                <TransactionPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/transactions" element={
+              <ProtectedRoute perm="TRANSACTIONS:VIEW">
+                <AuthenticatedLayout>
+                  <TransactionPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/stock-balance" element={
-            <ProtectedRoute perm="STOCK:VIEW">
-              <AuthenticatedLayout>
-                <StockBalancePage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/stock-balance" element={
+              <ProtectedRoute perm="STOCK:VIEW">
+                <AuthenticatedLayout>
+                  <StockBalancePage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/locate" element={
-            <ProtectedRoute perm="STOCK:LOCATE">
-              <AuthenticatedLayout>
-                <LocatePage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/locate" element={
+              <ProtectedRoute perm="STOCK:LOCATE">
+                <AuthenticatedLayout>
+                  <LocatePage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/warehouses" element={
-            <ProtectedRoute perm="WAREHOUSES:VIEW">
-              <AuthenticatedLayout>
-                <WarehousePage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/warehouses" element={
+              <ProtectedRoute perm="WAREHOUSES:VIEW">
+                <AuthenticatedLayout>
+                  <WarehousePage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/products" element={
-            <ProtectedRoute perm="PRODUCTS:VIEW">
-              <AuthenticatedLayout>
-                <ProductPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/products" element={
+              <ProtectedRoute perm="PRODUCTS:VIEW">
+                <AuthenticatedLayout>
+                  <ProductPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/recipes" element={
-            <ProtectedRoute perm="BOM:VIEW">
-              <AuthenticatedLayout>
-                <RecipePage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/recipes" element={
+              <ProtectedRoute perm="BOM:VIEW">
+                <AuthenticatedLayout>
+                  <RecipePage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/orders" element={
-            <ProtectedRoute perm="ORDERS:VIEW">
-              <AuthenticatedLayout>
-                <OrderPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/orders" element={
+              <ProtectedRoute perm="ORDERS:VIEW">
+                <AuthenticatedLayout>
+                  <OrderPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/feasibility" element={
-            <ProtectedRoute perm="ORDERS:CHECK_FEASIBILITY">
-              <AuthenticatedLayout>
-                <FeasibilityPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/feasibility" element={
+              <ProtectedRoute perm="ORDERS:CHECK_FEASIBILITY">
+                <AuthenticatedLayout>
+                  <FeasibilityPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/users" element={
-            <ProtectedRoute perm="USERS:VIEW">
-              <AuthenticatedLayout>
-                <UserPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/users" element={
+              <ProtectedRoute perm="USERS:VIEW">
+                <AuthenticatedLayout>
+                  <UserPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/roles" element={
-            <ProtectedRoute perm="ROLES:VIEW">
-              <AuthenticatedLayout>
-                <RolePage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/roles" element={
+              <ProtectedRoute perm="ROLES:VIEW">
+                <AuthenticatedLayout>
+                  <RolePage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/form-settings" element={
-            <ProtectedRoute perm="ROLES:VIEW">
-              <AuthenticatedLayout>
-                <FormSettingsPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/form-settings" element={
+              <ProtectedRoute perm="ROLES:VIEW">
+                <AuthenticatedLayout>
+                  <FormSettingsPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/categories" element={
-            <ProtectedRoute perm="ROLES:VIEW">
-              <AuthenticatedLayout>
-                <CategoryPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/categories" element={
+              <ProtectedRoute perm="ROLES:VIEW">
+                <AuthenticatedLayout>
+                  <CategoryPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/data-portability" element={
-            <ProtectedRoute perm="ROLES:VIEW">
-              <AuthenticatedLayout>
-                <DataPortabilityPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/data-portability" element={
+              <ProtectedRoute perm="ROLES:VIEW">
+                <AuthenticatedLayout>
+                  <DataPortabilityPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/postgres-provisioner" element={
-            <ProtectedRoute perm="INFRASTRUCTURE:VIEW">
-              <AuthenticatedLayout>
-                <PostgresProvisionerPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/postgres-provisioner" element={
+              <ProtectedRoute perm="INFRASTRUCTURE:VIEW">
+                <AuthenticatedLayout>
+                  <PostgresProvisionerPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/invoice-designer" element={
-            <ProtectedRoute perm="ROLES:VIEW">
-              <AuthenticatedLayout>
-                <InvoiceDesignerPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/invoice-designer" element={
+              <ProtectedRoute perm="ROLES:VIEW">
+                <AuthenticatedLayout>
+                  <InvoiceDesignerPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/billing" element={
-            <ProtectedRoute perm="SALES:COLLECT">
-              <AuthenticatedLayout>
-                <BillingPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/billing" element={
+              <ProtectedRoute perm="SALES:COLLECT">
+                <AuthenticatedLayout>
+                  <BillingPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/crm" element={
-            <ProtectedRoute perm="SALES:CRM">
-              <AuthenticatedLayout>
-                <SalesCRMDashboard />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/crm" element={
+              <ProtectedRoute perm="SALES:CRM">
+                <AuthenticatedLayout>
+                  <SalesCRMDashboard />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/crm/leads" element={
-            <ProtectedRoute perm="SALES:LEADS">
-              <AuthenticatedLayout>
-                <NewLeadsPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/crm/leads" element={
+              <ProtectedRoute perm="SALES:LEADS">
+                <AuthenticatedLayout>
+                  <NewLeadsPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/crm/customers" element={
-            <ProtectedRoute perm="SALES:CUSTOMERS">
-              <AuthenticatedLayout>
-                <CustomersPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/crm/customers" element={
+              <ProtectedRoute perm="SALES:CUSTOMERS">
+                <AuthenticatedLayout>
+                  <CustomersPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/crm/visit-allocations" element={
-            <ProtectedRoute perm="SALES:CRM">
-              <AuthenticatedLayout>
-                <VisitAllocationsPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/crm/visit-allocations" element={
+              <ProtectedRoute perm="SALES:CRM">
+                <AuthenticatedLayout>
+                  <VisitAllocationsPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/pos" element={
-            <ProtectedRoute perm="ORDERS:CREATE">
-              <AuthenticatedLayout>
-                <PosPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/pos" element={
+              <ProtectedRoute perm="ORDERS:CREATE">
+                <AuthenticatedLayout>
+                  <PosPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/invoice/:id" element={
-            <ProtectedRoute perm="ORDERS:VIEW">
-              <AuthenticatedLayout>
-                <InvoicePrint />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/invoice/:id" element={
+              <ProtectedRoute perm="ORDERS:VIEW">
+                <AuthenticatedLayout>
+                  <InvoicePrint />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/sales/*" element={
-            <ProtectedRoute>
-              <SalesApp />
-            </ProtectedRoute>
-          } />
+            <Route path="/sales/*" element={
+              <ProtectedRoute>
+                <SalesApp />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/production/*" element={
-            <ProtectedRoute>
-              <ProductionApp />
-            </ProtectedRoute>
-          } />
+            <Route path="/production/*" element={
+              <ProtectedRoute>
+                <ProductionApp />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/warehouse/*" element={
-            <ProtectedRoute>
-              <WarehouseApp />
-            </ProtectedRoute>
-          } />
+            <Route path="/warehouse/*" element={
+              <ProtectedRoute>
+                <WarehouseApp />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/attendance-tracking" element={
-            <ProtectedRoute>
-              <AuthenticatedLayout>
-                <AttendanceTrackingPage />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/attendance-tracking" element={
+              <ProtectedRoute>
+                <AuthenticatedLayout>
+                  <AttendanceTrackingPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          <Route path="/key-registry" element={
-            <ProtectedRoute>
-              <AuthenticatedLayout>
-                {Capacitor.isNativePlatform() ? <MobileKeyRegistry /> : <KeyRegistryPage />}
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          } />
+            <Route path="/key-registry" element={
+              <ProtectedRoute>
+                <AuthenticatedLayout>
+                  {Capacitor.isNativePlatform() ? <MobileKeyRegistry /> : <KeyRegistryPage />}
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
 
-          {/* Catch-all fallback */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </Router>
-      <Toaster position="top-right" toastOptions={{
-        style: {
-          background: 'var(--color-bg-card)',
-          color: 'var(--color-text-primary)',
-          border: '1px solid var(--color-border)',
-        }
-      }} />
+            {/* Catch-all fallback */}
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </Router>
+        <Toaster position="top-right" toastOptions={{
+          style: {
+            background: 'var(--color-bg-card)',
+            color: 'var(--color-text-primary)',
+            border: '1px solid var(--color-border)',
+          }
+        }} />
       </AuthProvider>
     </ThemeProvider>
   );

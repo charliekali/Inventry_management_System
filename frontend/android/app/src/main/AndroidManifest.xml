@@ -36,10 +36,16 @@
         </provider>
 
         <!-- Background GPS Tracking Foreground Service
-             stopWithTask=false ensures onTaskRemoved() fires when app is swiped -->
+             stopWithTask=false ensures onTaskRemoved() fires when app is swiped
+             foregroundServiceType="location|dataSync":
+               - location: used when GPS permission is granted (normal operation)
+               - dataSync:  used as fallback on API 34+ when location permission
+                            is not yet granted — startForeground() MUST always
+                            pass a type that matches the manifest on API 34+ or it
+                            throws InvalidForegroundServiceTypeException silently -->
         <service
             android:name=".TrackingService"
-            android:foregroundServiceType="location"
+            android:foregroundServiceType="location|dataSync"
             android:stopWithTask="false"
             android:exported="false" />
 
@@ -77,6 +83,8 @@
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Required on API 34+ when dataSync is used as fallback foregroundServiceType -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 

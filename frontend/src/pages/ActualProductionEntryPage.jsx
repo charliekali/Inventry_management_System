@@ -15,6 +15,8 @@ export default function ActualProductionEntryPage() {
   // Modal State
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [actualQuantity, setActualQuantity] = useState('');
+  const [wastagePct, setWastagePct] = useState('0');
+  const [damagePct, setDamagePct] = useState('0');
   const [submitting, setSubmitting] = useState(false);
 
   const loadPlans = async () => {
@@ -36,11 +38,15 @@ export default function ActualProductionEntryPage() {
   const handleOpenEntry = (plan) => {
     setSelectedPlan(plan);
     setActualQuantity(plan.planned_quantity.toString());
+    setWastagePct('0');
+    setDamagePct('0');
   };
 
   const handleCloseEntry = () => {
     setSelectedPlan(null);
     setActualQuantity('');
+    setWastagePct('0');
+    setDamagePct('0');
   };
 
   const handleSubmitActual = async (e) => {
@@ -56,9 +62,19 @@ export default function ActualProductionEntryPage() {
       return toast.error(`Actual quantity cannot exceed planned quantity of ${selectedPlan.planned_quantity} ${selectedPlan.product_unit}`);
     }
 
+    const wastageNum = parseFloat(wastagePct);
+    if (isNaN(wastageNum) || wastageNum < 0 || wastageNum > 99) {
+      return toast.error('Please enter a valid wastage percentage (0-99)');
+    }
+
+    const damageNum = parseFloat(damagePct);
+    if (isNaN(damageNum) || damageNum < 0 || damageNum > 99) {
+      return toast.error('Please enter a valid damage percentage (0-99)');
+    }
+
     setSubmitting(true);
     try {
-      const res = await productionPlansAPI.recordActual(selectedPlan.id, actualQtyNum);
+      const res = await productionPlansAPI.recordActual(selectedPlan.id, actualQtyNum, wastageNum, damageNum);
       toast.success(res.data.message || 'Actual production recorded successfully!');
       handleCloseEntry();
       loadPlans();
@@ -343,6 +359,28 @@ export default function ActualProductionEntryPage() {
                   <small style={{ color: 'var(--color-text-muted)', display: 'block', marginTop: 6 }}>
                     Enter the exact quantity produced. It can be any amount up to the planned quantity, but it cannot exceed <strong>{selectedPlan.planned_quantity} {selectedPlan.product_unit}</strong>.
                   </small>
+                </div>
+
+                <div className="form-row" style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">Process Wastage %</label>
+                    <input 
+                      type="number" step="any" min="0" max="99" placeholder="0%"
+                      className="form-control"
+                      value={wastagePct}
+                      onChange={e => setWastagePct(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">Damage / Rejection %</label>
+                    <input 
+                      type="number" step="any" min="0" max="99" placeholder="0%"
+                      className="form-control"
+                      value={damagePct}
+                      onChange={e => setDamagePct(e.target.value)}
+                    />
+                  </div>
                 </div>
 
                 {parseFloat(actualQuantity) > selectedPlan.planned_quantity && (

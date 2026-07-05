@@ -51,7 +51,7 @@ export default function ProductionApp() {
   }, [user]);
 
   const handleLogout = async () => {
-    await logout().catch(() => {});
+    await logout().catch(() => { });
     toast.success('Logged out');
     navigate('/login');
   };
@@ -107,17 +107,17 @@ export default function ProductionApp() {
           }}>
             <AlertTriangle size={32} />
           </div>
-          
+
           <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-text-primary)', marginBottom: 12 }}>
             No Plan Assigned
           </h3>
-          
+
           <p style={{ fontSize: 13.5, color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: 24 }}>
             You have no Production Plan. Please Contact Your Manager. Else Your Attendance will be Not Calculated.
           </p>
-          
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <button 
+            <button
               onClick={checkPlanAssignment}
               className="btn btn-secondary"
               style={{ width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: 8 }}
@@ -125,8 +125,8 @@ export default function ProductionApp() {
               <RefreshCw size={14} />
               Retry Check
             </button>
-            
-            <button 
+
+            <button
               onClick={handleLogout}
               className="btn btn-primary"
               style={{ width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: 8, background: '#ef4444' }}

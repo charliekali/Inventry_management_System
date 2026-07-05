@@ -235,6 +235,13 @@ public class ProductionPlanController {
         }
 
         double actualQty = ((Number) actualQtyObj).doubleValue();
+
+        double wastagePct = body.containsKey("wastage_pct") && body.get("wastage_pct") != null
+            ? ((Number) body.get("wastage_pct")).doubleValue()
+            : 0.0;
+        double damagePct = body.containsKey("damage_pct") && body.get("damage_pct") != null
+            ? ((Number) body.get("damage_pct")).doubleValue()
+            : 0.0;
         if (actualQty <= 0) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Actual quantity must be positive"));
         }
@@ -325,6 +332,8 @@ public class ProductionPlanController {
 
         Map<String, String> customMap = new HashMap<>();
         customMap.put("production_plan_id", plan.getId());
+        customMap.put("wastage_pct", String.valueOf(wastagePct));
+        customMap.put("damage_pct", String.valueOf(damagePct));
         txIn.setCustomFields(customMap);
 
         transactionsToSave.add(txIn);

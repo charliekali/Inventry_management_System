@@ -383,7 +383,24 @@ export default function SalesRoute() {
   );
 
   return (
-    <div className="s-page s-fade-in" style={{ padding:0, height:'calc(100vh - 56px)', display:'flex', flexDirection:'column' }}>
+    <div className="s-page s-fade-in" style={{
+      position: 'fixed',
+      top: isNavigating ? 0 : 'var(--s-top-height)',
+      bottom: isNavigating ? 0 : 'calc(var(--s-nav-height) + var(--safe-bottom))',
+      left: 0,
+      right: 0,
+      padding: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      zIndex: 50
+    }}>
+      {isNavigating && (
+        <style>{`
+          .s-topbar { display: none !important; }
+          .s-bottom-nav { display: none !important; }
+          .s-content { padding-bottom: 0 !important; }
+        `}</style>
+      )}
 
       {/* ── Header (hidden in nav mode) ──────────────────────────────────── */}
       {!isNavigating && (
@@ -496,7 +513,7 @@ export default function SalesRoute() {
             {/* ── Navigation HUD (top turn instruction) ──────────────────── */}
             {isNavigating && steps.length > 0 && (
               <div style={{
-                position:'absolute', top:12, left:12, right:12, zIndex:999,
+                position:'absolute', top:'calc(12px + env(safe-area-inset-top, 0px))', left:12, right:12, zIndex:999,
                 background:'rgba(15,23,42,0.96)', backdropFilter:'blur(12px)',
                 borderRadius:16, padding:'14px 16px',
                 boxShadow:'0 8px 32px rgba(0,0,0,0.6)',
@@ -527,7 +544,7 @@ export default function SalesRoute() {
             {/* ── Speed + ETA bar (bottom of map, nav mode) ──────────────── */}
             {isNavigating && route && (
               <div style={{
-                position:'absolute', bottom:56, left:12, right:12, zIndex:999,
+                position:'absolute', bottom:'calc(64px + env(safe-area-inset-bottom, 0px))', left:12, right:12, zIndex:999,
                 background:'rgba(15,23,42,0.96)', backdropFilter:'blur(10px)',
                 borderRadius:14, padding:'10px 16px',
                 boxShadow:'0 4px 16px rgba(0,0,0,0.5)',
@@ -560,7 +577,7 @@ export default function SalesRoute() {
                 onClick={handleReCenter}
                 style={{
                   position:'absolute',
-                  bottom: isNavigating ? 120 : (selectedItem ? 100 : 16),
+                  bottom: isNavigating ? 'calc(128px + env(safe-area-inset-bottom, 0px))' : (selectedItem ? 100 : 16),
                   right:12,
                   zIndex:1001,
                   width:42, height:42,
@@ -582,7 +599,7 @@ export default function SalesRoute() {
               <button
                 onClick={handleExitNavigation}
                 style={{
-                  position:'absolute', bottom:12, left:'50%', transform:'translateX(-50%)',
+                  position:'absolute', bottom:'calc(12px + env(safe-area-inset-bottom, 0px))', left:'50%', transform:'translateX(-50%)',
                   zIndex:1000,
                   background:'rgba(229,57,53,0.95)', color:'#fff',
                   border:'1px solid rgba(255,255,255,0.2)', borderRadius:24,
@@ -618,7 +635,7 @@ export default function SalesRoute() {
             {/* ── Map type switcher (nav mode, compact) ───────────────────── */}
             {isNavigating && (
               <div style={{
-                position:'absolute', top:88, right:12, zIndex:999,
+                position:'absolute', top:'calc(98px + env(safe-area-inset-top, 0px))', right:12, zIndex:999,
                 background:'rgba(15,23,42,0.92)', backdropFilter:'blur(6px)',
                 border:'1px solid rgba(255,255,255,0.1)', borderRadius:10,
                 padding:'4px', display:'flex', flexDirection:'column', gap:4,

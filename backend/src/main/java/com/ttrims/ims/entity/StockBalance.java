@@ -25,7 +25,7 @@ public class StockBalance {
 
     private Double quantity = 0.0;
 
-    @Column(name = "locked_quantity", nullable = false)
+    @Column(name = "locked_quantity")
     private Double lockedQuantity = 0.0;
 
     @Column(name = "updated_at")

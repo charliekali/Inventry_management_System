@@ -256,7 +256,11 @@ export const productionPlansAPI = {
   create: (data) => api.post('/production-plans', data),
   list: () => api.get('/production-plans'),
   myToday: () => api.get('/production-plans/my-today'),
-  recordActual: (id, actualQuantity) => api.post(`/production-plans/${id}/actual`, { actual_quantity: actualQuantity }),
+  recordActual: (id, actualQuantity, wastagePct, damagePct) => api.post(`/production-plans/${id}/actual`, { 
+    actual_quantity: actualQuantity,
+    wastage_pct: wastagePct,
+    damage_pct: damagePct
+  }),
 };
 
 // ─── Visit Allocations ────────────────────────────────────────────────────────
