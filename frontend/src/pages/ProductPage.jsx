@@ -619,7 +619,16 @@ export default function ProductPage() {
                         step="any"
                         className="form-control" 
                         value={pPackSizeG} 
-                        onChange={(e) => setPPackSizeG(e.target.value)} 
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPPackSizeG(val);
+                          const parsed = parseFloat(val);
+                          if (parsed > 0) {
+                            setPPacksPerKg((1000 / parsed).toFixed(2).replace(/\.00$/, ''));
+                          } else if (!val) {
+                            setPPacksPerKg('');
+                          }
+                        }} 
                         placeholder="e.g. 100"
                       />
                     </div>
@@ -630,7 +639,16 @@ export default function ProductPage() {
                         step="any"
                         className="form-control" 
                         value={pPacksPerKg} 
-                        onChange={(e) => setPPacksPerKg(e.target.value)} 
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPPacksPerKg(val);
+                          const parsed = parseFloat(val);
+                          if (parsed > 0) {
+                            setPPackSizeG((1000 / parsed).toFixed(2).replace(/\.00$/, ''));
+                          } else if (!val) {
+                            setPPackSizeG('');
+                          }
+                        }} 
                         placeholder="e.g. 10"
                       />
                     </div>

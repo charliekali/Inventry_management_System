@@ -64,7 +64,7 @@ export default function RecipePage() {
   };
 
   const handleSelectFg = (prod) => {
-    if (prod.type !== 'FINISHED_GOOD') {
+    if (prod.type !== 'FINISHED_GOOD' && prod.type !== 'BLEND') {
       setSelectedFg(null);
       return;
     }
