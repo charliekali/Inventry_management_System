@@ -32,6 +32,9 @@ public class ProductionPlanIngredient {
     @Column(name = "actual_quantity", nullable = false)
     private Double actualQuantity = 0.0;
 
+    @Column(name = "wastage_quantity", nullable = false)
+    private Double wastageQuantity = 0.0;
+
     public ProductionPlanIngredient() {}
 
     public String getId() { return id; }
@@ -54,4 +57,7 @@ public class ProductionPlanIngredient {
 
     public Double getActualQuantity() { return actualQuantity; }
     public void setActualQuantity(Double actualQuantity) { this.actualQuantity = actualQuantity; }
+
+    public Double getWastageQuantity() { return wastageQuantity; }
+    public void setWastageQuantity(Double wastageQuantity) { this.wastageQuantity = wastageQuantity; }
 }

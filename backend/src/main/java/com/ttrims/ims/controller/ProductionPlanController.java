@@ -236,34 +236,44 @@ public class ProductionPlanController {
 
         double actualQty = ((Number) actualQtyObj).doubleValue();
 
-        double actualWastage = body.containsKey("actual_wastage") && body.get("actual_wastage") != null
-            ? ((Number) body.get("actual_wastage")).doubleValue()
-            : 0.0;
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ingWastagesInput = body.containsKey("ingredient_wastages")
+            ? (Map<String, Object>) body.get("ingredient_wastages")
+            : Collections.emptyMap();
+
         double actualDamage = body.containsKey("actual_damage") && body.get("actual_damage") != null
             ? ((Number) body.get("actual_damage")).doubleValue()
             : 0.0;
+
         if (actualQty <= 0) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Actual quantity must be positive"));
         }
 
-        if (actualQty + actualWastage + actualDamage > plan.getPlannedQuantity()) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Total actual processed quantity (good + wastage + damage) cannot exceed planned quantity of " + plan.getPlannedQuantity()));
+        if (actualQty + actualDamage > plan.getPlannedQuantity()) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Actual good output + damage cannot exceed planned quantity of " + plan.getPlannedQuantity()));
         }
 
-        // Calculate proportional factor based on total raw material output equivalents processed
-        double totalProcessed = actualQty + actualWastage + actualDamage;
-        double ratio = totalProcessed / plan.getPlannedQuantity();
-
-        double totalRunQty = actualQty + actualWastage + actualDamage;
-        double wastagePct = totalRunQty > 0 ? (actualWastage / totalRunQty) * 100.0 : 0.0;
-        double damagePct = totalRunQty > 0 ? (actualDamage / totalRunQty) * 100.0 : 0.0;
+        // Calculate proportional factor based on actual good production + finished goods damage
+        double totalProcessedFG = actualQty + actualDamage;
+        double ratio = totalProcessedFG / plan.getPlannedQuantity();
 
         List<ProductionPlanIngredient> ingredients = planIngRepo.findByProductionPlanId(plan.getId());
         List<StockTransaction> transactionsToSave = new ArrayList<>();
+        double totalWastageQty = 0.0;
 
         // 1. Process Raw Materials: Stock Out of actual consumed, unlock planned
         for (ProductionPlanIngredient ing : ingredients) {
-            double actualConsumed = Math.round((ing.getPlannedQuantity() * ratio) * 1000.0) / 1000.0;
+            double wastage = 0.0;
+            if (ingWastagesInput.containsKey(ing.getId())) {
+                Object wVal = ingWastagesInput.get(ing.getId());
+                if (wVal != null) {
+                    wastage = ((Number) wVal).doubleValue();
+                }
+            }
+            ing.setWastageQuantity(wastage);
+            totalWastageQty += wastage;
+
+            double actualConsumed = Math.round(((ing.getPlannedQuantity() * ratio) + wastage) * 1000.0) / 1000.0;
             ing.setActualQuantity(actualConsumed);
             planIngRepo.save(ing);
 
@@ -291,7 +301,8 @@ public class ProductionPlanController {
             txOut.setQuantity(actualConsumed);
             txOut.setUnit(ing.getProduct().getUnit());
             txOut.setReferenceDoc(plan.getPlanNumber());
-            txOut.setRemarks(String.format("Consumed for actual production of %s (Plan: %s)", plan.getProduct().getName(), plan.getPlanNumber()));
+            txOut.setRemarks(String.format("Consumed (incl %s %s waste) for production of %s (Plan: %s)", 
+                wastage, ing.getProduct().getUnit(), plan.getProduct().getName(), plan.getPlanNumber()));
             txOut.setPerformedBy(auth.currentUser());
             txOut.setTransactionDate(LocalDate.now());
 
@@ -299,6 +310,7 @@ public class ProductionPlanController {
             customMap.put("production_plan_id", plan.getId());
             customMap.put("parent_product_id", plan.getProduct().getId());
             customMap.put("parent_product_name", plan.getProduct().getName());
+            customMap.put("ingredient_wastage", String.valueOf(wastage));
             txOut.setCustomFields(customMap);
 
             transactionsToSave.add(txOut);
@@ -335,11 +347,15 @@ public class ProductionPlanController {
         txIn.setPerformedBy(auth.currentUser());
         txIn.setTransactionDate(LocalDate.now());
 
+        double totalRunQty = actualQty + actualDamage + totalWastageQty;
+        double wastagePct = totalRunQty > 0 ? (totalWastageQty / totalRunQty) * 100.0 : 0.0;
+        double damagePct = totalRunQty > 0 ? (actualDamage / totalRunQty) * 100.0 : 0.0;
+
         Map<String, String> customMap = new HashMap<>();
         customMap.put("production_plan_id", plan.getId());
         customMap.put("wastage_pct", String.valueOf(wastagePct));
         customMap.put("damage_pct", String.valueOf(damagePct));
-        customMap.put("actual_wastage", String.valueOf(actualWastage));
+        customMap.put("actual_wastage", String.valueOf(totalWastageQty));
         customMap.put("actual_damage", String.valueOf(actualDamage));
         txIn.setCustomFields(customMap);
 
@@ -401,6 +417,7 @@ public class ProductionPlanController {
             im.put("section_name", ing.getSection() != null ? ing.getSection().getName() : null);
             im.put("planned_quantity", ing.getPlannedQuantity());
             im.put("actual_quantity", ing.getActualQuantity());
+            im.put("wastage_quantity", ing.getWastageQuantity());
             return im;
         }).collect(Collectors.toList());
         m.put("ingredients", ingList);
