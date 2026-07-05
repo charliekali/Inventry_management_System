@@ -192,6 +192,14 @@ public class DataSeeder implements CommandLineRunner {
             log.warn("Schema migration: could not drop constraint production_orders_status_check — {}", e.getMessage());
         }
 
+        // Add wastage_quantity column to production_plan_ingredients
+        try {
+            jdbc.execute("ALTER TABLE production_plan_ingredients ADD COLUMN IF NOT EXISTS wastage_quantity DOUBLE PRECISION DEFAULT 0.0");
+            log.info("Schema migration: wastage_quantity column in production_plan_ingredients ensured");
+        } catch (Exception e) {
+            log.warn("Schema migration: wastage_quantity column — {}", e.getMessage());
+        }
+
         // Key Registry tables
         try {
             jdbc.execute(
