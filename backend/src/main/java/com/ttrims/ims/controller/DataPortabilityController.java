@@ -108,7 +108,15 @@ public class DataPortabilityController {
                 while (rs.next()) {
                     for (int i = 1; i <= columnCount; i++) {
                         Object val = rs.getObject(i);
-                        writer.write(escapeCsv(val == null ? "" : val.toString()));
+                        String strVal = "";
+                        if (val != null) {
+                            if (val instanceof byte[]) {
+                                strVal = new String((byte[]) val, StandardCharsets.UTF_8);
+                            } else {
+                                strVal = val.toString();
+                            }
+                        }
+                        writer.write(escapeCsv(strVal));
                         if (i < columnCount) writer.write(",");
                     }
                     writer.write("\n");
@@ -142,15 +150,39 @@ public class DataPortabilityController {
 
         try {
             List<Map<String, Object>> columnsMetadata = jdbcTemplate.queryForList(
-                    "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ? ORDER BY ordinal_position",
+                    "SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ? ORDER BY ordinal_position",
                     tableName.toLowerCase()
             );
-            String header = columnsMetadata.stream()
+            List<Map<String, Object>> filteredColumns = columnsMetadata.stream()
+                    .filter(m -> {
+                        String col = m.get("column_name").toString().toLowerCase();
+                        return !Arrays.asList("id", "created_at", "updated_at", "created_by", "updated_by").contains(col);
+                    })
+                    .collect(Collectors.toList());
+
+            String header = filteredColumns.stream()
                     .map(m -> m.get("column_name").toString())
                     .map(this::escapeCsv)
                     .collect(Collectors.joining(","));
 
-            byte[] csvBytes = (header + "\n").getBytes(StandardCharsets.UTF_8);
+            String demoData = filteredColumns.stream()
+                    .map(m -> {
+                        String type = m.get("data_type").toString().toLowerCase();
+                        String colName = m.get("column_name").toString().toLowerCase();
+                        if (type.contains("int") || type.contains("numeric") || type.contains("double")) {
+                            return "1";
+                        } else if (type.contains("date") || type.contains("timestamp")) {
+                            return "2023-01-01 10:00:00";
+                        } else if (type.contains("bool")) {
+                            return "true";
+                        } else {
+                            return "Sample " + colName;
+                        }
+                    })
+                    .map(this::escapeCsv)
+                    .collect(Collectors.joining(","));
+
+            byte[] csvBytes = (header + "\n" + demoData + "\n").getBytes(StandardCharsets.UTF_8);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType("text/csv"));
             headers.setContentDispositionFormData("attachment", tableName + "_template.csv");
@@ -242,6 +274,20 @@ public class DataPortabilityController {
             while ((line = reader.readLine()) != null) {
                 if (line.trim().isEmpty()) continue;
                 List<String> values = parseCsvLine(line);
+                
+                boolean isDemoData = false;
+                for (int i = 0; i < matchedColumns.size(); i++) {
+                    int csvIndex = matchedIndices.get(i);
+                    String val = csvIndex < values.size() ? values.get(csvIndex) : null;
+                    if (val != null && val.equals("Sample " + matchedColumns.get(i))) {
+                        isDemoData = true;
+                        break;
+                    }
+                }
+                if (isDemoData) {
+                    continue;
+                }
+
                 Object[] params = new Object[matchedColumns.size()];
 
                 for (int i = 0; i < matchedColumns.size(); i++) {
