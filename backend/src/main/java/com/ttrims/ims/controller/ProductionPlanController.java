@@ -234,16 +234,14 @@ public class ProductionPlanController {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "actual_quantity is required"));
         }
 
-        double actualQty = ((Number) actualQtyObj).doubleValue();
+        double actualQty = parseDoubleSafely(actualQtyObj);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> ingWastagesInput = body.containsKey("ingredient_wastages")
             ? (Map<String, Object>) body.get("ingredient_wastages")
             : Collections.emptyMap();
 
-        double actualDamage = body.containsKey("actual_damage") && body.get("actual_damage") != null
-            ? ((Number) body.get("actual_damage")).doubleValue()
-            : 0.0;
+        double actualDamage = parseDoubleSafely(body.get("actual_damage"));
 
         if (actualQty <= 0) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Actual quantity must be positive"));
@@ -265,10 +263,7 @@ public class ProductionPlanController {
         for (ProductionPlanIngredient ing : ingredients) {
             double wastage = 0.0;
             if (ingWastagesInput.containsKey(ing.getId())) {
-                Object wVal = ingWastagesInput.get(ing.getId());
-                if (wVal != null) {
-                    wastage = ((Number) wVal).doubleValue();
-                }
+                wastage = parseDoubleSafely(ingWastagesInput.get(ing.getId()));
             }
             ing.setWastageQuantity(wastage);
             totalWastageQty += wastage;
@@ -423,5 +418,15 @@ public class ProductionPlanController {
         m.put("ingredients", ingList);
 
         return m;
+    }
+
+    private double parseDoubleSafely(Object val) {
+        if (val == null) return 0.0;
+        if (val instanceof Number) return ((Number) val).doubleValue();
+        try {
+            return Double.parseDouble(val.toString());
+        } catch (Exception e) {
+            return 0.0;
+        }
     }
 }
