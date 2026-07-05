@@ -50,6 +50,9 @@ import SalesApp from './sales/SalesApp';
 import ProductionApp from './production/ProductionApp';
 import WarehouseApp from './warehouse/WarehouseApp';
 
+// FOR TESTING MOBILE APK LAYOUT IN BROWSER
+Capacitor.isNativePlatform = () => true;
+
 // Protected Route Guard
 function ProtectedRoute({ children, perm }) {
   const { user, loading, hasPermission } = useAuth();
@@ -151,7 +154,11 @@ function AuthenticatedLayout({ children }) {
   const isHome = location.pathname === '/dashboard' || location.pathname === '/';
 
   if (Capacitor.isNativePlatform()) {
-    const showHeader = !isHome && location.pathname !== '/login';
+    const showHeader = !isHome && 
+      location.pathname !== '/login' && 
+      !location.pathname.startsWith('/sales') && 
+      !location.pathname.startsWith('/production') && 
+      !location.pathname.startsWith('/warehouse');
     return (
       <div className="app-layout native-layout" style={{ display: 'block' }}>
         {showHeader && (

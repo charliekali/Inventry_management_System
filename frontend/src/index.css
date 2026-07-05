@@ -1766,3 +1766,143 @@ body.dark-theme .mobile-card-metrics {
 .leaflet-dark-filter {
   filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%) !important;
 }
+
+/* ── Native APK Platform Custom Design Overrides ────────────────────────── */
+body.native-app {
+  -webkit-user-select: none;
+  user-select: none;
+  background-color: var(--color-bg-primary);
+  overscroll-behavior-y: contain;
+}
+
+/* Hide scrollbars for native app feel */
+body.native-app *::-webkit-scrollbar {
+  display: none !important;
+}
+body.native-app * {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+/* Haptic visual feedback: scale down on press */
+body.native-app button:active,
+body.native-app .btn:active,
+body.native-app a.btn:active,
+body.native-app .kpi-card:active,
+body.native-app .w-kpi:active,
+body.native-app .p-kpi:active,
+body.native-app .s-card:active,
+body.native-app .w-qa-btn:active,
+body.native-app .theme-card:active {
+  transform: scale(0.96) !important;
+  transition: transform 0.1s cubic-bezier(0, 0, 0.2, 1) !important;
+}
+
+/* Form controls optimized for mobile touch targets */
+body.native-app input[type="text"],
+body.native-app input[type="number"],
+body.native-app input[type="password"],
+body.native-app input[type="email"],
+body.native-app input[type="search"],
+body.native-app select,
+body.native-app textarea {
+  font-size: 16px !important; /* Prevents auto-zoom on iOS */
+  padding: 12px 14px !important;
+  border-radius: 12px !important;
+  background-color: var(--color-bg-input) !important;
+  border: 1px solid var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-shadow: var(--shadow-sm);
+  width: 100%;
+}
+
+body.native-app input:focus,
+body.native-app select:focus,
+body.native-app textarea:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px var(--color-primary-glow) !important;
+  outline: none;
+}
+
+body.native-app label {
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  color: var(--color-text-secondary) !important;
+  margin-bottom: 6px !important;
+  display: inline-block;
+}
+
+/* Touch-friendly Tables (Mobile List View) */
+body.native-app table {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 8px !important; /* Space between card-like rows */
+  background: transparent !important;
+}
+
+body.native-app thead {
+  display: none !important; /* Hide column headers on mobile to stack */
+}
+
+body.native-app tbody tr {
+  display: block !important;
+  background: var(--color-bg-card) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 16px !important;
+  padding: 12px 16px !important;
+  margin-bottom: 8px !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+body.native-app tbody td {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 6px 0 !important;
+  border: none !important;
+  border-bottom: 1px dashed var(--color-border) !important;
+  font-size: 13.5px !important;
+}
+
+body.native-app tbody td:last-child {
+  border-bottom: none !important;
+}
+
+/* Use data attributes for headers on mobile where possible */
+body.native-app tbody td::before {
+  content: attr(data-label);
+  font-weight: 700;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Native-looking Dialogs & Modals */
+body.native-app .modal-overlay,
+body.native-app .modal-backdrop {
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+
+body.native-app .modal-content,
+body.native-app .modal-dialog {
+  border-radius: 24px !important;
+  border: 1px solid var(--color-border) !important;
+  background: var(--color-bg-card) !important;
+  box-shadow: var(--shadow-lg) !important;
+  padding: 24px 20px !important;
+  max-width: 92vw !important;
+  margin: 0 auto;
+}
+
+/* Beautiful custom back button and sticky headers on native pages */
+body.native-app .mobile-native-header {
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  background: rgba(var(--color-bg-card), 0.85) !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
