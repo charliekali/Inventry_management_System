@@ -1364,7 +1364,7 @@ export default function OrderPage() {
                 <div style={{ marginTop: 16, padding: 16, background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
                   <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Feasibility Analysis</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {feasibilityResults.map((r, i) => (
+                    {feasibilityResults.items.map((r, i) => (
                       <div key={i} style={{ padding: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                           <span style={{ fontWeight: 600 }}>{r.product_name} ({r.qty_required} {r.unit})</span>
