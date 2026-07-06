@@ -41,6 +41,16 @@ public class Product {
     @Column(name = "batch_size_kg")
     private Double batchSizeKg;
 
+    @Column(name = "pcs_per_innerbag")
+    private Integer pcsPerInnerbag;
+
+    @Column(name = "innerbags_per_bag")
+    private Integer innerbagsPerBag;
+
+    @Column(name = "pcs_per_bag")
+    private Integer pcsPerBag;
+
+
     /** Freetext production / blending process notes visible in feasibility audit. */
     @Column(name = "process_notes", length = 1000)
     private String processNotes;
@@ -96,6 +106,12 @@ public class Product {
     public void setPacksPerKg(Double packsPerKg) { this.packsPerKg = packsPerKg; }
     public Double getBatchSizeKg() { return batchSizeKg; }
     public void setBatchSizeKg(Double batchSizeKg) { this.batchSizeKg = batchSizeKg; }
+    public Integer getPcsPerInnerbag() { return pcsPerInnerbag; }
+    public void setPcsPerInnerbag(Integer pcsPerInnerbag) { this.pcsPerInnerbag = pcsPerInnerbag; }
+    public Integer getInnerbagsPerBag() { return innerbagsPerBag; }
+    public void setInnerbagsPerBag(Integer innerbagsPerBag) { this.innerbagsPerBag = innerbagsPerBag; }
+    public Integer getPcsPerBag() { return pcsPerBag; }
+    public void setPcsPerBag(Integer pcsPerBag) { this.pcsPerBag = pcsPerBag; }
     public String getProcessNotes() { return processNotes; }
     public void setProcessNotes(String processNotes) { this.processNotes = processNotes; }
     public Double getSellingPrice() { return sellingPrice; }

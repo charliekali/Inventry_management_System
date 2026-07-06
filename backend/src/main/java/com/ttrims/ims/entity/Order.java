@@ -62,6 +62,21 @@ public class Order {
     @Column(name = "payment_mode")
     private String paymentMode;
 
+    @Column(name = "dispatch_status")
+    private String dispatchStatus = "PENDING"; // PENDING, DISPATCHED
+
+    @Column(name = "dispatch_bags")
+    private Integer dispatchBags = 0;
+
+    @Column(name = "dispatch_pcs")
+    private Integer dispatchPcs = 0;
+
+    @Column(name = "dispatched_at")
+    private LocalDateTime dispatchedAt;
+
+    @Column(name = "dispatched_by")
+    private String dispatchedBy;
+
     @Column(name = "paid_amount")
     private Double paidAmount = 0.0;
 
@@ -115,6 +130,17 @@ public class Order {
     public void setGrandTotal(Double grandTotal) { this.grandTotal = grandTotal; }
     public String getPaymentMode() { return paymentMode; }
     public void setPaymentMode(String paymentMode) { this.paymentMode = paymentMode; }
+    
+    public String getDispatchStatus() { return dispatchStatus; }
+    public void setDispatchStatus(String dispatchStatus) { this.dispatchStatus = dispatchStatus; }
+    public Integer getDispatchBags() { return dispatchBags; }
+    public void setDispatchBags(Integer dispatchBags) { this.dispatchBags = dispatchBags; }
+    public Integer getDispatchPcs() { return dispatchPcs; }
+    public void setDispatchPcs(Integer dispatchPcs) { this.dispatchPcs = dispatchPcs; }
+    public LocalDateTime getDispatchedAt() { return dispatchedAt; }
+    public void setDispatchedAt(LocalDateTime dispatchedAt) { this.dispatchedAt = dispatchedAt; }
+    public String getDispatchedBy() { return dispatchedBy; }
+    public void setDispatchedBy(String dispatchedBy) { this.dispatchedBy = dispatchedBy; }
     public Double getPaidAmount() { return paidAmount; }
     public void setPaidAmount(Double paidAmount) { this.paidAmount = paidAmount; }
     public Boolean getIsPosOrder() { return isPosOrder; }

@@ -143,6 +143,12 @@ export const ordersAPI = {
   assignOrder: (id, userId) => api.patch(`/orders/${id}/assign`, { user_id: userId }),
 };
 
+// ─── Dispatch ─────────────────────────────────────────────────────────────────
+export const dispatchAPI = {
+  list: (status) => api.get('/dispatch', { params: { status } }),
+  complete: (id) => api.post(`/dispatch/${id}/complete`),
+};
+
 // ─── Production Orders ────────────────────────────────────────────────────────
 export const productionOrdersAPI = {
   list: () => api.get('/production-orders'),

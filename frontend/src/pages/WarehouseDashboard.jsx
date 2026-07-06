@@ -11,10 +11,13 @@ import {
   ArrowDownCircle, 
   ArrowUpCircle, 
   BarChart3, 
-  MapPin 
+  MapPin,
+  Truck
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export default function WarehouseDashboard() {
+  const { hasPermission } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -63,6 +66,11 @@ export default function WarehouseDashboard() {
           <Link to="/locate" className="btn btn-secondary btn-sm">
             <MapPin size={15} /> Find Location
           </Link>
+          {hasPermission('DISPATCH:VIEW') && (
+            <Link to="/logistics-dispatch" className="btn btn-primary btn-sm">
+              <Truck size={15} /> Logistics & Dispatch
+            </Link>
+          )}
         </div>
       </div>
 

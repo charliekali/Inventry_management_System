@@ -65,6 +65,17 @@ public class ProductController {
         return null;
     }
 
+    private Integer getInteger(Object val) {
+        if (val == null) return null;
+        if (val instanceof Number n) return n.intValue();
+        if (val instanceof String s) {
+            if (s.isBlank()) return null;
+            try { return (int) Double.parseDouble(s); }
+            catch (NumberFormatException e) { return null; }
+        }
+        return null;
+    }
+
     @PostMapping
     public ResponseEntity<?> create(@RequestBody Map<String, Object> body) {
         auth.requirePermission("PRODUCTS:CREATE");
@@ -252,6 +263,9 @@ public class ProductController {
         dto.put("pack_size_g", p.getPackSizeG());
         dto.put("packs_per_kg", p.getPacksPerKg());
         dto.put("batch_size_kg", p.getBatchSizeKg());
+        dto.put("pcs_per_innerbag", p.getPcsPerInnerbag());
+        dto.put("innerbags_per_bag", p.getInnerbagsPerBag());
+        dto.put("pcs_per_bag", p.getPcsPerBag());
         dto.put("process_notes", p.getProcessNotes() != null ? p.getProcessNotes() : "");
         dto.put("is_active", p.isActive());
         dto.put("created_at", p.getCreatedAt() != null ? p.getCreatedAt().toString() : "");
@@ -268,6 +282,15 @@ public class ProductController {
         }
         if (body.containsKey("batch_size_kg")) {
             p.setBatchSizeKg(getDouble(body.get("batch_size_kg")));
+        }
+        if (body.containsKey("pcs_per_innerbag")) {
+            p.setPcsPerInnerbag(getInteger(body.get("pcs_per_innerbag")));
+        }
+        if (body.containsKey("innerbags_per_bag")) {
+            p.setInnerbagsPerBag(getInteger(body.get("innerbags_per_bag")));
+        }
+        if (body.containsKey("pcs_per_bag")) {
+            p.setPcsPerBag(getInteger(body.get("pcs_per_bag")));
         }
         if (body.containsKey("process_notes")) {
             Object notes = body.get("process_notes");

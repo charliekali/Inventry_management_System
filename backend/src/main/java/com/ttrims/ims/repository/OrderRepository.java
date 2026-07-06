@@ -11,6 +11,8 @@ import java.util.Optional;
 public interface OrderRepository extends JpaRepository<Order, String> {
     List<Order> findAllByOrderByCreatedAtDesc();
 
+    List<Order> findByDispatchStatusOrderByCreatedAtDesc(String dispatchStatus);
+
     List<Order> findByAssignedToIdOrderByCreatedAtDesc(String userId);
 
     Optional<Order> findFirstByInvoiceNumberStartingWithOrderByInvoiceNumberDesc(String prefix);

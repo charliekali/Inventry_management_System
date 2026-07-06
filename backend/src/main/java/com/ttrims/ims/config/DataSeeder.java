@@ -68,6 +68,7 @@ public class DataSeeder implements CommandLineRunner {
             { "ORDERS", "FULFILL" },
             { "PRODUCTION_ORDERS", "VIEW" }, { "PRODUCTION_ORDERS", "CREATE" }, { "PRODUCTION_ORDERS", "EDIT" },
             { "BOM", "VIEW" }, { "BOM", "CREATE" }, { "BOM", "EDIT" }, { "BOM", "DELETE" },
+            { "DISPATCH", "VIEW" }, { "DISPATCH", "MANAGE" },
             { "REPORTS", "VIEW" },
             { "SALES", "CRM" }, { "SALES", "COLLECT" },
             { "PRODUCTION", "PLAN" }, { "PRODUCTION", "RUN" }, { "PRODUCTION", "HISTORY" },
@@ -297,9 +298,9 @@ public class DataSeeder implements CommandLineRunner {
     private Set<Permission> getWMPerms() {
         Set<Permission> perms = new HashSet<>();
         Set<String> allowedModules = Set.of("WAREHOUSES", "SECTIONS", "PRODUCTS", "TRANSACTIONS", "STOCK", "ORDERS",
-                "BOM", "REPORTS");
+                "BOM", "DISPATCH", "REPORTS");
         Set<String> allowedActions = Set.of("VIEW", "STOCK_IN", "STOCK_OUT", "LOCATE", "CHECK_FEASIBILITY", "CREATE",
-                "FULFILL");
+                "FULFILL", "MANAGE");
         permissionRepo.findAll().forEach(p -> {
             if (allowedModules.contains(p.getModule()) && allowedActions.contains(p.getAction()))
                 perms.add(p);

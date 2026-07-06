@@ -122,6 +122,9 @@ export default function ProductPage() {
   const [pPackSizeG, setPPackSizeG] = useState('');
   const [pPacksPerKg, setPPacksPerKg] = useState('');
   const [pBatchSizeKg, setPBatchSizeKg] = useState('');
+  const [pPcsPerInnerbag, setPPcsPerInnerbag] = useState('');
+  const [pInnerbagsPerBag, setPInnerbagsPerBag] = useState('');
+  const [pPcsPerBag, setPPcsPerBag] = useState('');
   const [pProcessNotes, setPProcessNotes] = useState('');
 
   const loadProducts = (archived = showArchived) => {
@@ -167,6 +170,9 @@ export default function ProductPage() {
         pack_size_g: pType === 'FINISHED_GOOD' && pPackSizeG ? parseFloat(pPackSizeG) : null,
         packs_per_kg: pType === 'FINISHED_GOOD' && pPacksPerKg ? parseFloat(pPacksPerKg) : null,
         batch_size_kg: pType === 'FINISHED_GOOD' && pBatchSizeKg ? parseFloat(pBatchSizeKg) : null,
+        pcs_per_innerbag: pType === 'FINISHED_GOOD' && pPcsPerInnerbag ? parseInt(pPcsPerInnerbag, 10) : null,
+        innerbags_per_bag: pType === 'FINISHED_GOOD' && pInnerbagsPerBag ? parseInt(pInnerbagsPerBag, 10) : null,
+        pcs_per_bag: pType === 'FINISHED_GOOD' && pPcsPerBag ? parseInt(pPcsPerBag, 10) : null,
         process_notes: pType === 'FINISHED_GOOD' ? pProcessNotes : ''
       };
 
@@ -203,6 +209,9 @@ export default function ProductPage() {
     setPPackSizeG('');
     setPPacksPerKg('');
     setPBatchSizeKg('');
+    setPPcsPerInnerbag('');
+    setPInnerbagsPerBag('');
+    setPPcsPerBag('');
     setPProcessNotes('');
     setPSellingPrice('');
     setPCostPrice('');
@@ -222,6 +231,9 @@ export default function ProductPage() {
     setPPackSizeG(p.pack_size_g ? p.pack_size_g.toString() : '');
     setPPacksPerKg(p.packs_per_kg ? p.packs_per_kg.toString() : '');
     setPBatchSizeKg(p.batch_size_kg ? p.batch_size_kg.toString() : '');
+    setPPcsPerInnerbag(p.pcs_per_innerbag ? p.pcs_per_innerbag.toString() : '');
+    setPInnerbagsPerBag(p.innerbags_per_bag ? p.innerbags_per_bag.toString() : '');
+    setPPcsPerBag(p.pcs_per_bag ? p.pcs_per_bag.toString() : '');
     setPProcessNotes(p.process_notes || '');
     setPSellingPrice(p.selling_price ? p.selling_price.toString() : '');
     setPCostPrice(p.cost_price ? p.cost_price.toString() : '');
@@ -660,6 +672,38 @@ export default function ProductPage() {
                         className="form-control" 
                         value={pBatchSizeKg} 
                         onChange={(e) => setPBatchSizeKg(e.target.value)} 
+                        placeholder="e.g. 50"
+                      />
+                    </div>
+                  </div>
+                  <div className="form-row-3" style={{ marginTop: 10 }}>
+                    <div className="form-group">
+                      <label className="form-label" style={{ fontSize: 11 }}>Pcs / Innerbag</label>
+                      <input 
+                        type="number" 
+                        className="form-control" 
+                        value={pPcsPerInnerbag} 
+                        onChange={(e) => setPPcsPerInnerbag(e.target.value)} 
+                        placeholder="e.g. 10"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label" style={{ fontSize: 11 }}>Innerbags / Bag</label>
+                      <input 
+                        type="number" 
+                        className="form-control" 
+                        value={pInnerbagsPerBag} 
+                        onChange={(e) => setPInnerbagsPerBag(e.target.value)} 
+                        placeholder="e.g. 5"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label" style={{ fontSize: 11 }}>Pcs / Bag (If Pcs alone)</label>
+                      <input 
+                        type="number" 
+                        className="form-control" 
+                        value={pPcsPerBag} 
+                        onChange={(e) => setPPcsPerBag(e.target.value)} 
                         placeholder="e.g. 50"
                       />
                     </div>

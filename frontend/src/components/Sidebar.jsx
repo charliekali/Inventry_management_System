@@ -8,7 +8,7 @@ import {
   ArrowUpCircle, BarChart3, MapPin, ShieldCheck, Users,
   Settings, LogOut, ClipboardList, BookOpen, SlidersHorizontal, Tags,
   Factory, ListPlus, History, LineChart, Database, ShoppingBag, FileText,
-  PhoneCall, Target, Wifi, Radio, KeyRound
+  PhoneCall, Target, Wifi, Radio, KeyRound, Truck
 } from 'lucide-react';
 import ServerSettings from './ServerSettings';
 
@@ -29,6 +29,7 @@ const NAV_ITEMS = [
   { group: 'Inventory', items: [
     { path: '/stock-in', label: 'Stock IN', icon: ArrowDownCircle, perm: 'TRANSACTIONS:STOCK_IN' },
     { path: '/stock-out', label: 'Stock OUT', icon: ArrowUpCircle, perm: 'TRANSACTIONS:STOCK_OUT' },
+    { path: '/logistics-dispatch', label: 'Logistics & Dispatch', icon: Truck, perm: 'DISPATCH:VIEW' },
     { path: '/production-run', label: 'Production Plan', icon: Factory, perm: 'PRODUCTION:PLAN' },
     { path: '/actual-production', label: 'Actual Production', icon: ClipboardList, perm: 'PRODUCTION:RUN' },
     { path: '/production-history', label: 'Production History', icon: History, perm: 'PRODUCTION:HISTORY' },
