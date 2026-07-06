@@ -113,6 +113,9 @@ export default function OrderPage() {
   const [customFieldsData, setCustomFieldsData] = useState({});
   const [taxPercent, setTaxPercent] = useState(18);
 
+  const [feasibilityResults, setFeasibilityResults] = useState(null);
+  const [checkingFeasibility, setCheckingFeasibility] = useState(false);
+
   // Dynamic form settings
   const { fields, isVisible, isRequired, getLabel, loading: settingsLoading, invalidate: invalidateSettings } = useFormSettings('ORDER');
 
@@ -356,6 +359,7 @@ export default function OrderPage() {
     setRemarks('');
     setCustomFieldsData({});
     setItemsList([]);
+    setFeasibilityResults(null);
     setShowCreateModal(true);
   };
 
@@ -425,12 +429,30 @@ export default function OrderPage() {
     setCurrentDiscount('');
     setCurrentUnitType('pcs');
     setCustomUnit('');
+    setFeasibilityResults(null);
   };
 
   const handleRemoveItem = (index) => {
     const list = [...itemsList];
     list.splice(index, 1);
     setItemsList(list);
+    setFeasibilityResults(null);
+  };
+
+  const handleCheckFeasibility = async () => {
+    if (itemsList.length === 0) {
+      return toast.error('Please add at least one item to check feasibility');
+    }
+    setCheckingFeasibility(true);
+    try {
+      const res = await ordersAPI.checkFeasibility(itemsList);
+      setFeasibilityResults(res.data.data);
+      toast.success('Feasibility checked');
+    } catch (err) {
+      toast.error('Failed to check feasibility');
+    } finally {
+      setCheckingFeasibility(false);
+    }
   };
 
   const handleCreateOrder = async (e) => {
@@ -470,6 +492,7 @@ export default function OrderPage() {
       setRemarks('');
       setCustomFieldsData({});
       setItemsList([]);
+      setFeasibilityResults(null);
       setTaxPercent(18);
       loadOrders();
     } catch (err) {
@@ -1331,13 +1354,78 @@ export default function OrderPage() {
                   </>
                 )}
               </div>
+
+              {feasibilityResults && (
+                <div style={{ marginTop: 16, padding: 16, background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+                  <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Feasibility Analysis</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {feasibilityResults.map((r, i) => (
+                      <div key={i} style={{ padding: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                          <span style={{ fontWeight: 600 }}>{r.product_name} ({r.qty_required} {r.unit})</span>
+                          <span className={`badge ${r.status === 'FEASIBLE' ? 'badge-green' : r.status === 'INSUFFICIENT' ? 'badge-red' : 'badge-orange'}`}>{r.status}</span>
+                        </div>
+                        <div style={{ fontSize: 13, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                          <div>
+                            <div style={{ color: 'var(--color-text-secondary)' }}>FG Available</div>
+                            <div style={{ fontWeight: 600 }}>{r.fg_available}</div>
+                          </div>
+                          <div>
+                            <div style={{ color: 'var(--color-text-secondary)' }}>FG Shortfall</div>
+                            <div style={{ fontWeight: 600, color: r.fg_shortfall > 0 ? 'var(--color-danger)' : 'inherit' }}>{r.fg_shortfall}</div>
+                          </div>
+                          <div>
+                            <div style={{ color: 'var(--color-text-secondary)' }}>Can Produce</div>
+                            <div style={{ fontWeight: 600 }}>{r.producible_units}</div>
+                          </div>
+                        </div>
+                        {r.rm_analysis && r.rm_analysis.length > 0 && (
+                          <div style={{ marginTop: 12 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>RM Analysis (To fulfill shortfall)</div>
+                            <div className="table-wrapper">
+                              <table style={{ fontSize: 12 }}>
+                                <thead>
+                                  <tr>
+                                    <th>Material</th>
+                                    <th>Needed</th>
+                                    <th>Available</th>
+                                    <th>Shortfall</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {r.rm_analysis.map((rm, idx) => (
+                                    <tr key={idx}>
+                                      <td>{rm.product_name}</td>
+                                      <td>{rm.qty_needed_for_shortfall} {rm.unit}</td>
+                                      <td>{rm.qty_available} {rm.unit}</td>
+                                      <td style={{ color: rm.shortfall > 0 ? 'var(--color-danger)' : 'inherit', fontWeight: rm.shortfall > 0 ? 600 : 400 }}>{rm.shortfall} {rm.unit}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             
-            <div className="modal-footer">
-              <button type="button" className="btn btn-secondary" onClick={() => setShowCreateModal(false)}>Cancel</button>
-              <button type="submit" className="btn btn-primary" disabled={itemsList.length === 0}>
-                Place Sales Order
-              </button>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div>
+                <button type="button" className="btn btn-secondary" onClick={handleCheckFeasibility} disabled={checkingFeasibility || itemsList.length === 0}>
+                  <ShieldCheck size={14} style={{ marginRight: 6 }} />
+                  {checkingFeasibility ? 'Checking...' : 'Check Feasibility'}
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowCreateModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={itemsList.length === 0}>
+                  Place Sales Order
+                </button>
+              </div>
             </div>
           </form>
         </div>
