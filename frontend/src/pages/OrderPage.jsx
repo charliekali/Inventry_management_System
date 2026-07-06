@@ -152,6 +152,28 @@ export default function OrderPage() {
       .catch(() => {});
   }, []);
 
+  // Auto-check feasibility when itemsList changes
+  useEffect(() => {
+    if (itemsList.length === 0) {
+      setFeasibilityResults(null);
+      return;
+    }
+    
+    const timer = setTimeout(async () => {
+      setCheckingFeasibility(true);
+      try {
+        const res = await ordersAPI.checkFeasibility(itemsList);
+        setFeasibilityResults(res.data.data);
+      } catch (err) {
+        console.error('Feasibility auto-check failed', err);
+      } finally {
+        setCheckingFeasibility(false);
+      }
+    }, 500); // 500ms debounce
+    
+    return () => clearTimeout(timer);
+  }, [itemsList]);
+
   // Sales Orders Bulk Handlers
   const handleBulkUpdateOrderStatus = async (status) => {
     const activeSelected = bulkSales.getSelectedItems().filter(o => o.status !== status);
@@ -429,31 +451,14 @@ export default function OrderPage() {
     setCurrentDiscount('');
     setCurrentUnitType('pcs');
     setCustomUnit('');
-    setFeasibilityResults(null);
   };
 
   const handleRemoveItem = (index) => {
     const list = [...itemsList];
     list.splice(index, 1);
     setItemsList(list);
-    setFeasibilityResults(null);
   };
 
-  const handleCheckFeasibility = async () => {
-    if (itemsList.length === 0) {
-      return toast.error('Please add at least one item to check feasibility');
-    }
-    setCheckingFeasibility(true);
-    try {
-      const res = await ordersAPI.checkFeasibility(itemsList);
-      setFeasibilityResults(res.data.data);
-      toast.success('Feasibility checked');
-    } catch (err) {
-      toast.error('Failed to check feasibility');
-    } finally {
-      setCheckingFeasibility(false);
-    }
-  };
 
   const handleCreateOrder = async (e) => {
     e.preventDefault();
@@ -1413,16 +1418,11 @@ export default function OrderPage() {
               )}
             </div>
             
-            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <div>
-                <button type="button" className="btn btn-secondary" onClick={handleCheckFeasibility} disabled={checkingFeasibility || itemsList.length === 0}>
-                  <ShieldCheck size={14} style={{ marginRight: 6 }} />
-                  {checkingFeasibility ? 'Checking...' : 'Check Feasibility'}
-                </button>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {checkingFeasibility && <span style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginRight: 12 }}>Checking Feasibility...</span>}
                 <button type="button" className="btn btn-secondary" onClick={() => setShowCreateModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={itemsList.length === 0}>
+                <button type="submit" className="btn btn-primary" disabled={itemsList.length === 0 || checkingFeasibility}>
                   Place Sales Order
                 </button>
               </div>
