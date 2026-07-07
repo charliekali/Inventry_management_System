@@ -8,6 +8,7 @@ import WarehouseBalance from './pages/WarehouseBalance';
 import WarehouseFind from './pages/WarehouseFind';
 import WarehouseProfile from './pages/WarehouseProfile';
 import MobileKeyRegistry from '../components/MobileKeyRegistry';
+import LogisticsAndDispatchPage from '../pages/LogisticsAndDispatchPage';
 import './WarehouseApp.css';
 
 export default function WarehouseApp() {
@@ -22,6 +23,7 @@ export default function WarehouseApp() {
         <Route path="find" element={<WarehouseFind />} />
         <Route path="profile" element={<WarehouseProfile />} />
         <Route path="key-registry" element={<MobileKeyRegistry />} />
+        <Route path="logistics-dispatch" element={<LogisticsAndDispatchPage />} />
         {/* Redirect unknown routes back to home */}
         <Route path="*" element={<Navigate to="" replace />} />
       </Routes>

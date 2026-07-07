@@ -5,7 +5,7 @@ import { stockAPI } from '../../api';
 import toast from 'react-hot-toast';
 import { 
   Warehouse, ArrowDownCircle, ArrowUpCircle, AlertTriangle, 
-  MapPin, RefreshCw, BarChart3, ChevronRight, Activity, Camera
+  MapPin, RefreshCw, BarChart3, ChevronRight, Activity, Camera, Truck
 } from 'lucide-react';
 
 function getGreeting() {
@@ -16,7 +16,7 @@ function getGreeting() {
 }
 
 export default function WarehouseHome() {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -109,6 +109,14 @@ export default function WarehouseHome() {
           </div>
           <span className="w-qa-label">Find Shelf</span>
         </button>
+        {hasPermission('DISPATCH:VIEW') && (
+          <button className="w-qa-btn" onClick={() => navigate('/warehouse/logistics-dispatch')}>
+            <div className="w-qa-icon" style={{ background: 'rgba(6,182,212,0.15)' }}>
+              <Truck size={20} color="#06b6d4" />
+            </div>
+            <span className="w-qa-label">Logistics</span>
+          </button>
+        )}
       </div>
 
       {/* Warehouse Stock Levels */}

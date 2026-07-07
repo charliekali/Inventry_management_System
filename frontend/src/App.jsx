@@ -35,6 +35,7 @@ import PostgresProvisionerPage from './pages/PostgresProvisionerPage';
 import ProductionDashboard from './pages/ProductionDashboard';
 import WarehouseDashboard from './pages/WarehouseDashboard';
 import SalesDashboard from './pages/SalesDashboard';
+import LogisticsDashboardPage from './pages/LogisticsDashboardPage';
 import PosPage from './pages/PosPage';
 import InvoicePrint from './pages/InvoicePrint';
 import InvoiceDesignerPage from './pages/InvoiceDesignerPage';
@@ -50,6 +51,7 @@ import LogisticsAndDispatchPage from './pages/LogisticsAndDispatchPage';
 import SalesApp from './sales/SalesApp';
 import ProductionApp from './production/ProductionApp';
 import WarehouseApp from './warehouse/WarehouseApp';
+import LogisticsApp from './logistics/LogisticsApp';
 
 // Protected Route Guard
 function ProtectedRoute({ children, perm }) {
@@ -156,7 +158,8 @@ function AuthenticatedLayout({ children }) {
       location.pathname !== '/login' && 
       !location.pathname.startsWith('/sales') && 
       !location.pathname.startsWith('/production') && 
-      !location.pathname.startsWith('/warehouse');
+      !location.pathname.startsWith('/warehouse') && 
+      !location.pathname.startsWith('/logistics');
     return (
       <div className="app-layout native-layout" style={{ display: 'block' }}>
         {showHeader && (
@@ -343,6 +346,14 @@ function App() {
               <ProtectedRoute perm="ORDERS:VIEW">
                 <AuthenticatedLayout>
                   <SalesDashboard />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/dashboard/logistics" element={
+              <ProtectedRoute perm="DISPATCH:VIEW">
+                <AuthenticatedLayout>
+                  <LogisticsDashboardPage />
                 </AuthenticatedLayout>
               </ProtectedRoute>
             } />
@@ -594,6 +605,12 @@ function App() {
             <Route path="/warehouse/*" element={
               <ProtectedRoute>
                 <WarehouseApp />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/logistics/*" element={
+              <ProtectedRoute>
+                <LogisticsApp />
               </ProtectedRoute>
             } />
 

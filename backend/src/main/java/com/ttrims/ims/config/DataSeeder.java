@@ -74,7 +74,9 @@ public class DataSeeder implements CommandLineRunner {
             { "PRODUCTION", "PLAN" }, { "PRODUCTION", "RUN" }, { "PRODUCTION", "HISTORY" },
             { "SALES", "ADD_LEAD" }, { "SALES", "LOG_FOLLOWUP" },
             { "SALES", "LEADS" }, { "SALES", "CUSTOMERS" },
-            { "ATTENDANCE", "VIEW" }, { "ATTENDANCE", "TRACK" }
+            { "ATTENDANCE", "VIEW" }, { "ATTENDANCE", "TRACK" },
+            { "SHIPMENTS", "VIEW" }, { "SHIPMENTS", "CREATE" }, { "SHIPMENTS", "MANAGE" },
+            { "DELIVERY", "CONFIRM" }
     };
 
     @Override
@@ -86,6 +88,7 @@ public class DataSeeder implements CommandLineRunner {
         Role viewerRole = seedRole("Viewer", "Read-only access", true, getPermsByAction("VIEW"));
         Role managerRole = seedRole("Warehouse Manager", "Stock transactions and reports", true, getWMPerms());
         Role keeperRole = seedRole("Store Keeper", "Handle stock IN/OUT", true, getStoreKeeperPerms());
+        Role logisticsRole = seedRole("Logistics Coordinator", "Manage shipments and delivery", true, getLogisticsPerms());
         
         // 1. One-time database purge of all dummy/test data for production readiness
         if (productRepo.findByCode("RM-CHD").isPresent()) {
@@ -316,6 +319,24 @@ public class DataSeeder implements CommandLineRunner {
                 "PRODUCTS", Set.of("VIEW"),
                 "WAREHOUSES", Set.of("VIEW"),
                 "SECTIONS", Set.of("VIEW"));
+        permissionRepo.findAll().forEach(p -> {
+            Set<String> acts = allowed.get(p.getModule());
+            if (acts != null && acts.contains(p.getAction()))
+                perms.add(p);
+        });
+        return perms;
+    }
+
+    private Set<Permission> getLogisticsPerms() {
+        Set<Permission> perms = new HashSet<>();
+        Map<String, Set<String>> allowed = Map.of(
+                "DISPATCH", Set.of("VIEW", "MANAGE"),
+                "SHIPMENTS", Set.of("VIEW", "CREATE", "MANAGE"),
+                "DELIVERY", Set.of("CONFIRM"),
+                "ORDERS", Set.of("VIEW"),
+                "WAREHOUSES", Set.of("VIEW"),
+                "SECTIONS", Set.of("VIEW"),
+                "STOCK", Set.of("VIEW"));
         permissionRepo.findAll().forEach(p -> {
             Set<String> acts = allowed.get(p.getModule());
             if (acts != null && acts.contains(p.getAction()))

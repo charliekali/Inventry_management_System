@@ -1,53 +1,42 @@
 /**
- * WarehouseAppLayout.jsx
- * The complete shell for the Warehouse Person sub-app.
- * Mobile-first: compact topbar + 5-tab bottom navigation with slide-up actions drawer.
- * Completely isolated from the admin layout.
+ * LogisticsAppLayout.jsx
+ * Mobile-first shell for the Logistics & Dispatch sub-app.
+ * Reuses the .warehouse-app styling wrappers for unified look and feel.
  */
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import {
-  Home, Camera, ArrowDownCircle, ArrowUpCircle, BarChart3, MapPin, User, KeyRound, MoreHorizontal, X, LogOut, Truck
+  Home, ClipboardList, User, KeyRound, MoreHorizontal, X, LogOut, Truck, Navigation
 } from 'lucide-react';
+import '../warehouse/WarehouseApp.css'; // Reuse warehouse styling namespace
 
 const CORE_TABS = [
-  { path: '/warehouse',           label: 'Home',     Icon: Home,            key: 'home',      perm: null },
-  { path: '/warehouse/scan',      label: 'Scan QR',  Icon: Camera,          key: 'scan',      perm: 'TRANSACTIONS:STOCK_IN' },
-  { path: '/warehouse/stock-in',  label: 'Stock IN', Icon: ArrowDownCircle, key: 'stock-in',  perm: 'TRANSACTIONS:STOCK_IN' },
-  { path: '/warehouse/stock-out', label: 'Stock OUT',Icon: ArrowUpCircle,   key: 'stock-out', perm: 'TRANSACTIONS:STOCK_OUT' },
+  { path: '/logistics',           label: 'Pending',   Icon: Truck,           key: 'home',      perm: 'DISPATCH:VIEW' },
+  { path: '/logistics/shipments', label: 'Shipments', Icon: Navigation,      key: 'shipments', perm: 'SHIPMENTS:VIEW' },
+  { path: '/logistics/history',   label: 'Dispatched',Icon: ClipboardList,   key: 'history',   perm: 'DISPATCH:VIEW' },
+  { path: '/logistics/key-registry', label: 'Keys',   Icon: KeyRound,        key: 'keys',      perm: null },
 ];
 
 const DRAWER_ITEMS = [
-  { path: '/warehouse/logistics-dispatch', label: 'Logistics', Icon: Truck,           key: 'logistics', perm: 'DISPATCH:VIEW', bg: 'rgba(6,182,212,0.15)', color: '#06b6d4' },
-  { path: '/warehouse/balance',   label: 'Balance',  Icon: BarChart3,       key: 'balance',   perm: 'STOCK:VIEW', bg: 'rgba(59,130,246,0.15)', color: '#3b82f6' },
-  { path: '/warehouse/find',      label: 'Find',     Icon: MapPin,          key: 'find',      perm: 'STOCK:LOCATE', bg: 'rgba(168,85,247,0.15)', color: '#a855f7' },
-  { path: '/warehouse/key-registry', label: 'Keys',   Icon: KeyRound,        key: 'keys',      perm: null, bg: 'rgba(245,158,11,0.15)', color: '#f59e0b' },
-  { path: '/warehouse/profile',   label: 'Me',       Icon: User,            key: 'profile',   perm: null, bg: 'rgba(99,102,241,0.15)', color: '#6366f1' },
+  { path: '/logistics/profile',   label: 'Me',       Icon: User,            key: 'profile',   perm: null, bg: 'rgba(99,102,241,0.15)', color: '#6366f1' },
 ];
 
-export default function WarehouseAppLayout({ children }) {
+export default function LogisticsAppLayout({ children }) {
   const { user, logout, hasPermission } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const TABS = CORE_TABS.filter(t => {
-    if (!t.perm) return true;
-    if (t.key === 'scan') {
-      return hasPermission('TRANSACTIONS:STOCK_IN') || hasPermission('TRANSACTIONS:STOCK_OUT');
-    }
-    return hasPermission(t.perm);
-  });
-
+  const TABS = CORE_TABS.filter(t => !t.perm || hasPermission(t.perm));
   const MENU_ITEMS = DRAWER_ITEMS.filter(t => !t.perm || hasPermission(t.perm));
 
   const initials = user?.name
     ? user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-    : 'WH';
+    : 'LG';
 
-  const activeTab = [...TABS].reverse().find(t => location.pathname === t.path || (t.path !== '/warehouse' && location.pathname.startsWith(t.path)));
+  const activeTab = [...TABS].reverse().find(t => location.pathname === t.path || (t.path !== '/logistics' && location.pathname.startsWith(t.path)));
 
   const handleLogout = async () => {
     setDrawerOpen(false);
@@ -64,34 +53,34 @@ export default function WarehouseAppLayout({ children }) {
   return (
     <div className="warehouse-app">
       <div className="w-shell">
-        {/* ── Top Bar ─────────────────────────────────────────────────────── */}
+        {/* Top Bar */}
         <header className="w-topbar">
-          <div className="w-topbar-logo">📦</div>
+          <div className="w-topbar-logo" style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)' }}>🚚</div>
           <div className="w-topbar-info">
-            <div className="w-topbar-title">TTRIMS Warehouse</div>
-            <div className="w-topbar-sub">{activeTab?.label || 'Dashboard'}</div>
+            <div className="w-topbar-title">TTRIMS Logistics</div>
+            <div className="w-topbar-sub">{activeTab?.label || 'Dispatch'}</div>
           </div>
           <div className="w-topbar-actions">
             <div
               className="w-avatar"
               title={user?.name}
-              onClick={() => handleNavigate('/warehouse/profile')}
+              onClick={() => handleNavigate('/logistics/profile')}
             >
               {initials}
             </div>
           </div>
         </header>
 
-        {/* ── Page Content ────────────────────────────────────────────────── */}
-        <div className="w-content">
+        {/* Page Content */}
+        <div className="w-content" style={{ paddingBottom: 'calc(var(--w-nav-height) + 16px)' }}>
           {children}
         </div>
 
-        {/* ── Bottom Navigation ───────────────────────────────────────────── */}
+        {/* Bottom Navigation */}
         <nav className="w-bottom-nav">
           {TABS.map(({ path, label, Icon, key }) => {
             const isActive = location.pathname === path ||
-              (path !== '/warehouse' && location.pathname.startsWith(path));
+              (path !== '/logistics' && location.pathname.startsWith(path));
 
             return (
               <button
@@ -118,7 +107,7 @@ export default function WarehouseAppLayout({ children }) {
           </button>
         </nav>
 
-        {/* ── Bottom Sheet Drawer Overlay ─────────────────────────────────── */}
+        {/* Bottom Sheet Drawer Overlay */}
         {drawerOpen && (
           <div className="w-drawer-overlay" onClick={() => setDrawerOpen(false)}>
             <div className="w-drawer-sheet animate-slide-up" onClick={(e) => e.stopPropagation()}>

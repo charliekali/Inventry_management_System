@@ -147,6 +147,19 @@ export const ordersAPI = {
 export const dispatchAPI = {
   list: (status) => api.get('/dispatch', { params: { status } }),
   complete: (id) => api.post(`/dispatch/${id}/complete`),
+  cancel: (id) => api.post(`/dispatch/${id}/cancel`),
+  summary: () => api.get('/dispatch/summary'),
+};
+
+// ─── Shipments ────────────────────────────────────────────────────────────────
+export const shipmentsAPI = {
+  list: (status) => api.get('/shipments', { params: { status } }),
+  get: (id) => api.get(`/shipments/${id}`),
+  create: (data) => api.post('/shipments', data),
+  updateStatus: (id, status) => api.patch(`/shipments/${id}/status`, { status }),
+  deliver: (id, notes, status = 'DELIVERED') => api.post(`/shipments/${id}/deliver`, { delivery_notes: notes, status }),
+  delete: (id) => api.delete(`/shipments/${id}`),
+  analytics: () => api.get('/shipments/analytics'),
 };
 
 // ─── Production Orders ────────────────────────────────────────────────────────

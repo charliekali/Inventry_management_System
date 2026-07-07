@@ -24,6 +24,7 @@ public class DispatchController {
     }
 
     @GetMapping
+    @Transactional(readOnly = true)
     public ResponseEntity<?> listDispatches(@RequestParam(required = false) String status) {
         auth.requirePermission("DISPATCH:VIEW");
         List<Order> orders;
@@ -87,6 +88,58 @@ public class DispatchController {
         return ResponseEntity.ok(Map.of("success", true, "data", toDto(order)));
     }
 
+    @PostMapping("/{id}/cancel")
+    @Transactional
+    public ResponseEntity<?> cancelDispatch(@PathVariable String id) {
+        auth.requirePermission("DISPATCH:MANAGE");
+        Order order = orderRepo.findById(id).orElse(null);
+        if (order == null) return bad("Order not found");
+
+        if (!"DISPATCHED".equals(order.getDispatchStatus())) {
+            return bad("Order is not dispatched yet");
+        }
+
+        order.setDispatchStatus("PENDING");
+        order.setDispatchPcs(0);
+        order.setDispatchBags(0);
+        order.setDispatchedAt(null);
+        order.setDispatchedBy(null);
+
+        orderRepo.save(order);
+
+        return ResponseEntity.ok(Map.of("success", true, "data", toDto(order)));
+    }
+
+    @GetMapping("/summary")
+    @Transactional(readOnly = true)
+    public ResponseEntity<?> getDispatchSummary() {
+        auth.requirePermission("DISPATCH:VIEW");
+        List<Order> all = orderRepo.findAll();
+
+        int pendingCount = 0;
+        int dispatchedCount = 0;
+        int totalBags = 0;
+        int totalPcs = 0;
+
+        for (Order o : all) {
+            if ("PENDING".equals(o.getDispatchStatus())) {
+                pendingCount++;
+            } else if ("DISPATCHED".equals(o.getDispatchStatus())) {
+                dispatchedCount++;
+                totalBags += o.getDispatchBags() != null ? o.getDispatchBags() : 0;
+                totalPcs += o.getDispatchPcs() != null ? o.getDispatchPcs() : 0;
+            }
+        }
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("pending_dispatch_count", pendingCount);
+        summary.put("completed_dispatch_count", dispatchedCount);
+        summary.put("total_dispatched_bags", totalBags);
+        summary.put("total_dispatched_pcs", totalPcs);
+
+        return ResponseEntity.ok(Map.of("success", true, "data", summary));
+    }
+
     private Map<String, Object> toDto(Order o) {
         Map<String, Object> dto = new LinkedHashMap<>();
         dto.put("id", o.getId());
@@ -99,6 +152,27 @@ public class DispatchController {
         dto.put("dispatched_at", o.getDispatchedAt() != null ? o.getDispatchedAt().toString() : null);
         dto.put("dispatched_by", o.getDispatchedBy());
         dto.put("created_at", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
+        
+        List<Map<String, Object>> itemsList = new ArrayList<>();
+        if (o.getItems() != null) {
+            for (OrderItem item : o.getItems()) {
+                Map<String, Object> itemMap = new LinkedHashMap<>();
+                itemMap.put("product_name", item.getProduct() != null ? item.getProduct().getName() : "Unknown");
+                itemMap.put("product_code", item.getProduct() != null ? item.getProduct().getCode() : "—");
+                itemMap.put("qty_required", item.getQtyRequired());
+                itemMap.put("unit", item.getUnit());
+                
+                Product p = item.getProduct();
+                if (p != null) {
+                    itemMap.put("pcs_per_bag", p.getPcsPerBag());
+                    itemMap.put("pcs_per_innerbag", p.getPcsPerInnerbag());
+                    itemMap.put("innerbags_per_bag", p.getInnerbagsPerBag());
+                }
+                itemsList.add(itemMap);
+            }
+        }
+        dto.put("items", itemsList);
+        
         return dto;
     }
 

@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Capacitor } from '@capacitor/core';
-import { Warehouse, Package, TrendingUp, TrendingDown, AlertTriangle, Activity, Factory, ShoppingBag, ChevronRight, KeyRound } from 'lucide-react';
+import { Warehouse, Package, TrendingUp, TrendingDown, AlertTriangle, Activity, Factory, ShoppingBag, ChevronRight, KeyRound, Truck } from 'lucide-react';
 
 function fmtCurrency(val) {
   return '₹' + (val || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -56,6 +56,11 @@ export default function DashboardPage() {
     // Pure sales / CRM role → dedicated CRM workspace
     if (hasOrders && !hasStock) {
       return <Navigate to="/sales" replace />;
+    }
+
+    // Logistics role
+    if (user.role.toLowerCase().includes('logistics') || user.role.toLowerCase().includes('dispatch') || (hasPermission('DISPATCH:VIEW') && !hasStock)) {
+      return <Navigate to="/logistics" replace />;
     }
 
     // Dedicated production role
@@ -156,6 +161,30 @@ export default function DashboardPage() {
             <div style={{ flex: 1 }}>
               <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)' }}>Sales App</h4>
               <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>View POS orders, invoices, collections & CRM</p>
+            </div>
+            <ChevronRight size={18} color="var(--color-text-muted)" style={{ flexShrink: 0 }} />
+          </div>
+
+          {/* Logistics Card */}
+          <div 
+            onClick={() => navigate('/logistics')}
+            className="kpi-card cyan"
+            style={{ 
+              flexDirection: 'row', 
+              alignItems: 'center', 
+              gap: 16, 
+              padding: '18px 16px', 
+              cursor: 'pointer',
+              border: '1px solid var(--color-border)',
+              margin: 0
+            }}
+          >
+            <div className="kpi-icon cyan" style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, margin: 0 }}>
+              <Truck size={22} color="#06b6d4" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)' }}>Logistics App</h4>
+              <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>Manage order dispatches & calculate required bags</p>
             </div>
             <ChevronRight size={18} color="var(--color-text-muted)" style={{ flexShrink: 0 }} />
           </div>

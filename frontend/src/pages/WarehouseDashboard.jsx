@@ -140,6 +140,26 @@ export default function WarehouseDashboard() {
           </div>
         </div>
 
+        {/* Logistics Panel */}
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <div className="card-title">Logistics & Dispatch</div>
+              <div className="card-subtitle">Manage order dispatches and track logistics</div>
+            </div>
+            <Truck size={18} color="var(--color-primary)" />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center', justifyContent: 'center', height: '100%', padding: '20px' }}>
+             <Truck size={48} color="var(--color-text-muted)" style={{ opacity: 0.5, marginBottom: 10 }} />
+             <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 20 }}>
+               View pending and completed sales orders, calculate required bags and packaging, and mark orders as dispatched.
+             </p>
+             <Link to="/logistics-dispatch" className="btn btn-primary" style={{ width: '100%', padding: '12px', display: 'flex', justifyContent: 'center' }}>
+               Open Logistics Dashboard
+             </Link>
+          </div>
+        </div>
+
         {/* Low Stock Panel */}
         <div className="card">
           <div className="card-header">

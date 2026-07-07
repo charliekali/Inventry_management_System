@@ -337,6 +337,7 @@ export default function RolePage() {
                   <option value="Warehouse">Warehouse</option>
                   <option value="Sales">Sales</option>
                   <option value="Production">Production</option>
+                  <option value="Logistics">Logistics</option>
                 </select>
                 <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
                   Assigned scope determines which mobile sub-app or admin console dashboard users will access.
@@ -365,6 +366,9 @@ export default function RolePage() {
                       }
                       if (cat === 'sales') {
                         return ['orders', 'sales', 'products', 'reports'].includes(module.toLowerCase());
+                      }
+                      if (cat === 'logistics') {
+                        return ['dispatch', 'logistics', 'orders', 'reports'].includes(module.toLowerCase());
                       }
                       return true;
                     })

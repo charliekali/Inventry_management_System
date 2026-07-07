@@ -18,6 +18,7 @@ const NAV_ITEMS = [
     { path: '/dashboard/production', label: 'Production Dashboard', icon: Factory, perm: 'STOCK:VIEW' },
     { path: '/dashboard/warehouse', label: 'Warehouse Dashboard', icon: Warehouse, perm: 'STOCK:VIEW' },
     { path: '/dashboard/sales', label: 'Sales Dashboard', icon: ShoppingBag, perm: 'ORDERS:VIEW' },
+    { path: '/dashboard/logistics', label: 'Logistics Dashboard', icon: Truck, perm: 'DISPATCH:VIEW' },
   ]},
   { group: 'CRM & Collections', items: [
     { path: '/crm', label: 'CRM Workspace', icon: PhoneCall, perm: 'SALES:CRM' },
