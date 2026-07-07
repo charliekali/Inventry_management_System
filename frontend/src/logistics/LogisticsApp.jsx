@@ -4,6 +4,7 @@ import LogisticsHome from './pages/LogisticsHome';
 import LogisticsShipments from './pages/LogisticsShipments';
 import LogisticsHistory from './pages/LogisticsHistory';
 import LogisticsProfile from './pages/LogisticsProfile';
+import LogisticsAttendance from './pages/LogisticsAttendance';
 import MobileKeyRegistry from '../components/MobileKeyRegistry';
 
 export default function LogisticsApp() {
@@ -13,6 +14,7 @@ export default function LogisticsApp() {
         <Route path="/" element={<LogisticsHome />} />
         <Route path="shipments" element={<LogisticsShipments />} />
         <Route path="history" element={<LogisticsHistory />} />
+        <Route path="attendance" element={<LogisticsAttendance />} />
         <Route path="profile" element={<LogisticsProfile />} />
         <Route path="key-registry" element={<MobileKeyRegistry />} />
         {/* Redirect unknown routes back to home */}

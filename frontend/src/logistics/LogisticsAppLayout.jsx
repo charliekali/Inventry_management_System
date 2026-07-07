@@ -8,7 +8,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import {
-  Home, ClipboardList, User, KeyRound, MoreHorizontal, X, LogOut, Truck, Navigation
+  Home, ClipboardList, User, KeyRound, MoreHorizontal, X, LogOut, Truck, Navigation, Clock
 } from 'lucide-react';
 import '../warehouse/WarehouseApp.css'; // Reuse warehouse styling namespace
 
@@ -16,6 +16,7 @@ const CORE_TABS = [
   { path: '/logistics',           label: 'Pending',   Icon: Truck,           key: 'home',      perm: 'DISPATCH:VIEW' },
   { path: '/logistics/shipments', label: 'Shipments', Icon: Navigation,      key: 'shipments', perm: 'SHIPMENTS:VIEW' },
   { path: '/logistics/history',   label: 'Dispatched',Icon: ClipboardList,   key: 'history',   perm: 'DISPATCH:VIEW' },
+  { path: '/logistics/attendance',label: 'Attend',    Icon: Clock,           key: 'attendance',perm: 'SHIPMENTS:VIEW' },
   { path: '/logistics/key-registry', label: 'Keys',   Icon: KeyRound,        key: 'keys',      perm: null },
 ];
 

@@ -24,17 +24,20 @@ public class LogisticsService {
     private final OrderRepository orderRepo;
     private final UserRepository userRepo;
     private final RoleRepository roleRepo;
+    private final AttendanceRepository attendanceRepo;
 
     public LogisticsService(ShipmentRepository shipmentRepo,
                             ShipmentOrderRepository shipmentOrderRepo,
                             OrderRepository orderRepo,
                             UserRepository userRepo,
-                            RoleRepository roleRepo) {
+                            RoleRepository roleRepo,
+                            AttendanceRepository attendanceRepo) {
         this.shipmentRepo = shipmentRepo;
         this.shipmentOrderRepo = shipmentOrderRepo;
         this.orderRepo = orderRepo;
         this.userRepo = userRepo;
         this.roleRepo = roleRepo;
+        this.attendanceRepo = attendanceRepo;
     }
 
     @Transactional
@@ -151,13 +154,34 @@ public class LogisticsService {
                 .filter(u -> u.getRole() != null && u.getRole().getId().equals(driverRole.getId()) && u.isActive())
                 .collect(Collectors.toList());
 
-        // Filter available drivers (status = AVAILABLE or IDLE)
+        // Query active attendance sessions to find currently clocked-in users
+        List<Attendance> activeSessions = attendanceRepo.findByStatusOrderByClockInAtDesc("ACTIVE");
+        Set<String> activeUserIds = activeSessions.stream()
+                .map(Attendance::getUserId)
+                .collect(Collectors.toSet());
+
+        // Filter available drivers who are currently clocked in
         List<User> availableDrivers = allDrivers.stream()
+                .filter(d -> activeUserIds.contains(d.getId()))
                 .filter(d -> "AVAILABLE".equalsIgnoreCase(d.getDriverStatus()) || "IDLE".equalsIgnoreCase(d.getDriverStatus()) || d.getDriverStatus() == null)
                 .collect(Collectors.toList());
 
+        // Fallback 1: If no clocked-in AVAILABLE drivers, try any clocked-in drivers
         if (availableDrivers.isEmpty()) {
-            log.warn("No available drivers found. Assigning fallback driver.");
+            availableDrivers = allDrivers.stream()
+                    .filter(d -> activeUserIds.contains(d.getId()))
+                    .collect(Collectors.toList());
+        }
+
+        // Fallback 2: If absolutely no driver is clocked in, use all available drivers in system
+        if (availableDrivers.isEmpty()) {
+            availableDrivers = allDrivers.stream()
+                    .filter(d -> "AVAILABLE".equalsIgnoreCase(d.getDriverStatus()) || "IDLE".equalsIgnoreCase(d.getDriverStatus()) || d.getDriverStatus() == null)
+                    .collect(Collectors.toList());
+        }
+
+        if (availableDrivers.isEmpty()) {
+            log.warn("No available or active drivers found. Assigning fallback driver.");
             if (!allDrivers.isEmpty()) {
                 User fallback = allDrivers.get(0);
                 shipment.setDriver(fallback);
