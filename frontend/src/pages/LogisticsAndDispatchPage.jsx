@@ -7,9 +7,101 @@ import {
   Play, Map, Edit, UserCheck, RefreshCw, X, Eye
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import { useTheme } from '../context/ThemeContext';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Custom Marker icons
+function createStopMarker(seq, status) {
+  const color = status === 'DELIVERED' ? '#10b981' : status === 'FAILED' ? '#ef4444' : '#fb923c';
+  const size = 28;
+  const html = `
+    <div style="position:relative; width:${size}px; height:${size}px;">
+      <div style="
+        position:absolute; inset:0;
+        background:${color};
+        border-radius:50%;
+        display:flex; align-items:center; justify-content:center;
+        color:#090d16; font-weight:900; font-size:11px;
+        border: 2px solid white;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+      ">${seq}</div>
+    </div>`;
+  return L.divIcon({
+    html,
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
+  });
+}
+
+function createDriverMarker() {
+  const size = 32;
+  const html = `
+    <div style="position:relative; width:${size}px; height:${size}px;">
+      <div style="
+        position:absolute; inset:0;
+        background:#10b981;
+        border-radius:50%;
+        display:flex; align-items:center; justify-content:center;
+        font-size:15px;
+        border: 2px solid white;
+        box-shadow: 0 2px 8px rgba(16,185,129,0.5);
+      ">🚚</div>
+    </div>`;
+  return L.divIcon({
+    html,
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
+  });
+}
+
+function createDepotMarker() {
+  const size = 32;
+  const html = `
+    <div style="position:relative; width:${size}px; height:${size}px;">
+      <div style="
+        position:absolute; inset:0;
+        background:#ef4444;
+        border-radius:50%;
+        display:flex; align-items:center; justify-content:center;
+        font-size:15px;
+        border: 2px solid white;
+        box-shadow: 0 2px 8px rgba(239,68,68,0.5);
+      ">🏢</div>
+    </div>`;
+  return L.divIcon({
+    html,
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
+  });
+}
+
+function MapBounds({ coords }) {
+  const map = useMap();
+  useEffect(() => {
+    if (coords && coords.length > 0) {
+      const validCoords = coords.filter(c => c && !isNaN(c[0]) && !isNaN(c[1]));
+      if (validCoords.length > 0) {
+        const bounds = L.latLngBounds(validCoords);
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+      }
+    }
+  }, [coords, map]);
+  return null;
+}
 
 export default function LogisticsAndDispatchPage() {
   const { hasPermission } = useAuth();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const tileUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
   const [orders, setOrders] = useState([]);
   const [shipments, setShipments] = useState([]);
   const [drivers, setDrivers] = useState([]);
@@ -410,20 +502,12 @@ export default function LogisticsAndDispatchPage() {
               </div>
 
               {(() => {
-                // Collect coordinates to plot in mock tracking map
+                // Collect coordinates and lines to plot on Leaflet Map
                 const stopsList = [];
                 const driversList = [];
-                const latMin = 6.85, latMax = 7.00;
-                const lngMin = 79.80, lngMax = 79.95;
-
-                const toSvgCoords = (lat, lng) => {
-                  // Scale coordinates to fit beautifully within 800x400 SVG box
-                  const x = ((lng - lngMin) / (lngMax - lngMin)) * 740 + 30;
-                  const y = (1.0 - (lat - latMin) / (latMax - latMin)) * 340 + 30;
-                  return { x, y };
-                };
-
-                const depotPos = toSvgCoords(6.9271, 79.8612);
+                const routesList = [];
+                const mapCenter = [6.9271, 79.8612]; // default depot coordinates
+                const boundsCoords = [mapCenter];
 
                 shipments.forEach(s => {
                   if (s.status === 'EN_ROUTE' || s.status === 'CREATED') {
@@ -431,32 +515,54 @@ export default function LogisticsAndDispatchPage() {
                     
                     s.orders?.forEach(o => {
                       if (o.latitude && o.longitude) {
-                        const pos = toSvgCoords(o.latitude, o.longitude);
+                        const latVal = parseFloat(o.latitude);
+                        const lngVal = parseFloat(o.longitude);
                         stopsList.push({
                           id: o.id,
                           order_number: o.order_number,
                           customer: o.customer,
                           status: o.stop_status || 'PENDING',
-                          x: pos.x,
-                          y: pos.y
+                          lat: latVal,
+                          lng: lngVal,
+                          sequence: o.stop_sequence
                         });
-                        routeStops.push(pos);
+                        routeStops.push({
+                          lat: latVal,
+                          lng: lngVal,
+                          sequence: o.stop_sequence || 0
+                        });
+                        boundsCoords.push([latVal, lngVal]);
                       }
                     });
 
-                    const d = s.driver;
-                    const dLat = d?.lat || 6.9271;
-                    const dLng = d?.lng || 79.8612;
-                    const dPos = toSvgCoords(dLat, dLng);
+                    // Sort stops by sequence
+                    routeStops.sort((a, b) => a.sequence - b.sequence);
+                    const stopLatLngs = routeStops.map(rs => [rs.lat, rs.lng]);
 
-                    driversList.push({
-                      name: s.driver_name || 'Driver',
-                      vehicle: s.vehicle_number,
-                      status: d?.driver_status || 'BUSY',
-                      x: dPos.x,
-                      y: dPos.y,
-                      routeStops
-                    });
+                    // Add polyline paths
+                    if (stopLatLngs.length > 0) {
+                      routesList.push({
+                        id: s.id,
+                        color: s.status === 'EN_ROUTE' ? '#3b82f6' : '#94a3b8',
+                        positions: [mapCenter, ...stopLatLngs]
+                      });
+                    }
+
+                    const d = s.driver;
+                    const dLat = d?.lat ? parseFloat(d.lat) : null;
+                    const dLng = d?.lng ? parseFloat(d.lng) : null;
+
+                    if (dLat && dLng) {
+                      driversList.push({
+                        name: s.driver_name || 'Driver',
+                        vehicle: s.vehicle_number,
+                        lat: dLat,
+                        lng: dLng,
+                        driverStatus: d?.driver_status || 'BUSY',
+                        firstStop: stopLatLngs[0]
+                      });
+                      boundsCoords.push([dLat, dLng]);
+                    }
                   }
                 });
 
@@ -473,110 +579,91 @@ export default function LogisticsAndDispatchPage() {
                         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#06b6d4' }}></span> Driver (Truck)</span>
                       </div>
                     </div>
-                    <div style={{ background: '#090d16', borderRadius: 8, overflow: 'hidden', border: '1px solid #1e293b', boxShadow: 'inset 0 0 20px rgba(0,0,0,0.8)' }}>
-                      <svg width="100%" height="400" viewBox="0 0 800 400" style={{ display: 'block' }}>
-                        <defs>
-                          {/* Grid gridlines */}
-                          <pattern id="map-grid-pattern" width="40" height="40" patternUnits="userSpaceOnUse">
-                            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#0f172a" strokeWidth="1" />
-                          </pattern>
-                          {/* Glow filters for premium visual effects */}
-                          <filter id="glow-depot" x="-20%" y="-20%" width="140%" height="140%">
-                            <feGaussianBlur stdDeviation="5" result="blur" />
-                            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                          </filter>
-                        </defs>
-                        
-                        {/* Shaded Grid Background */}
-                        <rect width="800" height="400" fill="url(#map-grid-pattern)" />
 
-                        {/* Ocean / Laccadive Sea representation on the West Coast (Left Side) */}
-                        <path d="M 0,0 L 230,0 C 240,120 220,240 250,400 L 0,400 Z" fill="#081324" opacity="0.9" />
-                        <text x="70" y="200" fill="#1e293b" fontSize="13" fontWeight="bold" transform="rotate(-90, 70, 200)" letterSpacing="4">INDIAN OCEAN</text>
+                    <div style={{ height: 350, borderRadius: 8, overflow: 'hidden', border: '1px solid #1e293b' }}>
+                      <MapContainer
+                        center={mapCenter}
+                        zoom={13}
+                        style={{ height: '100%', width: '100%', background: '#090d16' }}
+                      >
+                        <TileLayer
+                          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                          url={tileUrl}
+                          className={isDark ? 'leaflet-dark-filter' : ''}
+                        />
 
-                        {/* Colombo Shoreline Border line */}
-                        <path d="M 230,0 C 240,120 220,240 250,400" fill="none" stroke="#1e2d42" strokeWidth="3" />
+                        {/* Fit Bounds Component */}
+                        <MapBounds coords={boundsCoords} />
 
-                        {/* Major Highway Mock Lines */}
-                        {/* Baseline Road (North-South East side) */}
-                        <path d="M 520,0 C 530,120 540,240 560,400" fill="none" stroke="#101b2d" strokeWidth="4" />
-                        <text x="545" y="380" fill="#1e2d42" fontSize="9" fontWeight="600" transform="rotate(82, 545, 380)">Baseline Rd</text>
+                        {/* Depot Marker */}
+                        <Marker position={mapCenter} icon={createDepotMarker()}>
+                          <Popup>
+                            <div style={{ color: '#090d16' }}>
+                              <strong>Main Distribution Depot</strong><br />
+                              Colombo Central Hub
+                            </div>
+                          </Popup>
+                        </Marker>
 
-                        {/* Galle Road (Coastal Highway) */}
-                        <path d="M 265,0 C 275,120 270,240 295,400" fill="none" stroke="#101b2d" strokeWidth="4" />
-                        <text x="280" y="380" fill="#1e2d42" fontSize="9" fontWeight="600" transform="rotate(83, 280, 380)">Galle Rd</text>
+                        {/* Stop Markers */}
+                        {stopsList.map((stop, idx) => (
+                          <Marker 
+                            key={`stop-${stop.id}-${idx}`} 
+                            position={[stop.lat, stop.lng]} 
+                            icon={createStopMarker(stop.sequence || (idx + 1), stop.status)}
+                          >
+                            <Popup>
+                              <div style={{ color: '#090d16' }}>
+                                <strong>Stop {stop.sequence || (idx + 1)}: {stop.order_number}</strong><br />
+                                Customer: {stop.customer}<br />
+                                Status: <span style={{ fontWeight: 'bold' }}>{stop.status}</span>
+                              </div>
+                            </Popup>
+                          </Marker>
+                        ))}
 
-                        {/* Colombo-Kandy Road (East-West Highway) */}
-                        <path d="M 270,90 Q 450,110 800,140" fill="none" stroke="#101b2d" strokeWidth="4" />
-                        <text x="680" y="125" fill="#1e2d42" fontSize="9" fontWeight="600">Colombo-Kandy Hwy</text>
-
-                        {/* Draw planned route path lines */}
+                        {/* Driver Markers */}
                         {driversList.map((d, idx) => (
-                          d.routeStops.length > 0 && (
-                            <g key={idx}>
-                              {/* Path starting from Depot to first stop */}
-                              <line x1={depotPos.x} y1={depotPos.y} x2={d.routeStops[0].x} y2={d.routeStops[0].y} stroke="#3b82f6" strokeWidth="3" strokeDasharray="6,4" opacity="0.8" />
-                              {/* Paths between consecutive stops */}
-                              {d.routeStops.map((stop, sIdx) => (
-                                sIdx < d.routeStops.length - 1 && (
-                                  <line key={sIdx} x1={stop.x} y1={stop.y} x2={d.routeStops[sIdx+1].x} y2={d.routeStops[sIdx+1].y} stroke="#3b82f6" strokeWidth="3" opacity="0.95" />
-                                )
-                              ))}
-                              {/* Path from driver active location to current first stop */}
-                              <line x1={d.x} y1={d.y} x2={d.routeStops[0].x} y2={d.routeStops[0].y} stroke="#10b981" strokeWidth="2.5" strokeDasharray="3,3" />
-                            </g>
+                          <Marker 
+                            key={`driver-${idx}`} 
+                            position={[d.lat, d.lng]} 
+                            icon={createDriverMarker()}
+                          >
+                            <Popup>
+                              <div style={{ color: '#090d16' }}>
+                                <strong>Driver: {d.name}</strong><br />
+                                Vehicle: {d.vehicle}<br />
+                                Status: {d.driverStatus}
+                              </div>
+                            </Popup>
+                          </Marker>
+                        ))}
+
+                        {/* Route Polylines */}
+                        {routesList.map(route => (
+                          <Polyline 
+                            key={`route-${route.id}`} 
+                            positions={route.positions} 
+                            color={route.color} 
+                            weight={3.5} 
+                            opacity={0.8}
+                          />
+                        ))}
+
+                        {/* Connecting line from driver to first stop */}
+                        {driversList.map((d, idx) => (
+                          d.firstStop && (
+                            <Polyline
+                              key={`drv-con-${idx}`}
+                              positions={[[d.lat, d.lng], d.firstStop]}
+                              color="#10b981"
+                              weight={2.5}
+                              dashArray="5,5"
+                              opacity={0.7}
+                            />
                           )
                         ))}
-
-                        {/* Depot Layer */}
-                        <g>
-                          <circle cx={depotPos.x} cy={depotPos.y} r={22} fill="none" stroke="#ef4444" strokeWidth="1.5" opacity="0.6">
-                            <animate attributeName="r" values="10;25;10" dur="4s" repeatCount="indefinite" />
-                            <animate attributeName="opacity" values="0.7;0.1;0.7" dur="4s" repeatCount="indefinite" />
-                          </circle>
-                          <circle cx={depotPos.x} cy={depotPos.y} r={10} fill="#ef4444" stroke="#ffffff" strokeWidth="2" filter="url(#glow-depot)" />
-                          
-                          {/* Label backdrop card */}
-                          <rect x={depotPos.x - 38} y={depotPos.y - 32} width="76" height="15" rx="3" fill="#1e293b" stroke="#ef4444" strokeWidth="0.5" />
-                          <text x={depotPos.x} y={depotPos.y - 21} fill="#fca5a5" fontSize="9" fontWeight="bold" textAnchor="middle">MAIN DEPOT</text>
-                        </g>
-
-                        {/* Stops Layer */}
-                        {stopsList.map((stop, idx) => {
-                          const isDelivered = stop.status === 'DELIVERED';
-                          const isFailed = stop.status === 'FAILED';
-                          const color = isDelivered ? '#10b981' : isFailed ? '#ef4444' : '#fb923c';
-                          
-                          return (
-                            <g key={idx}>
-                              <circle cx={stop.x} cy={stop.y} r={8.5} fill={color} stroke="#ffffff" strokeWidth="2" style={{ filter: `drop-shadow(0 0 5px ${color})` }} />
-                              
-                              {/* Stop text identifier inside the dot */}
-                              <text x={stop.x} y={stop.y + 3} fill="#090d16" fontSize="8" fontWeight="bold" textAnchor="middle">{stop.order_number.replace('ORD-', '')}</text>
-
-                              {/* Label hover card */}
-                              <rect x={stop.x - 35} y={stop.y - 27} width="70" height="14" rx="3" fill="#1e293b" opacity="0.9" />
-                              <text x={stop.x} y={stop.y - 17} fill="#e2e8f0" fontSize="8" fontWeight="700" textAnchor="middle">{stop.customer.substring(0, 10)}</text>
-                            </g>
-                          );
-                        })}
-
-                        {/* Drivers / Trucks Layer */}
-                        {driversList.map((d, idx) => (
-                          <g key={idx}>
-                            {/* Driver indicator ring */}
-                            <circle cx={d.x} cy={d.y} r={16} fill="none" stroke="#10b981" strokeWidth="1.5" opacity="0.5" />
-                            {/* Emerald truck background */}
-                            <circle cx={d.x} cy={d.y} r={11.5} fill="#10b981" stroke="#ffffff" strokeWidth="2" style={{ filter: 'drop-shadow(0 0 8px #10b981)' }} />
-                            {/* Truck Emoji */}
-                            <text x={d.x} y={d.y + 3} fill="#ffffff" fontSize="10.5" fontWeight="bold" textAnchor="middle">🚚</text>
-
-                            {/* Driver detail overlay card */}
-                            <rect x={d.x - 45} y={d.y - 32} width="90" height="16" rx="3" fill="#0f172a" stroke="#10b981" strokeWidth="1" />
-                            <text x={d.x} y={d.y - 21} fill="#34d399" fontSize="9.5" fontWeight="bold" textAnchor="middle">{d.name}</text>
-                          </g>
-                        ))}
-                      </svg>
+                      </MapContainer>
                     </div>
                   </div>
                 );
