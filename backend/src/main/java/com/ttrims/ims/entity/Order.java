@@ -34,7 +34,7 @@ public class Order {
     @JoinColumn(name = "assigned_to")
     private User assignedTo;
 
-    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<OrderItem> items = new ArrayList<>();
 
     @JdbcTypeCode(SqlTypes.JSON)
