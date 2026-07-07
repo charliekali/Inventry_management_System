@@ -55,7 +55,12 @@ public class ProductionOrder {
     public void setProductionOrderNumber(String n) { this.productionOrderNumber = n; }
 
     public List<ProductionOrderItem> getItems() { return items; }
-    public void setItems(List<ProductionOrderItem> items) { this.items = items; }
+    public void setItems(List<ProductionOrderItem> items) {
+        this.items.clear();
+        if (items != null) {
+            this.items.addAll(items);
+        }
+    }
 
     public Status getStatus() { return status; }
     public void setStatus(Status status) { this.status = status; }

@@ -43,18 +43,29 @@ public class StockController {
     }
 
     @GetMapping("/summary")
-    public ResponseEntity<?> summary(@RequestParam(required = false) String type) {
+    public ResponseEntity<?> summary(@RequestParam(required = false) String type,
+                                     @RequestParam(required = false, name = "warehouse_id") String warehouseId) {
         auth.requirePermission("STOCK:VIEW");
         List<Product> products = type != null
             ? productRepo.findByTypeAndActiveTrueOrderByName(Product.Type.valueOf(type))
             : productRepo.findByActiveTrueOrderByTypeAscNameAsc();
 
-        Map<String, Double> productQuantities = balanceRepo.sumQuantitiesGroupedByProduct().stream()
-            .collect(Collectors.toMap(
-                row -> (String) row[0],
-                row -> row[1] != null ? ((Number) row[1]).doubleValue() : 0.0,
-                (v1, v2) -> v1
-            ));
+        Map<String, Double> productQuantities;
+        if (warehouseId != null && !warehouseId.trim().isEmpty()) {
+            productQuantities = balanceRepo.sumQuantitiesGroupedByProductAndWarehouse(warehouseId).stream()
+                .collect(Collectors.toMap(
+                    row -> (String) row[0],
+                    row -> row[1] != null ? ((Number) row[1]).doubleValue() : 0.0,
+                    (v1, v2) -> v1
+                ));
+        } else {
+            productQuantities = balanceRepo.sumQuantitiesGroupedByProduct().stream()
+                .collect(Collectors.toMap(
+                    row -> (String) row[0],
+                    row -> row[1] != null ? ((Number) row[1]).doubleValue() : 0.0,
+                    (v1, v2) -> v1
+                ));
+        }
 
         var summary = products.stream().map(p -> {
             Double total = productQuantities.getOrDefault(p.getId(), 0.0);

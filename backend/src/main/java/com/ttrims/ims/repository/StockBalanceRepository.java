@@ -34,6 +34,9 @@ public interface StockBalanceRepository extends JpaRepository<StockBalance, Stri
     @Query("SELECT sb.product.id, COALESCE(SUM(sb.quantity), 0) FROM StockBalance sb GROUP BY sb.product.id")
     List<Object[]> sumQuantitiesGroupedByProduct();
 
+    @Query("SELECT sb.product.id, COALESCE(SUM(sb.quantity), 0) FROM StockBalance sb WHERE sb.warehouse.id = :warehouseId GROUP BY sb.product.id")
+    List<Object[]> sumQuantitiesGroupedByProductAndWarehouse(@Param("warehouseId") String warehouseId);
+
     @Query("SELECT sb.warehouse.id, COALESCE(SUM(sb.quantity), 0) FROM StockBalance sb GROUP BY sb.warehouse.id")
     List<Object[]> sumQuantitiesGroupedByWarehouse();
 

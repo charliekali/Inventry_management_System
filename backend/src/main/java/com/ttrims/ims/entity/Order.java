@@ -121,7 +121,12 @@ public class Order {
     public User getAssignedTo() { return assignedTo; }
     public void setAssignedTo(User assignedTo) { this.assignedTo = assignedTo; }
     public List<OrderItem> getItems() { return items; }
-    public void setItems(List<OrderItem> items) { this.items = items; }
+    public void setItems(List<OrderItem> items) {
+        this.items.clear();
+        if (items != null) {
+            this.items.addAll(items);
+        }
+    }
     public Map<String, String> getCustomFields() { return customFields; }
     public void setCustomFields(Map<String, String> customFields) { this.customFields = customFields; }
 

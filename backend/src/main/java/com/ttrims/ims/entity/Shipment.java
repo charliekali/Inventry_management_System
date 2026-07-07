@@ -128,5 +128,10 @@ public class Shipment {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
     public List<ShipmentOrder> getShipmentOrders() { return shipmentOrders; }
-    public void setShipmentOrders(List<ShipmentOrder> shipmentOrders) { this.shipmentOrders = shipmentOrders; }
+    public void setShipmentOrders(List<ShipmentOrder> shipmentOrders) {
+        this.shipmentOrders.clear();
+        if (shipmentOrders != null) {
+            this.shipmentOrders.addAll(shipmentOrders);
+        }
+    }
 }

@@ -45,7 +45,12 @@ public class Warehouse {
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
     public List<Section> getSections() { return sections; }
-    public void setSections(List<Section> sections) { this.sections = sections; }
+    public void setSections(List<Section> sections) {
+        this.sections.clear();
+        if (sections != null) {
+            this.sections.addAll(sections);
+        }
+    }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
