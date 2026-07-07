@@ -75,7 +75,14 @@ public class StockController {
             m.put("min_stock", p.getMinStock()); m.put("total_quantity", total);
             m.put("is_low_stock", total <= p.getMinStock());
             return m;
-        }).collect(Collectors.toList());
+        })
+        .filter(m -> {
+            if (warehouseId != null && !warehouseId.trim().isEmpty()) {
+                return ((Double) m.get("total_quantity")) > 0.0;
+            }
+            return true;
+        })
+        .collect(Collectors.toList());
         return ok(summary);
     }
 
