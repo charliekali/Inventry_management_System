@@ -5,6 +5,7 @@ import { Plus, Edit2, Archive, Package, Download, RotateCcw, Trash2, Upload } fr
 import { useAuth } from '../context/AuthContext';
 import useBulkActions from '../hooks/useBulkActions';
 import BulkActionBar from '../components/BulkActionBar';
+import SearchableSelect from '../components/SearchableSelect';
 
 const getStepBadgeClass = (step) => {
   switch (step) {
@@ -708,20 +709,12 @@ export default function ProductPage() {
 
               <div className="form-group">
                 <label className="form-label">Category</label>
-                <select
-                  className="form-control"
+                <SearchableSelect
+                  options={categories.flatMap(group => group.subcategories.map(sub => ({ value: sub, label: `${group.category} > ${sub}` })))}
                   value={pCategory}
-                  onChange={(e) => setPCategory(e.target.value)}
-                >
-                  <option value="">— Select Category —</option>
-                  {categories.map(group => (
-                    <optgroup key={group.category} label={group.category}>
-                      {group.subcategories.map(sub => (
-                        <option key={sub} value={sub}>{sub}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
+                  onChange={(val) => setPCategory(val)}
+                  placeholder="— Select Category —"
+                />
               </div>
 
               {pType === 'FINISHED_GOOD' && (

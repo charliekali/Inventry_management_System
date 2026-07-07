@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { Plus, Edit2, Package, ListPlus, Trash2, Sliders, CheckCircle, Info, Download, Trash } from 'lucide-react';
 import useBulkActions from '../hooks/useBulkActions';
 import BulkActionBar from '../components/BulkActionBar';
+import SearchableSelect from '../components/SearchableSelect';
 
 const getStepBadgeClass = (step) => {
   switch (step) {
@@ -514,18 +515,13 @@ export default function RecipePage() {
             <div className="modal-body">
               <div className="form-group">
                 <label className="form-label">Select Ingredient Product (Raw Material / Bulk Blend) <span>*</span></label>
-                <select 
-                  className="form-control" 
-                  value={bomRmId} 
-                  onChange={(e) => setBomRmId(e.target.value)}
+                <SearchableSelect
+                  options={rawMaterials.map(rm => ({ value: rm.id, label: `[${rm.code}] ${rm.name} (${rm.unit})` }))}
+                  value={bomRmId}
                   disabled={editingBomId != null}
-                  required
-                >
-                  <option value="">Select ingredient...</option>
-                  {rawMaterials.map(rm => (
-                    <option key={rm.id} value={rm.id}>[{rm.code}] {rm.name} ({rm.unit})</option>
-                  ))}
-                </select>
+                  onChange={val => setBomRmId(val)}
+                  placeholder="Select ingredient..."
+                />
               </div>
 
               <div className="form-row">

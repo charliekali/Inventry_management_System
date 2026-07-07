@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
+import SearchableSelect from '../components/SearchableSelect';
 
 export default function ProductionRunPage() {
   const navigate = useNavigate();
@@ -399,16 +400,12 @@ export default function ProductionRunPage() {
               {/* Product selection */}
               <div className="form-group">
                 <label className="form-label">Target Product to Produce (Bulk Blend / Pouch Pack)</label>
-                <select 
-                  className="form-control"
+                <SearchableSelect
+                  options={eligibleProducts.map(p => ({ value: p.id, label: `[${p.code}] ${p.name} (${p.unit})` }))}
                   value={selectedProductId}
-                  onChange={e => setSelectedProductId(e.target.value)}
-                >
-                  <option value="">Select product to produce...</option>
-                  {eligibleProducts.map(p => (
-                    <option key={p.id} value={p.id}>[{p.code}] {p.name} ({p.unit})</option>
-                  ))}
-                </select>
+                  onChange={val => setSelectedProductId(val)}
+                  placeholder="Select product to produce..."
+                />
               </div>
 
               {selectedProduct && (
@@ -459,31 +456,23 @@ export default function ProductionRunPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Destination Warehouse (Output Stock-In)</label>
-                  <select 
-                    className="form-control"
+                  <SearchableSelect
+                    options={warehouses.map(w => ({ value: w.id, label: `${w.name} (${w.location})` }))}
                     value={destWarehouseId}
-                    onChange={e => setDestWarehouseId(e.target.value)}
-                  >
-                    <option value="">Choose warehouse...</option>
-                    {warehouses.map(w => (
-                      <option key={w.id} value={w.id}>{w.name} ({w.location})</option>
-                    ))}
-                  </select>
+                    onChange={val => setDestWarehouseId(val)}
+                    placeholder="Choose warehouse..."
+                  />
                 </div>
 
                 <div className="form-group">
                   <label className="form-label">Destination Section</label>
-                  <select 
-                    className="form-control"
+                  <SearchableSelect
+                    options={destSections.map(s => ({ value: s.id, label: s.name }))}
                     value={destSectionId}
-                    onChange={e => setDestSectionId(e.target.value)}
                     disabled={!destWarehouseId}
-                  >
-                    <option value="">Open Area (No specific shelf)</option>
-                    {destSections.map(s => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
+                    onChange={val => setDestSectionId(val)}
+                    placeholder="Open Area (No specific shelf)"
+                  />
                 </div>
               </div>
 

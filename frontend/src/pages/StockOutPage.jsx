@@ -5,6 +5,7 @@ import { ArrowUpCircle, Save, Info, Camera, MapPin, CheckCircle, X, SlidersHoriz
 import { Link } from 'react-router-dom';
 import QRScannerModal from '../components/QRScannerModal';
 import useFormSettings from '../hooks/useFormSettings';
+import SearchableSelect from '../components/SearchableSelect';
 
 export default function StockOutPage() {
   const [products, setProducts] = useState([]);
@@ -221,17 +222,12 @@ export default function StockOutPage() {
                   {getLabel('product_id', 'Product')}
                   {isRequired('product_id') && <span> *</span>}
                 </label>
-                <select
-                  className="form-control"
+                <SearchableSelect
+                  options={products.map(p => ({ value: p.id, label: `[${p.code}] ${p.name} (${p.type})` }))}
                   value={productId}
-                  onChange={e => setProductId(e.target.value)}
-                  required={isRequired('product_id')}
-                >
-                  <option value="">Select Product...</option>
-                  {products.map(p => (
-                    <option key={p.id} value={p.id}>[{p.code}] {p.name} ({p.type})</option>
-                  ))}
-                </select>
+                  onChange={val => setProductId(val)}
+                  placeholder="Select Product..."
+                />
               </div>
             )}
 
@@ -259,17 +255,12 @@ export default function StockOutPage() {
                   {getLabel('warehouse_id', 'Warehouse')}
                   {isRequired('warehouse_id') && <span> *</span>}
                 </label>
-                <select
-                  className="form-control"
+                <SearchableSelect
+                  options={warehouses.map(w => ({ value: w.id, label: `${w.name} (${w.location})` }))}
                   value={warehouseId}
-                  onChange={e => { setWarehouseId(e.target.value); setScannedLocation(null); }}
-                  required={isRequired('warehouse_id')}
-                >
-                  <option value="">Select Warehouse...</option>
-                  {warehouses.map(w => (
-                    <option key={w.id} value={w.id}>{w.name} ({w.location})</option>
-                  ))}
-                </select>
+                  onChange={val => { setWarehouseId(val); setScannedLocation(null); }}
+                  placeholder="Select Warehouse..."
+                />
               </div>
             )}
 
@@ -279,18 +270,13 @@ export default function StockOutPage() {
                   {getLabel('section_id', 'Section')}
                   {isRequired('section_id') && <span> *</span>}
                 </label>
-                <select
-                  className="form-control"
+                <SearchableSelect
+                  options={sections.map(s => ({ value: s.id, label: s.name }))}
                   value={sectionId}
                   disabled={!warehouseId}
-                  onChange={e => setSectionId(e.target.value)}
-                  required={isRequired('section_id')}
-                >
-                  <option value="">Select Section...</option>
-                  {sections.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
+                  onChange={val => setSectionId(val)}
+                  placeholder="Select Section..."
+                />
               </div>
             )}
           </div>
