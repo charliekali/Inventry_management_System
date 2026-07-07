@@ -113,9 +113,9 @@ public class DataSeeder implements CommandLineRunner {
         // 2. Production Seeding
         seedUser("admin@ttrims.com", "Super Admin", "Admin@123", superAdminRole);
         seedUser("sugu@123.com", "Sugu", "123456", superAdminRole);
-        seedDriverUser("driver1@ttrims.com", "Driver One", "driver1_123", driverRole, "WP-LH-4512", 6.9271, 79.8612);
-        seedDriverUser("driver2@ttrims.com", "Driver Two", "driver2_123", driverRole, "WP-LH-8822", 6.9310, 79.8432);
-        seedDriverUser("driver3@ttrims.com", "Driver Three", "driver3_123", driverRole, "WP-LH-1199", 6.9056, 79.8512);
+        seedDriverUser("driver1@ttrims.com", "Driver One", "driver1_123", driverRole, "WP-LH-4512", 9.9252, 78.1198);
+        seedDriverUser("driver2@ttrims.com", "Driver Two", "driver2_123", driverRole, "WP-LH-8822", 9.9291, 78.1018);
+        seedDriverUser("driver3@ttrims.com", "Driver Three", "driver3_123", driverRole, "WP-LH-1199", 9.9037, 78.1098);
         seedProductCategories();
         seedPostgresInstances();
     }

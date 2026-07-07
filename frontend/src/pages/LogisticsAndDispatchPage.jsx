@@ -506,7 +506,7 @@ export default function LogisticsAndDispatchPage() {
                 const stopsList = [];
                 const driversList = [];
                 const routesList = [];
-                const mapCenter = [6.9271, 79.8612]; // default depot coordinates
+                const mapCenter = [9.9252, 78.1198]; // default depot coordinates
                 const boundsCoords = [mapCenter];
 
                 shipments.forEach(s => {

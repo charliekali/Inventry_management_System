@@ -14,8 +14,8 @@ import java.util.stream.Collectors;
 @Service
 public class LogisticsService {
     private static final Logger log = LoggerFactory.getLogger(LogisticsService.class);
-    private static final double DEPOT_LAT = 6.9271;
-    private static final double DEPOT_LNG = 79.8612;
+    private static final double DEPOT_LAT = 9.9252;
+    private static final double DEPOT_LNG = 78.1198;
     private static final double SERVICE_RADIUS_KM = 5.0;
     private static final int MAX_STOPS_PER_SHIPMENT = 5;
 
