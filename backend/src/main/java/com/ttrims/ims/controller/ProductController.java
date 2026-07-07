@@ -6,6 +6,10 @@ import com.ttrims.ims.service.AuthHelper;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -317,6 +321,192 @@ public class ProductController {
             Object notes = body.get("notes");
             bom.setNotes(notes == null ? null : notes.toString());
         }
+    }
+
+    @PostMapping("/bulk")
+    @Transactional
+    public ResponseEntity<?> createBulk(@RequestBody List<Map<String, Object>> bodyList) {
+        auth.requirePermission("PRODUCTS:CREATE");
+        List<Map<String, Object>> errors = new ArrayList<>();
+        List<Product> saved = new ArrayList<>();
+
+        for (int i = 0; i < bodyList.size(); i++) {
+            Map<String, Object> body = bodyList.get(i);
+            int rowNum = i + 1;
+
+            String code = (body.get("code") == null ? "" : body.get("code").toString()).toUpperCase().trim();
+            String name = body.get("name") == null ? null : body.get("name").toString();
+            String type = body.get("type") == null ? null : body.get("type").toString();
+
+            if (code.isEmpty() || name == null || type == null) {
+                errors.add(Map.of("row", rowNum, "error", "code, name, and type are required"));
+                continue;
+            }
+            if (!Set.of("FINISHED_GOOD","RAW_MATERIAL","BLEND","TOOL").contains(type)) {
+                errors.add(Map.of("row", rowNum, "error", "type must be FINISHED_GOOD, RAW_MATERIAL, BLEND, or TOOL"));
+                continue;
+            }
+            if (productRepo.existsByCode(code)) {
+                errors.add(Map.of("row", rowNum, "error", "Product code '" + code + "' already exists"));
+                continue;
+            }
+
+            Product p = new Product();
+            p.setCode(code);
+            p.setName(name);
+            p.setType(Product.Type.valueOf(type));
+            p.setUnit(body.get("unit") != null ? body.get("unit").toString() : "PCS");
+            p.setDescription(body.get("description") == null ? null : body.get("description").toString());
+            p.setCategory(body.get("category") == null ? null : body.get("category").toString());
+            Double ms = getDouble(body.get("min_stock"));
+            p.setMinStock(ms != null ? ms : 0.0);
+            Double dv = getDouble(body.get("deduction_value"));
+            p.setDeductionValue(dv != null ? dv : 0.0);
+            p.setActive(true);
+
+            productRepo.save(p);
+            saved.add(p);
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("success", errors.isEmpty());
+        result.put("imported", saved.size());
+        result.put("failed", errors.size());
+        result.put("errors", errors);
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/template")
+    public ResponseEntity<?> getTemplate() {
+        auth.requirePermission("PRODUCTS:VIEW");
+        String csv = "code,name,type,unit,description,category,min_stock,deduction_value\n" +
+                     "FG-999,Sample Product,FINISHED_GOOD,PCS,Optional description,Optional category,0,0\n";
+        return ResponseEntity.ok()
+            .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=products_template.csv")
+            .contentType(org.springframework.http.MediaType.parseMediaType("text/csv"))
+            .body(csv);
+    }
+
+    @PostMapping("/import")
+    @Transactional
+    public ResponseEntity<?> importCsv(@RequestParam("file") MultipartFile file) {
+        auth.requirePermission("PRODUCTS:CREATE");
+        if (file.isEmpty()) return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Uploaded file is empty"));
+
+        List<Map<String, Object>> errors = new ArrayList<>();
+        List<Product> createdProducts = new ArrayList<>();
+
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
+
+            String headerLine = reader.readLine();
+            if (headerLine == null) return ResponseEntity.badRequest().body(Map.of("success", false, "message", "CSV file has no header row"));
+
+            String line;
+            int rowNum = 1;
+            while ((line = reader.readLine()) != null) {
+                rowNum++;
+                if (line.isBlank()) continue;
+                String[] cols = parseCsvLine(line);
+
+                String code = cols.length > 0 ? cols[0].toUpperCase().trim() : "";
+                String name = cols.length > 1 ? cols[1].trim() : "";
+                String typeStr = cols.length > 2 ? cols[2].toUpperCase().trim() : "";
+                String unit = cols.length > 3 ? cols[3].trim() : "PCS";
+                String description = cols.length > 4 ? cols[4].trim() : "";
+                String category = cols.length > 5 ? cols[5].trim() : "";
+                String minStockStr = cols.length > 6 ? cols[6].trim() : "0";
+                String dedValueStr = cols.length > 7 ? cols[7].trim() : "0";
+
+                if (code.isEmpty()) {
+                    errors.add(Map.of("row", rowNum, "error", "code is missing"));
+                    continue;
+                }
+                if (name.isEmpty()) {
+                    errors.add(Map.of("row", rowNum, "error", "name is missing"));
+                    continue;
+                }
+                if (typeStr.isEmpty()) {
+                    errors.add(Map.of("row", rowNum, "error", "type is missing"));
+                    continue;
+                }
+
+                Product.Type type;
+                try {
+                    type = Product.Type.valueOf(typeStr);
+                } catch (IllegalArgumentException e) {
+                    errors.add(Map.of("row", rowNum, "error", "Invalid type: " + typeStr + ". Must be FINISHED_GOOD, RAW_MATERIAL, BLEND, or TOOL"));
+                    continue;
+                }
+
+                if (productRepo.existsByCode(code)) {
+                    errors.add(Map.of("row", rowNum, "error", "Product code '" + code + "' already exists"));
+                    continue;
+                }
+
+                double minStock = 0.0;
+                try {
+                    if (!minStockStr.isEmpty()) minStock = Double.parseDouble(minStockStr);
+                } catch (NumberFormatException e) {
+                    errors.add(Map.of("row", rowNum, "error", "Invalid min_stock: " + minStockStr));
+                    continue;
+                }
+
+                double deductionValue = 0.0;
+                try {
+                    if (!dedValueStr.isEmpty()) deductionValue = Double.parseDouble(dedValueStr);
+                } catch (NumberFormatException e) {
+                    errors.add(Map.of("row", rowNum, "error", "Invalid deduction_value: " + dedValueStr));
+                    continue;
+                }
+
+                Product p = new Product();
+                p.setCode(code);
+                p.setName(name);
+                p.setType(type);
+                p.setUnit(unit.isEmpty() ? "PCS" : unit);
+                p.setDescription(description.isEmpty() ? null : description);
+                p.setCategory(category.isEmpty() ? null : category);
+                p.setMinStock(minStock);
+                p.setDeductionValue(deductionValue);
+                p.setActive(true);
+                productRepo.save(p);
+                createdProducts.add(p);
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "Failed to parse CSV: " + e.getMessage()));
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("success", true);
+        result.put("imported", createdProducts.size());
+        result.put("failed", errors.size());
+        result.put("errors", errors);
+        return ResponseEntity.ok(result);
+    }
+
+    private String[] parseCsvLine(String line) {
+        List<String> fields = new ArrayList<>();
+        boolean inQuotes = false;
+        StringBuilder current = new StringBuilder();
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (c == '"') {
+                if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                    current.append('"');
+                    i++;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (c == ',' && !inQuotes) {
+                fields.add(current.toString());
+                current.setLength(0);
+            } else {
+                current.append(c);
+            }
+        }
+        fields.add(current.toString());
+        return fields.toArray(new String[0]);
     }
 
     private ResponseEntity<?> ok(Object data) { return ResponseEntity.ok(Map.of("success", true, "data", data)); }

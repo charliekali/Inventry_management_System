@@ -106,6 +106,13 @@ export const productsAPI = {
   addBom: (id, data) => api.post(`/products/${id}/bom`, data),
   updateBom: (id, bomId, data) => api.patch(`/products/${id}/bom/${bomId}`, data),
   deleteBom: (id, bomId) => api.delete(`/products/${id}/bom/${bomId}`),
+  importCsv: (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.post('/products/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  getTemplate: () => `${getApiBase()}/products/template`,
+  createBulk: (dataList) => api.post('/products/bulk', dataList),
 };
 
 // ─── Transactions ─────────────────────────────────────────────────────────────

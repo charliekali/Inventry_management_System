@@ -107,6 +107,65 @@ export default function ProductPage() {
   };
 
   // Modals
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkRows, setBulkRows] = useState([
+    { code: '', name: '', type: 'FINISHED_GOOD', unit: 'PCS', min_stock: '0', deduction_value: '0', category: '', description: '' }
+  ]);
+
+  const handleAddBulkRow = () => {
+    setBulkRows(prev => [
+      ...prev,
+      { code: '', name: '', type: 'FINISHED_GOOD', unit: 'PCS', min_stock: '0', deduction_value: '0', category: '', description: '' }
+    ]);
+  };
+
+  const handleRemoveBulkRow = (index) => {
+    setBulkRows(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleBulkRowChange = (index, field, value) => {
+    setBulkRows(prev => prev.map((row, i) => {
+      if (i === index) {
+        return { ...row, [field]: value };
+      }
+      return row;
+    }));
+  };
+
+  const handleBulkSubmit = async (e) => {
+    e.preventDefault();
+    const validRows = bulkRows.map(r => ({
+      ...r,
+      code: r.code.trim().toUpperCase(),
+      name: r.name.trim(),
+      min_stock: parseFloat(r.min_stock) || 0,
+      deduction_value: parseFloat(r.deduction_value) || 0
+    })).filter(r => r.code !== '' && r.name !== '');
+
+    if (validRows.length === 0) {
+      return toast.error('Please enter at least one valid product with Code and Name');
+    }
+
+    const loadingToast = toast.loading('Saving products in bulk...');
+    try {
+      const res = await productsAPI.createBulk(validRows);
+      if (res.data.success) {
+        toast.success(`Successfully added ${res.data.imported} products!`, { id: loadingToast });
+        setShowBulkModal(false);
+        setBulkRows([{ code: '', name: '', type: 'FINISHED_GOOD', unit: 'PCS', min_stock: '0', deduction_value: '0', category: '', description: '' }]);
+        loadProducts();
+      } else {
+        toast.error(`Bulk addition partially failed. ${res.data.imported} added, ${res.data.failed} failed.`, { id: loadingToast });
+        if (res.data.errors && res.data.errors.length > 0) {
+          alert("Errors found:\n" + res.data.errors.map(err => `Row ${err.row}: ${err.error}`).join("\n"));
+        }
+        loadProducts();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save bulk products', { id: loadingToast });
+    }
+  };
+
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProductId, setEditingProductId] = useState(null);
   const [pCode, setPCode] = useState('');
@@ -391,6 +450,10 @@ export default function ProductPage() {
               <button className="btn btn-primary" onClick={() => { resetProductForm(); setShowProductModal(true); }}>
                 <Plus size={16} />
                 Add Product
+              </button>
+              <button className="btn btn-primary" onClick={() => { setBulkRows([{ code: '', name: '', type: 'FINISHED_GOOD', unit: 'PCS', min_stock: '0', deduction_value: '0', category: '', description: '' }]); setShowBulkModal(true); }}>
+                <Plus size={16} />
+                Bulk Add
               </button>
             </div>
           )}
@@ -763,6 +826,145 @@ export default function ProductPage() {
               <button type="submit" className="btn btn-primary">Save Product</button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Bulk Add Modal */}
+      {showBulkModal && (
+        <div className="modal-overlay" onClick={() => setShowBulkModal(false)}>
+          <div className="modal" style={{ maxWidth: '90%', width: 1200 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Bulk Add Products</h3>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowBulkModal(false)}>×</button>
+            </div>
+            <form onSubmit={handleBulkSubmit}>
+              <div className="modal-body" style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto' }}>
+                <table className="table" style={{ width: '100%' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: 160 }}>Code *</th>
+                      <th>Name *</th>
+                      <th style={{ width: 180 }}>Type *</th>
+                      <th style={{ width: 100 }}>Unit</th>
+                      <th style={{ width: 100 }}>Min Stock</th>
+                      <th style={{ width: 120 }}>Deduction Val</th>
+                      <th>Category</th>
+                      <th>Description</th>
+                      <th style={{ width: 50, textAlign: 'center' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bulkRows.map((row, idx) => (
+                      <tr key={idx}>
+                        <td>
+                          <input
+                            type="text"
+                            placeholder="e.g. FG001"
+                            className="form-control"
+                            value={row.code}
+                            onChange={(e) => handleBulkRowChange(idx, 'code', e.target.value)}
+                            required
+                            style={{ textTransform: 'uppercase' }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            placeholder="Product Name"
+                            className="form-control"
+                            value={row.name}
+                            onChange={(e) => handleBulkRowChange(idx, 'name', e.target.value)}
+                            required
+                          />
+                        </td>
+                        <td>
+                          <select
+                            className="form-control"
+                            value={row.type}
+                            onChange={(e) => handleBulkRowChange(idx, 'type', e.target.value)}
+                            required
+                          >
+                            <option value="FINISHED_GOOD">Finished Good (FG)</option>
+                            <option value="RAW_MATERIAL">Raw Material (RM)</option>
+                            <option value="BLEND">Blend</option>
+                            <option value="TOOL">Tool</option>
+                          </select>
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={row.unit}
+                            onChange={(e) => handleBulkRowChange(idx, 'unit', e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            step="any"
+                            className="form-control"
+                            value={row.min_stock}
+                            onChange={(e) => handleBulkRowChange(idx, 'min_stock', e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            step="any"
+                            className="form-control"
+                            value={row.deduction_value}
+                            onChange={(e) => handleBulkRowChange(idx, 'deduction_value', e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            placeholder="Category"
+                            className="form-control"
+                            value={row.category}
+                            onChange={(e) => handleBulkRowChange(idx, 'category', e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            placeholder="Description"
+                            className="form-control"
+                            value={row.description}
+                            onChange={(e) => handleBulkRowChange(idx, 'description', e.target.value)}
+                          />
+                        </td>
+                        <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                          {bulkRows.length > 1 && (
+                            <button
+                              type="button"
+                              className="btn btn-ghost text-danger btn-sm"
+                              onClick={() => handleRemoveBulkRow(idx)}
+                              style={{ padding: 4, minWidth: 'auto', fontSize: 20, lineHeight: 1 }}
+                            >
+                              &times;
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleAddBulkRow}
+                  style={{ marginTop: 12 }}
+                >
+                  + Add Row
+                </button>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowBulkModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save All Products</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

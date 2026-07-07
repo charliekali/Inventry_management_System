@@ -587,7 +587,7 @@ export default function LogisticsAndDispatchPage() {
                         style={{ height: '100%', width: '100%', background: '#090d16' }}
                       >
                         <TileLayer
-                          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
                           url={tileUrl}
                           className={isDark ? 'leaflet-dark-filter' : ''}
                         />
