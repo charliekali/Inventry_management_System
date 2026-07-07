@@ -409,7 +409,7 @@ export default function LogisticsAndDispatchPage() {
                 <div className="card-title">Manage Delivery Shipments & live Driver tracking</div>
               </div>
 
-              {shipments.length > 0 && (() => {
+              {(() => {
                 // Collect coordinates to plot in mock tracking map
                 const stopsList = [];
                 const driversList = [];
@@ -417,8 +417,9 @@ export default function LogisticsAndDispatchPage() {
                 const lngMin = 79.80, lngMax = 79.95;
 
                 const toSvgCoords = (lat, lng) => {
-                  const x = ((lng - lngMin) / (lngMax - lngMin)) * 560 + 20;
-                  const y = (1.0 - (lat - latMin) / (latMax - latMin)) * 200 + 30;
+                  // Scale coordinates to fit beautifully within 800x400 SVG box
+                  const x = ((lng - lngMin) / (lngMax - lngMin)) * 740 + 30;
+                  const y = (1.0 - (lat - latMin) / (latMax - latMin)) * 340 + 30;
                   return { x, y };
                 };
 
@@ -461,51 +462,118 @@ export default function LogisticsAndDispatchPage() {
 
                 return (
                   <div style={{ padding: 16, background: '#020617', borderBottom: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div style={{ color: '#fff', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Map size={15} color="#06b6d4" /> Live GPS Driver Fleet tracker (Colombo Zone)
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ color: '#fff', fontSize: 13.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Map size={16} color="#06b6d4" /> Live GPS Driver Fleet tracker (Colombo Zone)
+                      </div>
+                      <div style={{ display: 'flex', gap: 16, fontSize: 11, color: '#94a3b8' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }}></span> Depot</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#fb923c' }}></span> Stop (Pending)</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#10b981' }}></span> Delivered</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#06b6d4' }}></span> Driver (Truck)</span>
+                      </div>
                     </div>
-                    <div style={{ background: '#090d16', borderRadius: 8, overflow: 'hidden', border: '1px solid #1e293b' }}>
-                      <svg width="100%" height="250" viewBox="0 0 600 250">
-                        {/* Grid gridlines */}
+                    <div style={{ background: '#090d16', borderRadius: 8, overflow: 'hidden', border: '1px solid #1e293b', boxShadow: 'inset 0 0 20px rgba(0,0,0,0.8)' }}>
+                      <svg width="100%" height="400" viewBox="0 0 800 400" style={{ display: 'block' }}>
                         <defs>
-                          <pattern id="grid-pattern" width="30" height="30" patternUnits="userSpaceOnUse">
-                            <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#0f172a" strokeWidth="1" />
+                          {/* Grid gridlines */}
+                          <pattern id="map-grid-pattern" width="40" height="40" patternUnits="userSpaceOnUse">
+                            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#0f172a" strokeWidth="1" />
                           </pattern>
+                          {/* Glow filters for premium visual effects */}
+                          <filter id="glow-depot" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="5" result="blur" />
+                            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                          </filter>
                         </defs>
-                        <rect width="600" height="250" fill="url(#grid-pattern)" />
+                        
+                        {/* Shaded Grid Background */}
+                        <rect width="800" height="400" fill="url(#map-grid-pattern)" />
 
-                        {/* Draw path lines */}
+                        {/* Ocean / Laccadive Sea representation on the West Coast (Left Side) */}
+                        <path d="M 0,0 L 230,0 C 240,120 220,240 250,400 L 0,400 Z" fill="#081324" opacity="0.9" />
+                        <text x="70" y="200" fill="#1e293b" fontSize="13" fontWeight="bold" transform="rotate(-90, 70, 200)" letterSpacing="4">INDIAN OCEAN</text>
+
+                        {/* Colombo Shoreline Border line */}
+                        <path d="M 230,0 C 240,120 220,240 250,400" fill="none" stroke="#1e2d42" strokeWidth="3" />
+
+                        {/* Major Highway Mock Lines */}
+                        {/* Baseline Road (North-South East side) */}
+                        <path d="M 520,0 C 530,120 540,240 560,400" fill="none" stroke="#101b2d" strokeWidth="4" />
+                        <text x="545" y="380" fill="#1e2d42" fontSize="9" fontWeight="600" transform="rotate(82, 545, 380)">Baseline Rd</text>
+
+                        {/* Galle Road (Coastal Highway) */}
+                        <path d="M 265,0 C 275,120 270,240 295,400" fill="none" stroke="#101b2d" strokeWidth="4" />
+                        <text x="280" y="380" fill="#1e2d42" fontSize="9" fontWeight="600" transform="rotate(83, 280, 380)">Galle Rd</text>
+
+                        {/* Colombo-Kandy Road (East-West Highway) */}
+                        <path d="M 270,90 Q 450,110 800,140" fill="none" stroke="#101b2d" strokeWidth="4" />
+                        <text x="680" y="125" fill="#1e2d42" fontSize="9" fontWeight="600">Colombo-Kandy Hwy</text>
+
+                        {/* Draw planned route path lines */}
                         {driversList.map((d, idx) => (
                           d.routeStops.length > 0 && (
                             <g key={idx}>
-                              <line x1={depotPos.x} y1={depotPos.y} x2={d.routeStops[0].x} y2={d.routeStops[0].y} stroke="rgba(59,130,246,0.35)" strokeWidth="1.5" strokeDasharray="3,3" />
+                              {/* Path starting from Depot to first stop */}
+                              <line x1={depotPos.x} y1={depotPos.y} x2={d.routeStops[0].x} y2={d.routeStops[0].y} stroke="#3b82f6" strokeWidth="3" strokeDasharray="6,4" opacity="0.8" />
+                              {/* Paths between consecutive stops */}
                               {d.routeStops.map((stop, sIdx) => (
                                 sIdx < d.routeStops.length - 1 && (
-                                  <line key={sIdx} x1={stop.x} y1={stop.y} x2={d.routeStops[sIdx+1].x} y2={d.routeStops[sIdx+1].y} stroke="rgba(59,130,246,0.6)" strokeWidth="1.5" />
+                                  <line key={sIdx} x1={stop.x} y1={stop.y} x2={d.routeStops[sIdx+1].x} y2={d.routeStops[sIdx+1].y} stroke="#3b82f6" strokeWidth="3" opacity="0.95" />
                                 )
                               ))}
-                              <line x1={d.x} y1={d.y} x2={d.routeStops[0].x} y2={d.routeStops[0].y} stroke="#10b981" strokeWidth="1.5" strokeDasharray="2,2" />
+                              {/* Path from driver active location to current first stop */}
+                              <line x1={d.x} y1={d.y} x2={d.routeStops[0].x} y2={d.routeStops[0].y} stroke="#10b981" strokeWidth="2.5" strokeDasharray="3,3" />
                             </g>
                           )
                         ))}
 
-                        {/* Depot */}
-                        <circle cx={depotPos.x} cy={depotPos.y} r={7} fill="#ef4444" />
-                        <text x={depotPos.x} y={depotPos.y - 10} fill="#f87171" fontSize="9" fontWeight="bold" textAnchor="middle">Depot</text>
+                        {/* Depot Layer */}
+                        <g>
+                          <circle cx={depotPos.x} cy={depotPos.y} r={22} fill="none" stroke="#ef4444" strokeWidth="1.5" opacity="0.6">
+                            <animate attributeName="r" values="10;25;10" dur="4s" repeatCount="indefinite" />
+                            <animate attributeName="opacity" values="0.7;0.1;0.7" dur="4s" repeatCount="indefinite" />
+                          </circle>
+                          <circle cx={depotPos.x} cy={depotPos.y} r={10} fill="#ef4444" stroke="#ffffff" strokeWidth="2" filter="url(#glow-depot)" />
+                          
+                          {/* Label backdrop card */}
+                          <rect x={depotPos.x - 38} y={depotPos.y - 32} width="76" height="15" rx="3" fill="#1e293b" stroke="#ef4444" strokeWidth="0.5" />
+                          <text x={depotPos.x} y={depotPos.y - 21} fill="#fca5a5" fontSize="9" fontWeight="bold" textAnchor="middle">MAIN DEPOT</text>
+                        </g>
 
-                        {/* Stops */}
-                        {stopsList.map((stop, idx) => (
-                          <g key={idx}>
-                            <circle cx={stop.x} cy={stop.y} r={4.5} fill={stop.status === 'DELIVERED' ? '#10b981' : stop.status === 'FAILED' ? '#ef4444' : '#fb923c'} />
-                            <text x={stop.x} y={stop.y + 12} fill="#94a3b8" fontSize="8" textAnchor="middle">{stop.order_number}</text>
-                          </g>
-                        ))}
+                        {/* Stops Layer */}
+                        {stopsList.map((stop, idx) => {
+                          const isDelivered = stop.status === 'DELIVERED';
+                          const isFailed = stop.status === 'FAILED';
+                          const color = isDelivered ? '#10b981' : isFailed ? '#ef4444' : '#fb923c';
+                          
+                          return (
+                            <g key={idx}>
+                              <circle cx={stop.x} cy={stop.y} r={8.5} fill={color} stroke="#ffffff" strokeWidth="2" style={{ filter: `drop-shadow(0 0 5px ${color})` }} />
+                              
+                              {/* Stop text identifier inside the dot */}
+                              <text x={stop.x} y={stop.y + 3} fill="#090d16" fontSize="8" fontWeight="bold" textAnchor="middle">{stop.order_number.replace('ORD-', '')}</text>
 
-                        {/* Drivers */}
+                              {/* Label hover card */}
+                              <rect x={stop.x - 35} y={stop.y - 27} width="70" height="14" rx="3" fill="#1e293b" opacity="0.9" />
+                              <text x={stop.x} y={stop.y - 17} fill="#e2e8f0" fontSize="8" fontWeight="700" textAnchor="middle">{stop.customer.substring(0, 10)}</text>
+                            </g>
+                          );
+                        })}
+
+                        {/* Drivers / Trucks Layer */}
                         {driversList.map((d, idx) => (
                           <g key={idx}>
-                            <circle cx={d.x} cy={d.y} r={6} fill="#10b981" stroke="#fff" strokeWidth="1" />
-                            <text x={d.x} y={d.y - 10} fill="#34d399" fontSize="9" textAnchor="middle" fontWeight="bold">{d.name}</text>
+                            {/* Driver indicator ring */}
+                            <circle cx={d.x} cy={d.y} r={16} fill="none" stroke="#10b981" strokeWidth="1.5" opacity="0.5" />
+                            {/* Emerald truck background */}
+                            <circle cx={d.x} cy={d.y} r={11.5} fill="#10b981" stroke="#ffffff" strokeWidth="2" style={{ filter: 'drop-shadow(0 0 8px #10b981)' }} />
+                            {/* Truck Emoji */}
+                            <text x={d.x} y={d.y + 3} fill="#ffffff" fontSize="10.5" fontWeight="bold" textAnchor="middle">🚚</text>
+
+                            {/* Driver detail overlay card */}
+                            <rect x={d.x - 45} y={d.y - 32} width="90" height="16" rx="3" fill="#0f172a" stroke="#10b981" strokeWidth="1" />
+                            <text x={d.x} y={d.y - 21} fill="#34d399" fontSize="9.5" fontWeight="bold" textAnchor="middle">{d.name}</text>
                           </g>
                         ))}
                       </svg>
