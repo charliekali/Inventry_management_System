@@ -12,15 +12,19 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.ttrims.ims.service.LogisticsService;
+
 @RestController
 @RequestMapping("/api/dispatch")
 public class DispatchController {
     private final OrderRepository orderRepo;
     private final AuthHelper auth;
+    private final LogisticsService logisticsService;
 
-    public DispatchController(OrderRepository orderRepo, AuthHelper auth) {
+    public DispatchController(OrderRepository orderRepo, AuthHelper auth, LogisticsService logisticsService) {
         this.orderRepo = orderRepo;
         this.auth = auth;
+        this.logisticsService = logisticsService;
     }
 
     @GetMapping
@@ -83,7 +87,14 @@ public class DispatchController {
         order.setDispatchedAt(LocalDateTime.now());
         order.setDispatchedBy(auth.currentUser().getName());
 
-        orderRepo.save(order);
+        order = orderRepo.save(order);
+
+        try {
+            logisticsService.handleAutoShipment(order);
+        } catch (Exception e) {
+            System.err.println("Error in auto-shipment grouping: " + e.getMessage());
+            e.printStackTrace();
+        }
 
         return ResponseEntity.ok(Map.of("success", true, "data", toDto(order)));
     }

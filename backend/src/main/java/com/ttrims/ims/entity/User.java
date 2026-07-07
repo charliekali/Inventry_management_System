@@ -29,6 +29,18 @@ public class User {
     @Column(name = "is_active")
     private boolean active = true;
 
+    @Column(name = "driver_status")
+    private String driverStatus = "AVAILABLE"; // AVAILABLE, BUSY, OFFLINE, ON_LEAVE, SHIFT_COMPLETED, VEHICLE_BREAKDOWN
+
+    @Column(name = "current_lat")
+    private Double currentLatitude;
+
+    @Column(name = "current_lng")
+    private Double currentLongitude;
+
+    @Column(name = "vehicle_number")
+    private String vehicleNumber;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -57,6 +69,16 @@ public class User {
     public void setWarehouseId(String warehouseId) { this.warehouseId = warehouseId; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+
+    public String getDriverStatus() { return driverStatus; }
+    public void setDriverStatus(String driverStatus) { this.driverStatus = driverStatus; }
+    public Double getCurrentLatitude() { return currentLatitude; }
+    public void setCurrentLatitude(Double currentLatitude) { this.currentLatitude = currentLatitude; }
+    public Double getCurrentLongitude() { return currentLongitude; }
+    public void setCurrentLongitude(Double currentLongitude) { this.currentLongitude = currentLongitude; }
+    public String getVehicleNumber() { return vehicleNumber; }
+    public void setVehicleNumber(String vehicleNumber) { this.vehicleNumber = vehicleNumber; }
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

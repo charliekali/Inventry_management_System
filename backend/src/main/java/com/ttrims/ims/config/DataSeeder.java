@@ -89,6 +89,7 @@ public class DataSeeder implements CommandLineRunner {
         Role managerRole = seedRole("Warehouse Manager", "Stock transactions and reports", true, getWMPerms());
         Role keeperRole = seedRole("Store Keeper", "Handle stock IN/OUT", true, getStoreKeeperPerms());
         Role logisticsRole = seedRole("Logistics Coordinator", "Manage shipments and delivery", true, getLogisticsPerms());
+        Role driverRole = seedRole("Driver", "Assigned deliveries, locations, and proof of delivery", true, getDriverPerms());
         
         // 1. One-time database purge of all dummy/test data for production readiness
         if (productRepo.findByCode("RM-CHD").isPresent()) {
@@ -112,6 +113,9 @@ public class DataSeeder implements CommandLineRunner {
         // 2. Production Seeding
         seedUser("admin@ttrims.com", "Super Admin", "Admin@123", superAdminRole);
         seedUser("sugu@123.com", "Sugu", "123456", superAdminRole);
+        seedDriverUser("driver1@ttrims.com", "Driver One", "driver1_123", driverRole, "WP-LH-4512", 6.9271, 79.8612);
+        seedDriverUser("driver2@ttrims.com", "Driver Two", "driver2_123", driverRole, "WP-LH-8822", 6.9310, 79.8432);
+        seedDriverUser("driver3@ttrims.com", "Driver Three", "driver3_123", driverRole, "WP-LH-1199", 6.9056, 79.8512);
         seedProductCategories();
         seedPostgresInstances();
     }
@@ -251,6 +255,53 @@ public class DataSeeder implements CommandLineRunner {
         } catch (Exception e) {
             log.debug("Schema migration: key_logs status column alter query — {}", e.getMessage());
         }
+
+        // --- Logistics Automation Schema Migrations ---
+        try {
+            jdbc.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS driver_status VARCHAR(30) DEFAULT 'AVAILABLE'");
+            jdbc.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS current_lat DOUBLE PRECISION");
+            jdbc.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS current_lng DOUBLE PRECISION");
+            jdbc.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS vehicle_number VARCHAR(100)");
+            log.info("Schema migration: users columns for driver tracking ensured");
+        } catch (Exception e) {
+            log.warn("Schema migration users: {}", e.getMessage());
+        }
+
+        try {
+            jdbc.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_address VARCHAR(500)");
+            jdbc.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION");
+            jdbc.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION");
+            log.info("Schema migration: orders columns for delivery address & GPS ensured");
+        } catch (Exception e) {
+            log.warn("Schema migration orders: {}", e.getMessage());
+        }
+
+        try {
+            jdbc.execute("ALTER TABLE shipments ADD COLUMN IF NOT EXISTS driver_id VARCHAR(36)");
+            jdbc.execute("ALTER TABLE shipments ADD COLUMN IF NOT EXISTS distance_km DOUBLE PRECISION DEFAULT 0.0");
+            jdbc.execute("ALTER TABLE shipments ADD COLUMN IF NOT EXISTS duration_min INTEGER DEFAULT 0");
+            jdbc.execute("ALTER TABLE shipments ADD COLUMN IF NOT EXISTS route_sequence TEXT");
+            log.info("Schema migration: shipments columns for automated routing ensured");
+        } catch (Exception e) {
+            log.warn("Schema migration shipments: {}", e.getMessage());
+        }
+
+        try {
+            jdbc.execute("ALTER TABLE shipment_orders ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'PENDING'");
+            jdbc.execute("ALTER TABLE shipment_orders ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP");
+            jdbc.execute("ALTER TABLE shipment_orders ADD COLUMN IF NOT EXISTS delivery_notes VARCHAR(1000)");
+            jdbc.execute("ALTER TABLE shipment_orders ADD COLUMN IF NOT EXISTS delivery_photo TEXT");
+            jdbc.execute("ALTER TABLE shipment_orders ADD COLUMN IF NOT EXISTS delivery_signature TEXT");
+            jdbc.execute("ALTER TABLE shipment_orders ADD COLUMN IF NOT EXISTS receiver_name VARCHAR(255)");
+            jdbc.execute("ALTER TABLE shipment_orders ADD COLUMN IF NOT EXISTS receiver_mobile VARCHAR(50)");
+            jdbc.execute("ALTER TABLE shipment_orders ADD COLUMN IF NOT EXISTS delivery_lat DOUBLE PRECISION");
+            jdbc.execute("ALTER TABLE shipment_orders ADD COLUMN IF NOT EXISTS delivery_lng DOUBLE PRECISION");
+            jdbc.execute("ALTER TABLE shipment_orders ADD COLUMN IF NOT EXISTS failed_reason VARCHAR(100)");
+            jdbc.execute("ALTER TABLE shipment_orders ADD COLUMN IF NOT EXISTS stop_sequence INTEGER DEFAULT 0");
+            log.info("Schema migration: shipment_orders columns for proof of delivery ensured");
+        } catch (Exception e) {
+            log.warn("Schema migration shipment_orders: {}", e.getMessage());
+        }
     }
 
     private void seedPermissions() {
@@ -343,6 +394,46 @@ public class DataSeeder implements CommandLineRunner {
                 perms.add(p);
         });
         return perms;
+    }
+
+    private Set<Permission> getDriverPerms() {
+        Set<Permission> perms = new HashSet<>();
+        Map<String, Set<String>> allowed = Map.of(
+                "SHIPMENTS", Set.of("VIEW"),
+                "DELIVERY", Set.of("CONFIRM"),
+                "ORDERS", Set.of("VIEW")
+        );
+        permissionRepo.findAll().forEach(p -> {
+            Set<String> acts = allowed.get(p.getModule());
+            if (acts != null && acts.contains(p.getAction()))
+                perms.add(p);
+        });
+        return perms;
+    }
+
+    private void seedDriverUser(String email, String name, String password, Role role, String vehicle, double lat, double lng) {
+        User user = userRepo.findByEmailAndActiveTrue(email).orElse(null);
+        if (user == null) {
+            user = new User();
+            user.setName(name);
+            user.setEmail(email);
+            user.setPassword(passwordEncoder.encode(password));
+            user.setRole(role);
+            user.setActive(true);
+            user.setDriverStatus("AVAILABLE");
+            user.setVehicleNumber(vehicle);
+            user.setCurrentLatitude(lat);
+            user.setCurrentLongitude(lng);
+            userRepo.save(user);
+            log.info("✅ Driver created: {} / {}", email, password);
+        } else {
+            user.setRole(role);
+            user.setVehicleNumber(vehicle);
+            user.setCurrentLatitude(lat);
+            user.setCurrentLongitude(lng);
+            userRepo.save(user);
+            log.info("✅ Driver synced: {}", email);
+        }
     }
 
     private void seedUser(String email, String name, String password, Role role) {

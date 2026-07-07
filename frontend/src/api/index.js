@@ -160,6 +160,10 @@ export const shipmentsAPI = {
   deliver: (id, notes, status = 'DELIVERED') => api.post(`/shipments/${id}/deliver`, { delivery_notes: notes, status }),
   delete: (id) => api.delete(`/shipments/${id}`),
   analytics: () => api.get('/shipments/analytics'),
+  listAssigned: () => api.get('/shipments/driver/assigned'),
+  updateStopStatus: (id, stopId, data) => api.patch(`/shipments/${id}/stop/${stopId}`, data),
+  reportLocation: (data) => api.post('/shipments/driver/location', data),
+  adminOverride: (id, data) => api.post(`/shipments/${id}/admin-override`, data),
 };
 
 // ─── Production Orders ────────────────────────────────────────────────────────

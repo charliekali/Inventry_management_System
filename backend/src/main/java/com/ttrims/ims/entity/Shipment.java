@@ -20,11 +20,24 @@ public class Shipment {
     @Column(name = "vehicle_number")
     private String vehicleNumber;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "driver_id")
+    private User driver;
+
     @Column(name = "driver_name")
     private String driverName;
 
     @Column(name = "driver_phone")
     private String driverPhone;
+
+    @Column(name = "distance_km")
+    private Double distanceKm = 0.0;
+
+    @Column(name = "duration_min")
+    private Integer durationMin = 0;
+
+    @Column(name = "route_sequence", length = 2000)
+    private String routeSequence;
 
     private String origin;
     private String destination;
@@ -69,11 +82,23 @@ public class Shipment {
     public String getVehicleNumber() { return vehicleNumber; }
     public void setVehicleNumber(String vehicleNumber) { this.vehicleNumber = vehicleNumber; }
 
+    public User getDriver() { return driver; }
+    public void setDriver(User driver) { this.driver = driver; }
+
     public String getDriverName() { return driverName; }
     public void setDriverName(String driverName) { this.driverName = driverName; }
 
     public String getDriverPhone() { return driverPhone; }
     public void setDriverPhone(String driverPhone) { this.driverPhone = driverPhone; }
+
+    public Double getDistanceKm() { return distanceKm; }
+    public void setDistanceKm(Double distanceKm) { this.distanceKm = distanceKm; }
+
+    public Integer getDurationMin() { return durationMin; }
+    public void setDurationMin(Integer durationMin) { this.durationMin = durationMin; }
+
+    public String getRouteSequence() { return routeSequence; }
+    public void setRouteSequence(String routeSequence) { this.routeSequence = routeSequence; }
 
     public String getOrigin() { return origin; }
     public void setOrigin(String origin) { this.origin = origin; }

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { dispatchAPI, shipmentsAPI } from '../api';
+import { dispatchAPI, shipmentsAPI, usersAPI } from '../api';
 import toast from 'react-hot-toast';
 import { 
   Truck, CheckCircle2, Clock, Package, ClipboardList, MapPin, 
-  User, Phone, Calendar, AlertTriangle, ShieldAlert, BarChart3, ChevronDown, ChevronUp, Trash2
+  User, Phone, Calendar, AlertTriangle, ShieldAlert, BarChart3, ChevronDown, ChevronUp, Trash2,
+  Play, Map, Edit, UserCheck, RefreshCw, X, Eye
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -11,6 +12,7 @@ export default function LogisticsAndDispatchPage() {
   const { hasPermission } = useAuth();
   const [orders, setOrders] = useState([]);
   const [shipments, setShipments] = useState([]);
+  const [drivers, setDrivers] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('pending'); // pending, shipments, history
@@ -34,20 +36,35 @@ export default function LogisticsAndDispatchPage() {
   const [deliveryNotes, setDeliveryNotes] = useState('');
   const [deliveryStatus, setDeliveryStatus] = useState('DELIVERED');
 
+  // Admin Override Modal state
+  const [showOverrideModal, setShowOverrideModal] = useState(false);
+  const [overrideShipment, setOverrideShipment] = useState(null);
+  const [overrideDriverId, setOverrideDriverId] = useState('');
+  const [overrideVehicle, setOverrideVehicle] = useState('');
+  const [overrideStops, setOverrideStops] = useState([]);
+
+  // POD modal viewer
+  const [podMediaUrl, setPodMediaUrl] = useState(null);
+  const [podMediaType, setPodMediaType] = useState('');
+
   // Accordion for shipments
   const [expandedShipmentId, setExpandedShipmentId] = useState(null);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [ordersRes, shipmentsRes, summaryRes] = await Promise.all([
+      const [ordersRes, shipmentsRes, summaryRes, usersRes] = await Promise.all([
         dispatchAPI.list('PENDING'),
         shipmentsAPI.list(),
-        dispatchAPI.summary()
+        dispatchAPI.summary(),
+        usersAPI.list()
       ]);
       setOrders(ordersRes.data.data);
       setShipments(shipmentsRes.data.data);
       setSummary(summaryRes.data.data);
+      
+      const driverUsers = (usersRes.data.data || []).filter(u => u.role?.name === 'Driver');
+      setDrivers(driverUsers);
     } catch (err) {
       toast.error('Failed to load logistics data');
     } finally {
@@ -169,6 +186,59 @@ export default function LogisticsAndDispatchPage() {
     } finally {
       setProcessing(false);
     }
+  };
+
+  const handleOpenOverrideModal = (shipment) => {
+    setOverrideShipment(shipment);
+    setOverrideDriverId(shipment.driver?.id || '');
+    setOverrideVehicle(shipment.vehicle_number || '');
+    const sortedStops = [...(shipment.orders || [])].sort((a, b) => (a.stop_sequence || 0) - (b.stop_sequence || 0));
+    setOverrideStops(sortedStops);
+    setShowOverrideModal(true);
+  };
+
+  const handleMoveStopUp = (index) => {
+    if (index === 0) return;
+    const updated = [...overrideStops];
+    const temp = updated[index];
+    updated[index] = updated[index - 1];
+    updated[index - 1] = temp;
+    setOverrideStops(updated);
+  };
+
+  const handleMoveStopDown = (index) => {
+    if (index === overrideStops.length - 1) return;
+    const updated = [...overrideStops];
+    const temp = updated[index];
+    updated[index] = updated[index + 1];
+    updated[index + 1] = temp;
+    setOverrideStops(updated);
+  };
+
+  const handleSaveOverride = async (e) => {
+    e.preventDefault();
+    if (!overrideShipment) return;
+    setProcessing(true);
+    try {
+      const seqString = overrideStops.map(s => s.id).join(',');
+      await shipmentsAPI.adminOverride(overrideShipment.id, {
+        driver_id: overrideDriverId,
+        vehicle_number: overrideVehicle,
+        route_sequence: seqString
+      });
+      toast.success('Shipment updated and re-optimized successfully!');
+      setShowOverrideModal(false);
+      loadData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to apply admin overrides');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleViewPOD = (url, type) => {
+    setPodMediaUrl(url);
+    setPodMediaType(type);
   };
 
   const getStatusBadge = (status) => {
@@ -336,8 +406,113 @@ export default function LogisticsAndDispatchPage() {
           {activeTab === 'shipments' && (
             <div className="card">
               <div className="card-header">
-                <div className="card-title">Manage Delivery Shipments</div>
+                <div className="card-title">Manage Delivery Shipments & live Driver tracking</div>
               </div>
+
+              {shipments.length > 0 && (() => {
+                // Collect coordinates to plot in mock tracking map
+                const stopsList = [];
+                const driversList = [];
+                const latMin = 6.85, latMax = 7.00;
+                const lngMin = 79.80, lngMax = 79.95;
+
+                const toSvgCoords = (lat, lng) => {
+                  const x = ((lng - lngMin) / (lngMax - lngMin)) * 560 + 20;
+                  const y = (1.0 - (lat - latMin) / (latMax - latMin)) * 200 + 30;
+                  return { x, y };
+                };
+
+                const depotPos = toSvgCoords(6.9271, 79.8612);
+
+                shipments.forEach(s => {
+                  if (s.status === 'EN_ROUTE' || s.status === 'CREATED') {
+                    const routeStops = [];
+                    
+                    s.orders?.forEach(o => {
+                      if (o.latitude && o.longitude) {
+                        const pos = toSvgCoords(o.latitude, o.longitude);
+                        stopsList.push({
+                          id: o.id,
+                          order_number: o.order_number,
+                          customer: o.customer,
+                          status: o.stop_status || 'PENDING',
+                          x: pos.x,
+                          y: pos.y
+                        });
+                        routeStops.push(pos);
+                      }
+                    });
+
+                    const d = s.driver;
+                    const dLat = d?.lat || 6.9271;
+                    const dLng = d?.lng || 79.8612;
+                    const dPos = toSvgCoords(dLat, dLng);
+
+                    driversList.push({
+                      name: s.driver_name || 'Driver',
+                      vehicle: s.vehicle_number,
+                      status: d?.driver_status || 'BUSY',
+                      x: dPos.x,
+                      y: dPos.y,
+                      routeStops
+                    });
+                  }
+                });
+
+                return (
+                  <div style={{ padding: 16, background: '#020617', borderBottom: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ color: '#fff', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Map size={15} color="#06b6d4" /> Live GPS Driver Fleet tracker (Colombo Zone)
+                    </div>
+                    <div style={{ background: '#090d16', borderRadius: 8, overflow: 'hidden', border: '1px solid #1e293b' }}>
+                      <svg width="100%" height="250" viewBox="0 0 600 250">
+                        {/* Grid gridlines */}
+                        <defs>
+                          <pattern id="grid-pattern" width="30" height="30" patternUnits="userSpaceOnUse">
+                            <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#0f172a" strokeWidth="1" />
+                          </pattern>
+                        </defs>
+                        <rect width="600" height="250" fill="url(#grid-pattern)" />
+
+                        {/* Draw path lines */}
+                        {driversList.map((d, idx) => (
+                          d.routeStops.length > 0 && (
+                            <g key={idx}>
+                              <line x1={depotPos.x} y1={depotPos.y} x2={d.routeStops[0].x} y2={d.routeStops[0].y} stroke="rgba(59,130,246,0.35)" strokeWidth="1.5" strokeDasharray="3,3" />
+                              {d.routeStops.map((stop, sIdx) => (
+                                sIdx < d.routeStops.length - 1 && (
+                                  <line key={sIdx} x1={stop.x} y1={stop.y} x2={d.routeStops[sIdx+1].x} y2={d.routeStops[sIdx+1].y} stroke="rgba(59,130,246,0.6)" strokeWidth="1.5" />
+                                )
+                              ))}
+                              <line x1={d.x} y1={d.y} x2={d.routeStops[0].x} y2={d.routeStops[0].y} stroke="#10b981" strokeWidth="1.5" strokeDasharray="2,2" />
+                            </g>
+                          )
+                        ))}
+
+                        {/* Depot */}
+                        <circle cx={depotPos.x} cy={depotPos.y} r={7} fill="#ef4444" />
+                        <text x={depotPos.x} y={depotPos.y - 10} fill="#f87171" fontSize="9" fontWeight="bold" textAnchor="middle">Depot</text>
+
+                        {/* Stops */}
+                        {stopsList.map((stop, idx) => (
+                          <g key={idx}>
+                            <circle cx={stop.x} cy={stop.y} r={4.5} fill={stop.status === 'DELIVERED' ? '#10b981' : stop.status === 'FAILED' ? '#ef4444' : '#fb923c'} />
+                            <text x={stop.x} y={stop.y + 12} fill="#94a3b8" fontSize="8" textAnchor="middle">{stop.order_number}</text>
+                          </g>
+                        ))}
+
+                        {/* Drivers */}
+                        {driversList.map((d, idx) => (
+                          <g key={idx}>
+                            <circle cx={d.x} cy={d.y} r={6} fill="#10b981" stroke="#fff" strokeWidth="1" />
+                            <text x={d.x} y={d.y - 10} fill="#34d399" fontSize="9" textAnchor="middle" fontWeight="bold">{d.name}</text>
+                          </g>
+                        ))}
+                      </svg>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {shipments.length === 0 ? (
                 <div className="empty-state">
@@ -354,8 +529,8 @@ export default function LogisticsAndDispatchPage() {
                         <th>Vehicle No</th>
                         <th>Driver Details</th>
                         <th>Status</th>
-                        <th>Orders</th>
-                        <th>Bags/Pcs</th>
+                        <th>Est Distance / Duration</th>
+                        <th>Stops</th>
                         <th>Scheduled</th>
                         <th style={{ textAlign: 'right' }}>Actions</th>
                       </tr>
@@ -386,8 +561,11 @@ export default function LogisticsAndDispatchPage() {
                                 ) : '—'}
                               </td>
                               <td>{getStatusBadge(s.status)}</td>
-                              <td style={{ fontWeight: 600 }}>{s.orders?.length || 0} orders</td>
-                              <td>{s.total_bags} bags / {s.total_pcs} pcs</td>
+                              <td>
+                                <div style={{ fontWeight: 600 }}>{s.distance_km || 0} km</div>
+                                <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>~{s.duration_min || 0} mins</div>
+                              </td>
+                              <td style={{ fontWeight: 600 }}>{s.orders?.length || 0} stops</td>
                               <td style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
                                 {s.scheduled_at ? new Date(s.scheduled_at).toLocaleString() : '—'}
                               </td>
@@ -424,23 +602,86 @@ export default function LogisticsAndDispatchPage() {
                             {isExpanded && (
                               <tr>
                                 <td colSpan="9" style={{ padding: '12px 24px', background: 'rgba(255,255,255,0.01)' }}>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                    <div style={{ fontWeight: 700, fontSize: 13, textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>Linked Orders & Product Quantities</div>
-                                    {s.orders?.map(order => (
-                                      <div key={order.id} style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--color-bg-card)', padding: 12, borderRadius: 8, border: '1px solid var(--color-border)' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', paddingBottom: 6 }}>
-                                          <strong style={{ fontSize: 13.5 }}>{order.order_number} — {order.customer}</strong>
-                                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary)' }}>{order.dispatch_bags} bags / {order.dispatch_pcs} pcs</span>
-                                        </div>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                                          {order.items?.map((item, idx) => (
-                                            <span key={idx} style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                                              • {item.product_name}: <strong>{item.qty_required} {item.unit}</strong>
-                                            </span>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    ))}
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <div style={{ fontWeight: 700, fontSize: 13, textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>Timeline Stops & Delivery Progress</div>
+                                      {hasPermission('SHIPMENTS:MANAGE') && (
+                                        <button 
+                                          className="btn btn-secondary btn-sm"
+                                          onClick={() => handleOpenOverrideModal(s)}
+                                        >
+                                          <Edit size={12} style={{ marginRight: 6 }} /> Route & Driver Overrides
+                                        </button>
+                                      )}
+                                    </div>
+                                    
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderLeft: '2px solid var(--color-border)', marginLeft: 8, paddingLeft: 16 }}>
+                                      {s.orders?.map((order, stopIdx) => {
+                                        let dotColor = '#fb923c'; // pending
+                                        if (order.stop_status === 'DELIVERED') dotColor = '#10b981';
+                                        if (order.stop_status === 'FAILED') dotColor = '#ef4444';
+                                        
+                                        return (
+                                          <div key={order.id} style={{ position: 'relative' }}>
+                                            <div style={{
+                                              position: 'absolute', left: -21, top: 4, width: 8, height: 8,
+                                              borderRadius: '50%', background: dotColor, border: '2px solid var(--color-bg-card)'
+                                            }} />
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--color-bg-card)', padding: 12, borderRadius: 8, border: '1px solid var(--color-border)' }}>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', paddingBottom: 6 }}>
+                                                <strong style={{ fontSize: 13.5 }}>Stop #{order.stop_sequence || (stopIdx + 1)}: {order.order_number} — {order.customer}</strong>
+                                                <span className={`badge ${order.stop_status === 'DELIVERED' ? 'badge-green' : order.stop_status === 'FAILED' ? 'badge-red' : 'badge-gray'}`} style={{ fontSize: 10 }}>
+                                                  {order.stop_status || 'PENDING'}
+                                                </span>
+                                              </div>
+                                              <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                                                Address: {order.delivery_address || 'Colombo Delivery Zone'}
+                                              </div>
+                                              
+                                              {/* Items list */}
+                                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                                                {order.items?.map((item, idx) => (
+                                                  <span key={idx} style={{ fontSize: 11.5, color: 'var(--color-text-secondary)' }}>
+                                                    • {item.product_name}: <strong>{item.qty_required} {item.unit}</strong>
+                                                  </span>
+                                                ))}
+                                              </div>
+
+                                              {/* Verification details */}
+                                              {(order.stop_status === 'DELIVERED' || order.stop_status === 'FAILED') && (
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 6, borderTop: '1px dashed var(--color-border)', paddingTop: 6, fontSize: 11.5, color: 'var(--color-text-muted)' }}>
+                                                  <div>Received By: <strong>{order.receiver_name || '—'}</strong></div>
+                                                  <div>Phone: <strong>{order.receiver_mobile || '—'}</strong></div>
+                                                  {order.failed_reason && <div style={{ color: 'var(--color-danger)' }}>Reason: <strong>{order.failed_reason.replace('_', ' ')}</strong></div>}
+                                                  
+                                                  <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                                                    {order.delivery_photo && (
+                                                      <button 
+                                                        className="btn btn-ghost btn-sm text-primary" 
+                                                        onClick={() => handleViewPOD(order.delivery_photo, 'photo')}
+                                                        style={{ padding: '2px 4px', fontSize: 11 }}
+                                                      >
+                                                        <Eye size={12} style={{ marginRight: 4 }} /> Photo
+                                                      </button>
+                                                    )}
+                                                    {order.delivery_signature && (
+                                                      <button 
+                                                        className="btn btn-ghost btn-sm text-primary" 
+                                                        onClick={() => handleViewPOD(order.delivery_signature, 'signature')}
+                                                        style={{ padding: '2px 4px', fontSize: 11 }}
+                                                      >
+                                                        <Eye size={12} style={{ marginRight: 4 }} /> Signature
+                                                      </button>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                    
                                     {s.delivery_notes && (
                                       <div style={{ marginTop: 8, padding: 10, background: 'rgba(239,68,68,0.04)', borderRadius: 6, border: '1px solid rgba(239,68,68,0.1)' }}>
                                         <strong>Logistics Notes:</strong> {s.delivery_notes}
@@ -658,6 +899,131 @@ export default function LogisticsAndDispatchPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADMIN ROUTE & DRIVER OVERRIDES MODAL */}
+      {showOverrideModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 500 }}>
+            <div className="modal-header">
+              <h3>Route & Driver Overrides: {overrideShipment?.shipment_number}</h3>
+              <button className="modal-close" onClick={() => setShowOverrideModal(false)}>&times;</button>
+            </div>
+            <form onSubmit={handleSaveOverride}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, margin: '16px 0' }}>
+                <div className="form-group">
+                  <label>Assign Driver</label>
+                  <select 
+                    className="form-control"
+                    value={overrideDriverId}
+                    onChange={e => {
+                      setOverrideDriverId(e.target.value);
+                      const selectedDriver = drivers.find(d => d.id === e.target.value);
+                      if (selectedDriver && selectedDriver.vehicle_number) {
+                        setOverrideVehicle(selectedDriver.vehicle_number);
+                      }
+                    }}
+                  >
+                    <option value="">Unassigned</option>
+                    {drivers.map(d => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} — Status: {d.driver_status || 'AVAILABLE'} ({d.vehicle_number || 'No Vehicle'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Vehicle Number</label>
+                  <input 
+                    type="text"
+                    className="form-control"
+                    value={overrideVehicle}
+                    onChange={e => setOverrideVehicle(e.target.value)}
+                    placeholder="Vehicle Plate No."
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label style={{ fontWeight: 700 }}>Adjust Delivery Sequence (Drag/Reorder Stops)</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
+                    {overrideStops.map((stop, idx) => (
+                      <div 
+                        key={stop.id} 
+                        style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          padding: 10, background: 'var(--color-bg-card)', border: '1px solid var(--color-border)',
+                          borderRadius: 6
+                        }}
+                      >
+                        <span style={{ fontSize: 13 }}>
+                          <strong style={{ color: 'var(--color-primary)', marginRight: 6 }}>Stop #{idx + 1}:</strong> 
+                          {stop.order_number} ({stop.customer})
+                        </span>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button 
+                            type="button" 
+                            className="btn btn-secondary btn-sm" 
+                            disabled={idx === 0}
+                            onClick={() => handleMoveStopUp(idx)}
+                            style={{ padding: '2px 6px' }}
+                          >
+                            ▲
+                          </button>
+                          <button 
+                            type="button" 
+                            className="btn btn-secondary btn-sm" 
+                            disabled={idx === overrideStops.length - 1}
+                            onClick={() => handleMoveStopDown(idx)}
+                            style={{ padding: '2px 6px' }}
+                          >
+                            ▼
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowOverrideModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={processing}>
+                  Re-Optimize Route
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* POD MEDIA VIEWER MODAL */}
+      {podMediaUrl && (
+        <div className="modal-overlay" onClick={() => setPodMediaUrl(null)}>
+          <div className="modal-content" style={{ maxWidth: 420, padding: 16 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
+              <h3 style={{ textTransform: 'capitalize' }}>Proof Of Delivery: {podMediaType}</h3>
+              <button className="modal-close" onClick={() => setPodMediaUrl(null)}>&times;</button>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}>
+              {podMediaType === 'photo' ? (
+                <img 
+                  src={podMediaUrl} 
+                  alt="Captured POD" 
+                  style={{ maxWidth: '100%', maxHeight: 350, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--color-border)' }} 
+                />
+              ) : (
+                <img 
+                  src={podMediaUrl} 
+                  alt="Receiver Signature" 
+                  style={{ width: '100%', height: 'auto', background: 'rgba(255,255,255,0.05)', border: '2px dashed var(--color-border)', borderRadius: 8, padding: 8 }} 
+                />
+              )}
+            </div>
           </div>
         </div>
       )}
