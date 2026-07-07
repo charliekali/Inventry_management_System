@@ -960,13 +960,20 @@ export default function ProductPage() {
                           />
                         </td>
                         <td>
-                          <input
-                            type="text"
-                            placeholder="Category"
+                          <select
                             className="form-control"
                             value={row.category}
                             onChange={(e) => handleBulkRowChange(idx, 'category', e.target.value)}
-                          />
+                          >
+                            <option value="">— Select Category —</option>
+                            {categories.map(group => (
+                              <optgroup key={group.category} label={group.category}>
+                                {group.subcategories.map(sub => (
+                                  <option key={sub} value={sub}>{sub}</option>
+                                ))}
+                              </optgroup>
+                            ))}
+                          </select>
                         </td>
                         <td>
                           <input
