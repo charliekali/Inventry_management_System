@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { dispatchAPI, shipmentsAPI, usersAPI } from '../api';
 import toast from 'react-hot-toast';
-import { 
-  Truck, CheckCircle2, Clock, Package, ClipboardList, MapPin, 
+import {
+  Truck, CheckCircle2, Clock, Package, ClipboardList, MapPin,
   User, Phone, Calendar, AlertTriangle, ShieldAlert, BarChart3, ChevronDown, ChevronUp, Trash2,
   Play, Map, Edit, UserCheck, RefreshCw, X, Eye
 } from 'lucide-react';
@@ -154,7 +154,7 @@ export default function LogisticsAndDispatchPage() {
       setOrders(ordersRes.data.data);
       setShipments(shipmentsRes.data.data);
       setSummary(summaryRes.data.data);
-      
+
       const driverUsers = (usersRes.data.data || []).filter(u => u.role?.name === 'Driver');
       setDrivers(driverUsers);
     } catch (err) {
@@ -169,7 +169,7 @@ export default function LogisticsAndDispatchPage() {
   }, []);
 
   const handleSelectOrder = (id) => {
-    setSelectedOrderIds(prev => 
+    setSelectedOrderIds(prev =>
       prev.includes(id) ? prev.filter(oid => oid !== id) : [...prev, id]
     );
   };
@@ -396,21 +396,21 @@ export default function LogisticsAndDispatchPage() {
 
       {/* Navigation Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', marginBottom: 20 }}>
-        <button 
+        <button
           className={`btn btn-sm ${activeTab === 'pending' ? 'btn-primary' : 'btn-ghost'}`}
           onClick={() => setActiveTab('pending')}
           style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
         >
           Pending Orders ({orders.length})
         </button>
-        <button 
+        <button
           className={`btn btn-sm ${activeTab === 'shipments' ? 'btn-primary' : 'btn-ghost'}`}
           onClick={() => setActiveTab('shipments')}
           style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginLeft: 8 }}
         >
           Shipments ({shipments.length})
         </button>
-        <button 
+        <button
           className={`btn btn-sm ${activeTab === 'history' ? 'btn-primary' : 'btn-ghost'}`}
           onClick={() => setActiveTab('history')}
           style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginLeft: 8 }}
@@ -429,7 +429,7 @@ export default function LogisticsAndDispatchPage() {
               <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div className="card-title">Awaiting Delivery Setup</div>
                 {selectedOrderIds.length > 0 && hasPermission('SHIPMENTS:CREATE') && (
-                  <button 
+                  <button
                     className="btn btn-primary btn-sm"
                     onClick={() => setShowShipmentModal(true)}
                   >
@@ -449,8 +449,8 @@ export default function LogisticsAndDispatchPage() {
                     <thead>
                       <tr>
                         <th style={{ width: 40 }}>
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             checked={selectedOrderIds.length === orders.length}
                             onChange={handleSelectAllOrders}
                           />
@@ -465,8 +465,8 @@ export default function LogisticsAndDispatchPage() {
                       {orders.map(order => (
                         <tr key={order.id} style={{ background: selectedOrderIds.includes(order.id) ? 'rgba(59,130,246,0.04)' : 'none' }}>
                           <td>
-                            <input 
-                              type="checkbox" 
+                            <input
+                              type="checkbox"
                               checked={selectedOrderIds.includes(order.id)}
                               onChange={() => handleSelectOrder(order.id)}
                             />
@@ -506,13 +506,13 @@ export default function LogisticsAndDispatchPage() {
                 const stopsList = [];
                 const driversList = [];
                 const routesList = [];
-                const mapCenter = [9.9252, 78.1198]; // default depot coordinates
+                const mapCenter = [13.0827, 80.2707]; // default depot coordinates (Chennai)
                 const boundsCoords = [mapCenter];
 
                 shipments.forEach(s => {
                   if (s.status === 'EN_ROUTE' || s.status === 'CREATED') {
                     const routeStops = [];
-                    
+
                     s.orders?.forEach(o => {
                       if (o.latitude && o.longitude) {
                         const latVal = parseFloat(o.latitude);
@@ -570,7 +570,7 @@ export default function LogisticsAndDispatchPage() {
                   <div style={{ padding: 16, background: '#020617', borderBottom: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ color: '#fff', fontSize: 13.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Map size={16} color="#06b6d4" /> Live GPS Driver Fleet tracker (Colombo Zone)
+                        <Map size={16} color="#06b6d4" /> Live GPS Driver Fleet tracker
                       </div>
                       <div style={{ display: 'flex', gap: 16, fontSize: 11, color: '#94a3b8' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }}></span> Depot</span>
@@ -607,9 +607,9 @@ export default function LogisticsAndDispatchPage() {
 
                         {/* Stop Markers */}
                         {stopsList.map((stop, idx) => (
-                          <Marker 
-                            key={`stop-${stop.id}-${idx}`} 
-                            position={[stop.lat, stop.lng]} 
+                          <Marker
+                            key={`stop-${stop.id}-${idx}`}
+                            position={[stop.lat, stop.lng]}
                             icon={createStopMarker(stop.sequence || (idx + 1), stop.status)}
                           >
                             <Popup>
@@ -624,9 +624,9 @@ export default function LogisticsAndDispatchPage() {
 
                         {/* Driver Markers */}
                         {driversList.map((d, idx) => (
-                          <Marker 
-                            key={`driver-${idx}`} 
-                            position={[d.lat, d.lng]} 
+                          <Marker
+                            key={`driver-${idx}`}
+                            position={[d.lat, d.lng]}
                             icon={createDriverMarker()}
                           >
                             <Popup>
@@ -641,11 +641,11 @@ export default function LogisticsAndDispatchPage() {
 
                         {/* Route Polylines */}
                         {routesList.map(route => (
-                          <Polyline 
-                            key={`route-${route.id}`} 
-                            positions={route.positions} 
-                            color={route.color} 
-                            weight={3.5} 
+                          <Polyline
+                            key={`route-${route.id}`}
+                            positions={route.positions}
+                            color={route.color}
+                            weight={3.5}
                             opacity={0.8}
                           />
                         ))}
@@ -697,8 +697,8 @@ export default function LogisticsAndDispatchPage() {
                           <>
                             <tr key={s.id}>
                               <td>
-                                <button 
-                                  className="btn btn-ghost btn-sm" 
+                                <button
+                                  className="btn btn-ghost btn-sm"
                                   onClick={() => setExpandedShipmentId(isExpanded ? null : s.id)}
                                   style={{ padding: 4 }}
                                 >
@@ -727,7 +727,7 @@ export default function LogisticsAndDispatchPage() {
                               <td style={{ textAlign: 'right' }}>
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
                                   {s.status === 'CREATED' && hasPermission('SHIPMENTS:MANAGE') && (
-                                    <button 
+                                    <button
                                       className="btn btn-primary btn-sm"
                                       onClick={() => handleStartTrip(s.id)}
                                     >
@@ -735,7 +735,7 @@ export default function LogisticsAndDispatchPage() {
                                     </button>
                                   )}
                                   {s.status === 'EN_ROUTE' && hasPermission('DELIVERY:CONFIRM') && (
-                                    <button 
+                                    <button
                                       className="btn btn-success btn-sm"
                                       onClick={() => handleOpenDeliveryModal(s)}
                                     >
@@ -743,7 +743,7 @@ export default function LogisticsAndDispatchPage() {
                                     </button>
                                   )}
                                   {s.status === 'CREATED' && hasPermission('SHIPMENTS:MANAGE') && (
-                                    <button 
+                                    <button
                                       className="btn btn-ghost btn-sm text-danger"
                                       onClick={() => handleCancelShipment(s.id)}
                                       style={{ padding: 6 }}
@@ -761,7 +761,7 @@ export default function LogisticsAndDispatchPage() {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                       <div style={{ fontWeight: 700, fontSize: 13, textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>Timeline Stops & Delivery Progress</div>
                                       {hasPermission('SHIPMENTS:MANAGE') && (
-                                        <button 
+                                        <button
                                           className="btn btn-secondary btn-sm"
                                           onClick={() => handleOpenOverrideModal(s)}
                                         >
@@ -769,13 +769,13 @@ export default function LogisticsAndDispatchPage() {
                                         </button>
                                       )}
                                     </div>
-                                    
+
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderLeft: '2px solid var(--color-border)', marginLeft: 8, paddingLeft: 16 }}>
                                       {s.orders?.map((order, stopIdx) => {
                                         let dotColor = '#fb923c'; // pending
                                         if (order.stop_status === 'DELIVERED') dotColor = '#10b981';
                                         if (order.stop_status === 'FAILED') dotColor = '#ef4444';
-                                        
+
                                         return (
                                           <div key={order.id} style={{ position: 'relative' }}>
                                             <div style={{
@@ -792,7 +792,7 @@ export default function LogisticsAndDispatchPage() {
                                               <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
                                                 Address: {order.delivery_address || 'Colombo Delivery Zone'}
                                               </div>
-                                              
+
                                               {/* Items list */}
                                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
                                                 {order.items?.map((item, idx) => (
@@ -808,11 +808,11 @@ export default function LogisticsAndDispatchPage() {
                                                   <div>Received By: <strong>{order.receiver_name || '—'}</strong></div>
                                                   <div>Phone: <strong>{order.receiver_mobile || '—'}</strong></div>
                                                   {order.failed_reason && <div style={{ color: 'var(--color-danger)' }}>Reason: <strong>{order.failed_reason.replace('_', ' ')}</strong></div>}
-                                                  
+
                                                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
                                                     {order.delivery_photo && (
-                                                      <button 
-                                                        className="btn btn-ghost btn-sm text-primary" 
+                                                      <button
+                                                        className="btn btn-ghost btn-sm text-primary"
                                                         onClick={() => handleViewPOD(order.delivery_photo, 'photo')}
                                                         style={{ padding: '2px 4px', fontSize: 11 }}
                                                       >
@@ -820,8 +820,8 @@ export default function LogisticsAndDispatchPage() {
                                                       </button>
                                                     )}
                                                     {order.delivery_signature && (
-                                                      <button 
-                                                        className="btn btn-ghost btn-sm text-primary" 
+                                                      <button
+                                                        className="btn btn-ghost btn-sm text-primary"
                                                         onClick={() => handleViewPOD(order.delivery_signature, 'signature')}
                                                         style={{ padding: '2px 4px', fontSize: 11 }}
                                                       >
@@ -836,7 +836,7 @@ export default function LogisticsAndDispatchPage() {
                                         );
                                       })}
                                     </div>
-                                    
+
                                     {s.delivery_notes && (
                                       <div style={{ marginTop: 8, padding: 10, background: 'rgba(239,68,68,0.04)', borderRadius: 6, border: '1px solid rgba(239,68,68,0.1)' }}>
                                         <strong>Logistics Notes:</strong> {s.delivery_notes}
@@ -902,7 +902,7 @@ export default function LogisticsAndDispatchPage() {
                           <td>{s.created_by}</td>
                           <td style={{ textAlign: 'right' }}>
                             {s.orders?.map(o => (
-                              <button 
+                              <button
                                 key={o.id}
                                 className="btn btn-ghost btn-sm text-danger"
                                 onClick={() => handleCancelSingleDispatch(o.id)}
@@ -935,9 +935,9 @@ export default function LogisticsAndDispatchPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14, margin: '16px 0' }}>
                 <div className="form-group">
                   <label>Vehicle Number</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
+                  <input
+                    type="text"
+                    className="form-control"
                     value={vehicleNumber}
                     onChange={e => setVehicleNumber(e.target.value)}
                     placeholder="e.g. TN-37-BY-4512"
@@ -947,9 +947,9 @@ export default function LogisticsAndDispatchPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div className="form-group">
                     <label>Driver Name</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
+                    <input
+                      type="text"
+                      className="form-control"
                       value={driverName}
                       onChange={e => setDriverName(e.target.value)}
                       placeholder="Name"
@@ -958,9 +958,9 @@ export default function LogisticsAndDispatchPage() {
                   </div>
                   <div className="form-group">
                     <label>Driver Phone</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
+                    <input
+                      type="text"
+                      className="form-control"
                       value={driverPhone}
                       onChange={e => setDriverPhone(e.target.value)}
                       placeholder="Phone Number"
@@ -971,18 +971,18 @@ export default function LogisticsAndDispatchPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div className="form-group">
                     <label>Origin</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
+                    <input
+                      type="text"
+                      className="form-control"
                       value={origin}
                       onChange={e => setOrigin(e.target.value)}
                     />
                   </div>
                   <div className="form-group">
                     <label>Destination Route</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
+                    <input
+                      type="text"
+                      className="form-control"
                       value={destination}
                       onChange={e => setDestination(e.target.value)}
                       placeholder="e.g. Coimbatore Bypass"
@@ -992,9 +992,9 @@ export default function LogisticsAndDispatchPage() {
                 </div>
                 <div className="form-group">
                   <label>Scheduled Dispatch Time</label>
-                  <input 
-                    type="datetime-local" 
-                    className="form-control" 
+                  <input
+                    type="datetime-local"
+                    className="form-control"
                     value={scheduledAt}
                     onChange={e => setScheduledAt(e.target.value)}
                   />
@@ -1025,8 +1025,8 @@ export default function LogisticsAndDispatchPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14, margin: '16px 0' }}>
                 <div className="form-group">
                   <label>Outcome Status</label>
-                  <select 
-                    className="form-control" 
+                  <select
+                    className="form-control"
                     value={deliveryStatus}
                     onChange={e => setDeliveryStatus(e.target.value)}
                   >
@@ -1036,8 +1036,8 @@ export default function LogisticsAndDispatchPage() {
                 </div>
                 <div className="form-group">
                   <label>Remarks / Notes / Proof of Delivery</label>
-                  <textarea 
-                    className="form-control" 
+                  <textarea
+                    className="form-control"
                     value={deliveryNotes}
                     onChange={e => setDeliveryNotes(e.target.value)}
                     placeholder="Enter delivery comments or reasoning for failure"
@@ -1070,7 +1070,7 @@ export default function LogisticsAndDispatchPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14, margin: '16px 0' }}>
                 <div className="form-group">
                   <label>Assign Driver</label>
-                  <select 
+                  <select
                     className="form-control"
                     value={overrideDriverId}
                     onChange={e => {
@@ -1092,7 +1092,7 @@ export default function LogisticsAndDispatchPage() {
 
                 <div className="form-group">
                   <label>Vehicle Number</label>
-                  <input 
+                  <input
                     type="text"
                     className="form-control"
                     value={overrideVehicle}
@@ -1105,8 +1105,8 @@ export default function LogisticsAndDispatchPage() {
                   <label style={{ fontWeight: 700 }}>Adjust Delivery Sequence (Drag/Reorder Stops)</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
                     {overrideStops.map((stop, idx) => (
-                      <div 
-                        key={stop.id} 
+                      <div
+                        key={stop.id}
                         style={{
                           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                           padding: 10, background: 'var(--color-bg-card)', border: '1px solid var(--color-border)',
@@ -1114,22 +1114,22 @@ export default function LogisticsAndDispatchPage() {
                         }}
                       >
                         <span style={{ fontSize: 13 }}>
-                          <strong style={{ color: 'var(--color-primary)', marginRight: 6 }}>Stop #{idx + 1}:</strong> 
+                          <strong style={{ color: 'var(--color-primary)', marginRight: 6 }}>Stop #{idx + 1}:</strong>
                           {stop.order_number} ({stop.customer})
                         </span>
                         <div style={{ display: 'flex', gap: 4 }}>
-                          <button 
-                            type="button" 
-                            className="btn btn-secondary btn-sm" 
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
                             disabled={idx === 0}
                             onClick={() => handleMoveStopUp(idx)}
                             style={{ padding: '2px 6px' }}
                           >
                             ▲
                           </button>
-                          <button 
-                            type="button" 
-                            className="btn btn-secondary btn-sm" 
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
                             disabled={idx === overrideStops.length - 1}
                             onClick={() => handleMoveStopDown(idx)}
                             style={{ padding: '2px 6px' }}
@@ -1142,7 +1142,7 @@ export default function LogisticsAndDispatchPage() {
                   </div>
                 </div>
               </div>
-              
+
               <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setShowOverrideModal(false)}>
                   Cancel
@@ -1166,16 +1166,16 @@ export default function LogisticsAndDispatchPage() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}>
               {podMediaType === 'photo' ? (
-                <img 
-                  src={podMediaUrl} 
-                  alt="Captured POD" 
-                  style={{ maxWidth: '100%', maxHeight: 350, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--color-border)' }} 
+                <img
+                  src={podMediaUrl}
+                  alt="Captured POD"
+                  style={{ maxWidth: '100%', maxHeight: 350, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--color-border)' }}
                 />
               ) : (
-                <img 
-                  src={podMediaUrl} 
-                  alt="Receiver Signature" 
-                  style={{ width: '100%', height: 'auto', background: 'rgba(255,255,255,0.05)', border: '2px dashed var(--color-border)', borderRadius: 8, padding: 8 }} 
+                <img
+                  src={podMediaUrl}
+                  alt="Receiver Signature"
+                  style={{ width: '100%', height: 'auto', background: 'rgba(255,255,255,0.05)', border: '2px dashed var(--color-border)', borderRadius: 8, padding: 8 }}
                 />
               )}
             </div>

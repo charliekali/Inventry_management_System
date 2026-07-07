@@ -830,7 +830,7 @@ export default function SalesCRM() {
           return (
             <div style={{ position: 'relative', height: 'calc(100vh - 245px)', borderRadius: 16, overflow: 'hidden', border: '1px solid var(--s-border)' }}>
               <MapContainer
-                center={myLoc || (mappedItems.length > 0 ? [parseFloat(mappedItems[0].custom_fields.latitude), parseFloat(mappedItems[0].custom_fields.longitude)] : [9.9252, 78.1198])}
+                center={myLoc || (mappedItems.length > 0 ? [parseFloat(mappedItems[0].custom_fields.latitude), parseFloat(mappedItems[0].custom_fields.longitude)] : [13.0827, 80.2707])}
                 zoom={14}
                 style={{ height: '100%', width: '100%' }}
                 zoomControl={false}

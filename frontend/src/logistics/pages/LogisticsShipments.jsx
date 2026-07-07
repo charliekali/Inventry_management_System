@@ -4,8 +4,8 @@ import toast from 'react-hot-toast';
 import { Truck, Navigation, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp, RefreshCw, Phone } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-const DEPOT_LAT = 9.9252;
-const DEPOT_LNG = 78.1198;
+const DEPOT_LAT = 13.0827;
+const DEPOT_LNG = 80.2707;
 
 export default function LogisticsShipments() {
   const { user, hasPermission } = useAuth();

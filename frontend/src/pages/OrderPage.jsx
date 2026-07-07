@@ -818,8 +818,8 @@ export default function OrderPage() {
                         onClick={() => {
                           const lat = parseFloat(selectedOrder.custom_fields?.latitude);
                           const lng = parseFloat(selectedOrder.custom_fields?.longitude);
-                          setEditLat(!isNaN(lat) ? lat : 9.9252);
-                          setEditLng(!isNaN(lng) ? lng : 78.1198);
+                          setEditLat(!isNaN(lat) ? lat : 13.0827);
+                          setEditLng(!isNaN(lng) ? lng : 80.2707);
                           setIsEditingLoc(true);
                         }}
                       >
@@ -874,7 +874,7 @@ export default function OrderPage() {
                       
                       <div style={{ height: 220, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--color-border)' }}>
                         <MapContainer
-                          center={[editLat || 9.9252, editLng || 78.1198]}
+                          center={[editLat || 13.0827, editLng || 80.2707]}
                           zoom={13}
                           style={{ height: '100%', width: '100%' }}
                         >
@@ -1133,7 +1133,7 @@ export default function OrderPage() {
 
               <div style={{ height: 250, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--color-border)' }}>
                 <MapContainer
-                  center={[9.9252, 78.1198]}
+                  center={[13.0827, 80.2707]}
                   zoom={12}
                   style={{ height: '100%', width: '100%' }}
                 >

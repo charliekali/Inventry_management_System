@@ -571,7 +571,7 @@ export default function AttendanceTrackingPage() {
   );
   const defaultCenter = sessionWithGps
     ? [parseFloat(sessionWithGps.last_lat), parseFloat(sessionWithGps.last_lng)]
-    : [9.9252, 78.1198];
+    : [13.0827, 80.2707];
 
   const selectedColor = selectedSession
     ? getColor(activeSessions.findIndex(s => s.id === selectedSession.id))

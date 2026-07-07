@@ -370,7 +370,7 @@ export default function SalesRoute() {
   });
   const defaultCenter  = myLoc || (mappedItems[0]
     ? [parseFloat(mappedItems[0].custom_fields.latitude), parseFloat(mappedItems[0].custom_fields.longitude)]
-    : [9.9252, 78.1198]);
+    : [13.0827, 80.2707]);
 
   const routeColor   = '#1A73E8'; // Google Maps blue
   const remainingDist = route ? route.distance.toFixed(1) : null;
