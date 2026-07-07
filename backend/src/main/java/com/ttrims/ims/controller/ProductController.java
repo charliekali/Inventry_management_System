@@ -376,6 +376,32 @@ public class ProductController {
         return ResponseEntity.ok(result);
     }
 
+    @GetMapping("/next-code")
+    public ResponseEntity<?> getNextCode(@RequestParam String type) {
+        auth.requirePermission("PRODUCTS:VIEW");
+        String prefix = "FINISHED_GOOD".equals(type) ? "FG-" : 
+                        "RAW_MATERIAL".equals(type) ? "RM-" : 
+                        "BLEND".equals(type) ? "BL-" : "TL-";
+        
+        List<Product> products = productRepo.findAll();
+        int maxNum = 0;
+        for (Product p : products) {
+            String code = p.getCode();
+            if (code != null && code.toUpperCase().startsWith(prefix)) {
+                String suffix = code.substring(prefix.length()).trim();
+                suffix = suffix.replaceAll("\\D", "");
+                if (!suffix.isEmpty()) {
+                    try {
+                        int num = Integer.parseInt(suffix);
+                        if (num > maxNum) maxNum = num;
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+        }
+        String nextCode = prefix + String.format("%03d", maxNum + 1);
+        return ResponseEntity.ok(Map.of("success", true, "code", nextCode));
+    }
+
     @GetMapping("/template")
     public ResponseEntity<?> getTemplate() {
         auth.requirePermission("PRODUCTS:VIEW");

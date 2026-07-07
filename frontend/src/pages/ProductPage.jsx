@@ -112,11 +112,41 @@ export default function ProductPage() {
     { code: '', name: '', type: 'FINISHED_GOOD', unit: 'PCS', min_stock: '0', deduction_value: '0', category: '', description: '' }
   ]);
 
+  const assignNextCodeToRow = async (index, type, currentRows = bulkRows) => {
+    try {
+      const res = await productsAPI.nextCode(type);
+      const baseCode = res.data.code;
+      const prefix = type === 'FINISHED_GOOD' ? 'FG-' : 
+                     type === 'RAW_MATERIAL' ? 'RM-' : 
+                     type === 'BLEND' ? 'BL-' : 'TL-';
+      const numPart = baseCode.substring(prefix.length);
+      const startNum = parseInt(numPart, 10) || 1;
+
+      let offset = 0;
+      for (let i = 0; i < index; i++) {
+        if (currentRows[i] && currentRows[i].type === type) {
+          offset++;
+        }
+      }
+
+      const nextNum = startNum + offset;
+      const formattedNum = String(nextNum).padStart(numPart.length || 3, '0');
+      const finalCode = prefix + formattedNum;
+
+      setBulkRows(prev => prev.map((row, i) => {
+        if (i === index) {
+          return { ...row, code: finalCode, type };
+        }
+        return row;
+      }));
+    } catch (e) {}
+  };
+
   const handleAddBulkRow = () => {
-    setBulkRows(prev => [
-      ...prev,
-      { code: '', name: '', type: 'FINISHED_GOOD', unit: 'PCS', min_stock: '0', deduction_value: '0', category: '', description: '' }
-    ]);
+    const newRow = { code: '', name: '', type: 'FINISHED_GOOD', unit: 'PCS', min_stock: '0', deduction_value: '0', category: '', description: '' };
+    const updatedRows = [...bulkRows, newRow];
+    setBulkRows(updatedRows);
+    assignNextCodeToRow(updatedRows.length - 1, 'FINISHED_GOOD', updatedRows);
   };
 
   const handleRemoveBulkRow = (index) => {
@@ -208,6 +238,14 @@ export default function ProductPage() {
   useEffect(() => {
     loadCategories();
   }, []);
+
+  useEffect(() => {
+    if (!editingProductId && showProductModal && pType) {
+      productsAPI.nextCode(pType)
+        .then(r => setPCode(r.data.code))
+        .catch(() => {});
+    }
+  }, [pType, showProductModal, editingProductId]);
 
 
 
@@ -451,7 +489,12 @@ export default function ProductPage() {
                 <Plus size={16} />
                 Add Product
               </button>
-              <button className="btn btn-primary" onClick={() => { setBulkRows([{ code: '', name: '', type: 'FINISHED_GOOD', unit: 'PCS', min_stock: '0', deduction_value: '0', category: '', description: '' }]); setShowBulkModal(true); }}>
+              <button className="btn btn-primary" onClick={() => {
+                const initialRow = { code: '', name: '', type: 'FINISHED_GOOD', unit: 'PCS', min_stock: '0', deduction_value: '0', category: '', description: '' };
+                setBulkRows([initialRow]);
+                assignNextCodeToRow(0, 'FINISHED_GOOD', [initialRow]);
+                setShowBulkModal(true);
+              }}>
                 <Plus size={16} />
                 Bulk Add
               </button>
@@ -881,7 +924,7 @@ export default function ProductPage() {
                           <select
                             className="form-control"
                             value={row.type}
-                            onChange={(e) => handleBulkRowChange(idx, 'type', e.target.value)}
+                            onChange={(e) => assignNextCodeToRow(idx, e.target.value)}
                             required
                           >
                             <option value="FINISHED_GOOD">Finished Good (FG)</option>

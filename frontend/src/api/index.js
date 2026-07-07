@@ -113,6 +113,7 @@ export const productsAPI = {
   },
   getTemplate: () => `${getApiBase()}/products/template`,
   createBulk: (dataList) => api.post('/products/bulk', dataList),
+  nextCode: (type) => api.get('/products/next-code', { params: { type } }),
 };
 
 // ─── Transactions ─────────────────────────────────────────────────────────────
