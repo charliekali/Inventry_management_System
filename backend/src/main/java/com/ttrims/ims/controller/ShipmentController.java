@@ -340,6 +340,23 @@ public class ShipmentController {
         return ResponseEntity.ok(Map.of("success", true, "message", "Driver location updated"));
     }
 
+    @PatchMapping("/driver/status")
+    @Transactional
+    public ResponseEntity<?> updateDriverStatus(@RequestBody Map<String, Object> body) {
+        User driver = auth.currentUser();
+        String newStatus = (String) body.get("status");
+        if (newStatus == null || newStatus.isBlank()) {
+            return bad("Status is required");
+        }
+        driver.setDriverStatus(newStatus.toUpperCase());
+        userRepo.save(driver);
+        return ResponseEntity.ok(Map.of(
+            "success", true, 
+            "message", "Driver status updated to " + driver.getDriverStatus(),
+            "data", Map.of("status", driver.getDriverStatus())
+        ));
+    }
+
     @PostMapping("/{id}/admin-override")
     @Transactional
     public ResponseEntity<?> adminOverride(@PathVariable String id, @RequestBody Map<String, Object> body) {

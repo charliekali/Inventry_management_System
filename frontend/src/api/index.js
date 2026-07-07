@@ -163,6 +163,7 @@ export const shipmentsAPI = {
   listAssigned: () => api.get('/shipments/driver/assigned'),
   updateStopStatus: (id, stopId, data) => api.patch(`/shipments/${id}/stop/${stopId}`, data),
   reportLocation: (data) => api.post('/shipments/driver/location', data),
+  updateDriverStatus: (status) => api.patch('/shipments/driver/status', { status }),
   adminOverride: (id, data) => api.post(`/shipments/${id}/admin-override`, data),
 };
 
