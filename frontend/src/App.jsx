@@ -52,6 +52,7 @@ import SalesApp from './sales/SalesApp';
 import ProductionApp from './production/ProductionApp';
 import WarehouseApp from './warehouse/WarehouseApp';
 import LogisticsApp from './logistics/LogisticsApp';
+import IpWhitelistPage from './pages/IpWhitelistPage';
 
 // Protected Route Guard
 function ProtectedRoute({ children, perm }) {
@@ -482,6 +483,14 @@ function App() {
               <ProtectedRoute perm="USERS:VIEW">
                 <AuthenticatedLayout>
                   <UserPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/ip-whitelist" element={
+              <ProtectedRoute perm="ROLES:VIEW">
+                <AuthenticatedLayout>
+                  <IpWhitelistPage />
                 </AuthenticatedLayout>
               </ProtectedRoute>
             } />

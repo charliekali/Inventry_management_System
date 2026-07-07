@@ -1,11 +1,14 @@
 package com.ttrims.ims.controller;
 
 import com.ttrims.ims.entity.User;
+import com.ttrims.ims.entity.IpWhitelist;
 import com.ttrims.ims.repository.UserRepository;
+import com.ttrims.ims.repository.IpWhitelistRepository;
 import com.ttrims.ims.security.JwtUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -17,15 +20,27 @@ public class AuthController {
     private final UserRepository userRepo;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
+    private final IpWhitelistRepository ipWhitelistRepo;
 
-    public AuthController(UserRepository userRepo, PasswordEncoder passwordEncoder, JwtUtils jwtUtils) {
+    public AuthController(UserRepository userRepo, PasswordEncoder passwordEncoder, JwtUtils jwtUtils, IpWhitelistRepository ipWhitelistRepo) {
         this.userRepo = userRepo;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtils = jwtUtils;
+        this.ipWhitelistRepo = ipWhitelistRepo;
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String xfHeader = request.getHeader("X-Forwarded-For");
+        if (xfHeader == null || xfHeader.isEmpty()) {
+            return request.getRemoteAddr();
+        }
+        return xfHeader.split(",")[0].trim();
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Map<String, String> body) {
+    public ResponseEntity<?> login(@RequestBody Map<String, String> body, 
+                                   @RequestHeader(value = "X-Is-Native", required = false) String isNativeHeader,
+                                   HttpServletRequest request) {
         String email = body.getOrDefault("email", "").toLowerCase().trim();
         String password = body.getOrDefault("password", "");
 
@@ -40,8 +55,18 @@ public class AuthController {
             return ResponseEntity.status(401).body(error("Invalid credentials"));
         }
 
-        String accessToken = jwtUtils.generateAccessToken(user.getId());
-        String refreshToken = jwtUtils.generateRefreshToken(user.getId());
+        String clientIp = getClientIp(request);
+        boolean hasWhitelist = ipWhitelistRepo.existsByUserId(user.getId());
+        if (!hasWhitelist) {
+            ipWhitelistRepo.save(new IpWhitelist(user, clientIp));
+        }
+
+        boolean isNative = "true".equalsIgnoreCase(isNativeHeader);
+        boolean isWhitelisted = ipWhitelistRepo.existsByUserIdAndIpAddress(user.getId(), clientIp);
+        boolean sessionShouldNotExpire = isNative || isWhitelisted;
+
+        String accessToken = jwtUtils.generateAccessToken(user.getId(), sessionShouldNotExpire);
+        String refreshToken = jwtUtils.generateRefreshToken(user.getId(), sessionShouldNotExpire);
 
         var permissions = user.getRole() != null
             ? user.getRole().getPermissions().stream().map(p -> p.getName()).collect(Collectors.toList())
@@ -65,7 +90,9 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<?> refresh(@RequestBody Map<String, String> body) {
+    public ResponseEntity<?> refresh(@RequestBody Map<String, String> body, 
+                                     @RequestHeader(value = "X-Is-Native", required = false) String isNativeHeader,
+                                     HttpServletRequest request) {
         String refreshToken = body.getOrDefault("refreshToken", "");
         if (refreshToken.isEmpty() || !jwtUtils.validateToken(refreshToken)) {
             return ResponseEntity.status(401).body(error("Invalid or expired refresh token"));
@@ -74,9 +101,14 @@ public class AuthController {
         User user = userRepo.findByIdAndActiveTrue(userId).orElse(null);
         if (user == null) return ResponseEntity.status(401).body(error("User not found"));
 
+        String clientIp = getClientIp(request);
+        boolean isNative = "true".equalsIgnoreCase(isNativeHeader);
+        boolean isWhitelisted = ipWhitelistRepo.existsByUserIdAndIpAddress(userId, clientIp);
+        boolean sessionShouldNotExpire = isNative || isWhitelisted;
+
         Map<String, String> data = new HashMap<>();
-        data.put("accessToken", jwtUtils.generateAccessToken(userId));
-        data.put("refreshToken", jwtUtils.generateRefreshToken(userId));
+        data.put("accessToken", jwtUtils.generateAccessToken(userId, sessionShouldNotExpire));
+        data.put("refreshToken", jwtUtils.generateRefreshToken(userId, sessionShouldNotExpire));
         return ResponseEntity.ok(success(data));
     }
 

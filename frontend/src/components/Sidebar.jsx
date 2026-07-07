@@ -51,6 +51,7 @@ const NAV_ITEMS = [
   { group: 'Administration', items: [
     { path: '/users', label: 'Users', icon: Users, perm: 'USERS:VIEW' },
     { path: '/roles', label: 'Roles & Permissions', icon: Settings, perm: 'ROLES:VIEW' },
+    { path: '/ip-whitelist', label: 'IP Whitelist', icon: ShieldCheck, perm: 'ROLES:VIEW' },
     { path: '/categories', label: 'Product Categories', icon: Tags, perm: 'ROLES:VIEW' },
     { path: '/data-portability', label: 'Data Portability', icon: Database, perm: 'ROLES:VIEW' },
     { path: '/form-settings', label: 'Form Settings', icon: SlidersHorizontal, perm: 'ROLES:VIEW' },

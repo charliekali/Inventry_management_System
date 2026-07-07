@@ -21,6 +21,9 @@ api.interceptors.request.use((config) => {
   config.baseURL = getApiBase();
   const token = localStorage.getItem('accessToken');
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (Capacitor.isNativePlatform()) {
+    config.headers['X-Is-Native'] = 'true';
+  }
   return config;
 });
 
@@ -34,7 +37,11 @@ api.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem('refreshToken');
         if (!refreshToken) throw new Error('No refresh token');
-        const { data } = await axios.post(`${getApiBase()}/auth/refresh`, { refreshToken });
+        const headers = {};
+        if (Capacitor.isNativePlatform()) {
+          headers['X-Is-Native'] = 'true';
+        }
+        const { data } = await axios.post(`${getApiBase()}/auth/refresh`, { refreshToken }, { headers });
         localStorage.setItem('accessToken', data.data.accessToken);
         localStorage.setItem('refreshToken', data.data.refreshToken);
         original.headers.Authorization = `Bearer ${data.data.accessToken}`;
@@ -296,6 +303,13 @@ export const visitAllocationsAPI = {
   updateStatus: (id, status) => api.patch(`/visit-allocations/${id}/status`, { status }),
   delete: (id) => api.delete(`/visit-allocations/${id}`),
   reorder: (data) => api.patch('/visit-allocations/reorder', data),
+};
+
+// ─── IP Whitelist ─────────────────────────────────────────────────────────────
+export const ipWhitelistAPI = {
+  list: () => api.get('/ip-whitelist'),
+  create: (data) => api.post('/ip-whitelist', data),
+  delete: (id) => api.delete(`/ip-whitelist/${id}`),
 };
 
 export default api;

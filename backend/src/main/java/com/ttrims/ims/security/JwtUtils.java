@@ -25,19 +25,29 @@ public class JwtUtils {
     }
 
     public String generateAccessToken(String userId) {
+        return generateAccessToken(userId, false);
+    }
+
+    public String generateAccessToken(String userId, boolean isNative) {
+        long exp = isNative ? (365L * 24 * 60 * 60 * 1000 * 100) : jwtExpirationMs;
         return Jwts.builder()
             .subject(userId)
             .issuedAt(new Date())
-            .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
+            .expiration(new Date(System.currentTimeMillis() + exp))
             .signWith(getSigningKey())
             .compact();
     }
 
     public String generateRefreshToken(String userId) {
+        return generateRefreshToken(userId, false);
+    }
+
+    public String generateRefreshToken(String userId, boolean isNative) {
+        long exp = isNative ? (365L * 24 * 60 * 60 * 1000 * 100) : refreshExpirationMs;
         return Jwts.builder()
             .subject(userId)
             .issuedAt(new Date())
-            .expiration(new Date(System.currentTimeMillis() + refreshExpirationMs))
+            .expiration(new Date(System.currentTimeMillis() + exp))
             .signWith(getSigningKey())
             .compact();
     }
