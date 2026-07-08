@@ -7,13 +7,12 @@ services:
     dockerContext: backend
     plan: free
     envVars:
-      # Connect directly to your existing PostgreSQL database using the external hostname
       - key: SPRING_DATASOURCE_URL
-        value: jdbc:postgresql://dpg-d8in6lcvikkc73c1l780-a:5432/ims_db_z4x7
+        value: jdbc:postgresql://db.sergoskjjzfrdrzfieye.supabase.co:5432/postgres?sslmode=require
       - key: SPRING_DATASOURCE_USERNAME
-        value: ims_db_z4x7_user
+        value: postgres
       - key: SPRING_DATASOURCE_PASSWORD
-        value: OXuCjVeOESq1tooj37MjWfRXUvuPgg5k
+        sync: false
       # Automatically generate a secure 32+ character JWT secret on initial deploy
       - key: JWT_SECRET
         generateValue: true

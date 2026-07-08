@@ -4,12 +4,21 @@ import java.sql.*;
 
 public class InspectStock {
     public static void main(String[] args) {
-        String url = "jdbc:postgresql://dpg-d8in6lcvikkc73c1l780-a.virginia-postgres.render.com:5432/ims_db_z4x7?sslmode=require";
-        String user = "ims_db_z4x7_user";
-        String pass = "OXuCjVeOESq1tooj37MjWfRXUvuPgg5k";
+        String url = System.getenv("SPRING_DATASOURCE_URL");
+        if (url == null) {
+            url = "jdbc:postgresql://db.sergoskjjzfrdrzfieye.supabase.co:5432/postgres?sslmode=require";
+        }
+        String user = System.getenv("SPRING_DATASOURCE_USERNAME");
+        if (user == null) {
+            user = "postgres";
+        }
+        String pass = System.getenv("SPRING_DATASOURCE_PASSWORD");
+        if (pass == null) {
+            pass = "USxyGbIQprBP3koz";
+        }
 
         try (Connection conn = DriverManager.getConnection(url, user, pass)) {
-            System.out.println("Connected to Render database!");
+            System.out.println("Connected to database: " + url);
 
             // 1. Print all products
             System.out.println("\n--- All Products ---");

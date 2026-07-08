@@ -500,20 +500,28 @@ public class DataSeeder implements CommandLineRunner {
     private void seedPostgresInstances() {
         PostgresInstance instance = postgresRepo.findByName("ttrims-postgres").orElse(new PostgresInstance());
         instance.setName("ttrims-postgres");
-        instance.setDatabaseName("ims_db_z4x7");
-        instance.setUsername("ims_db_z4x7_user");
-        instance.setPassword("OXuCjVeOESq1tooj37MjWfRXUvuPgg5k");
-        instance.setRegion("Virginia (US East)");
-        instance.setVersion("17");
-        instance.setPlanOption("Hobby");
+        instance.setDatabaseName("postgres");
+        instance.setUsername("postgres");
+        instance.setPassword("••••••••");
+        instance.setRegion("Supabase Cloud");
+        instance.setVersion("16");
+        instance.setPlanOption("Free Tier");
         instance.setStatus("ACTIVE");
-        instance.setConnectionString("postgres://avnadmin:AVNS_ybK9qHZdRnPrWSH-aRC@pg-1168d9e5-sudrs007-d282.b.aivencloud.com:13913/defaultdb?sslmode=require");
+        String connectionString = System.getenv("SPRING_DATASOURCE_URL");
+        if (connectionString == null) {
+            connectionString = "postgresql://postgres:••••••••@db.sergoskjjzfrdrzfieye.supabase.co:5432/postgres?sslmode=require";
+        } else {
+            // Convert jdbc:postgresql to standard postgresql connection string URI and mask password for display
+            connectionString = connectionString.replace("jdbc:postgresql", "postgres")
+                                               .replaceAll("(?<=:)[^@/:]+(?=@)", "••••••••");
+        }
+        instance.setConnectionString(connectionString);
         if (instance.getId() == null) {
             instance.setCreatedAt(LocalDateTime.now().minusMinutes(2));
         }
         instance.setUpdatedAt(LocalDateTime.now());
         postgresRepo.save(instance);
-        log.info("✅ Seeded/Updated Render Postgres instance: ttrims-postgres");
+        log.info("✅ Seeded/Updated Postgres instance: ttrims-postgres");
     }
 
 
