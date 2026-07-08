@@ -6,7 +6,7 @@ export const getApiBase = () => {
   if (customUrl) return customUrl;
 
   if (Capacitor.isNativePlatform()) {
-    return 'https://ttrims-backend-4xho.onrender.com/api';
+    return 'https://ttrims-backend-4xho-4xho.onrender.com/api';
   }
 
   return import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
