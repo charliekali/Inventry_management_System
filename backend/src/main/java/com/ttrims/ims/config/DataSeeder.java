@@ -509,7 +509,7 @@ public class DataSeeder implements CommandLineRunner {
         instance.setStatus("ACTIVE");
         String connectionString = System.getenv("SPRING_DATASOURCE_URL");
         if (connectionString == null) {
-            connectionString = "postgresql://postgres.sergoskjjzfrdrzfieye:••••••••@aws-1-ap-northeast-2.pooler.supabase.com:6543/postgres?sslmode=require";
+            connectionString = "postgresql://postgres.sergoskjjzfrdrzfieye:••••••••@aws-1-ap-northeast-2.pooler.supabase.com:6543/postgres?sslmode=require&prepareThreshold=0";
         } else {
             // Convert jdbc:postgresql to standard postgresql connection string URI and mask password for display
             connectionString = connectionString.replace("jdbc:postgresql", "postgres")

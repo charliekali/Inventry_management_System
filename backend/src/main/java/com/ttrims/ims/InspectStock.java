@@ -6,7 +6,7 @@ public class InspectStock {
     public static void main(String[] args) {
         String url = System.getenv("SPRING_DATASOURCE_URL");
         if (url == null) {
-            url = "jdbc:postgresql://aws-1-ap-northeast-2.pooler.supabase.com:6543/postgres?sslmode=require";
+            url = "jdbc:postgresql://aws-1-ap-northeast-2.pooler.supabase.com:6543/postgres?sslmode=require&prepareThreshold=0";
         }
         String user = System.getenv("SPRING_DATASOURCE_USERNAME");
         if (user == null) {
