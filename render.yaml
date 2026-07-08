@@ -12,7 +12,7 @@ services:
       - key: SPRING_DATASOURCE_USERNAME
         value: postgres
       - key: SPRING_DATASOURCE_PASSWORD
-        sync: false
+        value: USxyGbIQprBP3koz
       # Automatically generate a secure 32+ character JWT secret on initial deploy
       - key: JWT_SECRET
         generateValue: true
