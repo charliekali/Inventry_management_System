@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { dispatchAPI, shipmentsAPI } from '../../api';
 import toast from 'react-hot-toast';
 import { Truck, Package, Clock, RefreshCw, AlertTriangle, CheckCircle2, Navigation, MapPin, User, Power, ShieldAlert } from 'lucide-react';
@@ -188,7 +188,8 @@ function OrderCard({ order, onDispatch, processing, hasPermission }) {
 export default function LogisticsHome() {
   const { user, hasPermission } = useAuth();
   const navigate = useNavigate();
-  const isDriver = !hasPermission('DISPATCH:VIEW');
+  // Memoize to avoid recalculation on every render
+  const isDriver = useMemo(() => !hasPermission('DISPATCH:VIEW'), [hasPermission]);
 
   // Dispatcher states
   const [orders, setOrders] = useState([]);
@@ -263,10 +264,16 @@ export default function LogisticsHome() {
           .finally(() => setReportingLoc(false));
       },
       (err) => {
-        toast.error('GPS tracking permission error: ' + err.message);
+        if (err.code === err.PERMISSION_DENIED) {
+          toast.error('Location permission denied. Please enable GPS in your browser/device settings and try again.');
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          toast.error('GPS signal unavailable. Move to an open area and try again.');
+        } else {
+          toast.error('GPS timeout. Check that your location is enabled and try again.');
+        }
         setReportingLoc(false);
       },
-      { enableHighAccuracy: true }
+      { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 

@@ -9,9 +9,10 @@ import { Geolocation } from '@capacitor/geolocation';
 import { App } from '@capacitor/app';
 import { attendanceAPI, getApiBase } from '../../api';
 import toast from 'react-hot-toast';
+import { MapPin, Clock, Play, Square, WifiOff, Database, Activity, Navigation, Zap } from 'lucide-react';
 
+// Must be after all imports
 const Tracking = registerPlugin('Tracking');
-import { MapPin, Clock, Play, Square, CheckCircle, WifiOff, Database, Activity, Navigation, Zap } from 'lucide-react';
 
 const HEARTBEAT_MS  = 30_000; // Stationary heartbeat (web/PWA only)
 const MIN_PING_MS   = 2_000;  // Minimum gap between pings (debounce)

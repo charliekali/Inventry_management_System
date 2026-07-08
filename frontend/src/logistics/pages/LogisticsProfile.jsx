@@ -16,8 +16,10 @@ export default function LogisticsProfile() {
     dispatchAPI.list('DISPATCHED')
       .then(res => {
         const list = res.data.data || [];
-        // Filter dispatches performed by this user
-        const myDispatches = list.filter(d => d.dispatched_by === user?.name);
+        // Filter dispatches by this user — dispatched_by may be name or id
+        const myDispatches = list.filter(
+          d => d.dispatched_by === user?.name || d.dispatched_by_id === user?.id
+        );
         setDispatchCount(myDispatches.length);
       })
       .catch(() => {})
@@ -52,7 +54,7 @@ export default function LogisticsProfile() {
           </div>
           <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--w-text)' }}>{user?.name || 'Logistics Staff'}</h3>
           <span className="badge badge-cyan" style={{ marginTop: 6, textTransform: 'uppercase', padding: '4px 10px', fontSize: 10 }}>
-            <Award size={10} style={{ marginRight: 4 }} /> {user?.role || 'Logistics Coordinator'}
+            <Award size={10} style={{ marginRight: 4 }} /> {user?.role?.name || user?.role || 'Logistics Coordinator'}
           </span>
         </div>
       </div>
@@ -99,7 +101,7 @@ export default function LogisticsProfile() {
             <Shield size={16} color="var(--w-text-3)" />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 10, color: 'var(--w-text-3)', textTransform: 'uppercase' }}>System Role</div>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>{user?.role}</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>{user?.role?.name || user?.role || '—'}</div>
             </div>
           </div>
         </div>
@@ -107,7 +109,7 @@ export default function LogisticsProfile() {
 
       {/* Actions */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 24 }}>
-        {user?.role === 'Super Admin' && (
+        {(user?.role?.name === 'Super Admin' || user?.role === 'Super Admin') && (
           <button className="w-btn primary lg" onClick={() => navigate('/dashboard')} style={{ width: '100%', background: 'var(--w-primary)', border: 'none', color: 'white', padding: '12px', borderRadius: 'var(--w-radius-sm)', fontWeight: 700, cursor: 'pointer' }}>
             Back to Workspace Hub
           </button>

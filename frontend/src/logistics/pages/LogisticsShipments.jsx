@@ -14,6 +14,9 @@ export default function LogisticsShipments() {
   const [processing, setProcessing] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
 
+  // Driver detection — same logic as LogisticsHome
+  const isDriver = !hasPermission('DISPATCH:VIEW');
+
   // Delivery Modal State
   const [showModal, setShowModal] = useState(false);
   const [activeShipment, setActiveShipment] = useState(null);
@@ -32,11 +35,10 @@ export default function LogisticsShipments() {
   const [isDrawing, setIsDrawing] = useState(false);
 
   // Stats
-  const [stats, setStats] = useState({ total: 0, completed: 0, pending: 0 });
+  const [stats, setStats] = useState({ total: 0, completed: 0, failed: 0, pending: 0 });
 
   const loadShipments = () => {
     setLoading(true);
-    const isDriver = user?.role?.name === 'Driver';
     const fetchPromise = isDriver ? shipmentsAPI.listAssigned() : shipmentsAPI.list();
 
     fetchPromise
@@ -52,18 +54,21 @@ export default function LogisticsShipments() {
   const calculateStats = (data) => {
     let total = 0;
     let completed = 0;
+    let failed = 0;
     let pending = 0;
     data.forEach(s => {
       s.orders?.forEach(o => {
         total++;
-        if (o.stop_status === 'DELIVERED' || o.stop_status === 'FAILED') {
+        if (o.stop_status === 'DELIVERED') {
           completed++;
+        } else if (o.stop_status === 'FAILED') {
+          failed++;
         } else {
           pending++;
         }
       });
     });
-    setStats({ total, completed, pending });
+    setStats({ total, completed, failed, pending });
   };
 
   const setOrdersGroup = (data) => {
@@ -140,6 +145,8 @@ export default function LogisticsShipments() {
 
   // Signature drawing events
   const startDrawing = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -147,22 +154,24 @@ export default function LogisticsShipments() {
     ctx.lineWidth = 3;
     ctx.lineCap = 'round';
     const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
-    const y = (e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
+    const clientX = e.clientX ?? e.touches?.[0]?.clientX;
+    const clientY = e.clientY ?? e.touches?.[0]?.clientY;
     ctx.beginPath();
-    ctx.moveTo(x, y);
+    ctx.moveTo(clientX - rect.left, clientY - rect.top);
     setIsDrawing(true);
   };
 
   const draw = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!isDrawing) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
-    const y = (e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
-    ctx.lineTo(x, y);
+    const clientX = e.clientX ?? e.touches?.[0]?.clientX;
+    const clientY = e.clientY ?? e.touches?.[0]?.clientY;
+    ctx.lineTo(clientX - rect.left, clientY - rect.top);
     ctx.stroke();
   };
 
@@ -272,7 +281,12 @@ export default function LogisticsShipments() {
           <div style={{ borderLeft: '1px solid var(--w-border)', height: 28, alignSelf: 'center' }} />
           <div>
             <div style={{ fontSize: 18, fontWeight: 900, color: '#10b981' }}>{stats.completed}</div>
-            <div style={{ fontSize: 10, color: 'var(--w-text-3)', fontWeight: 600 }}>Completed</div>
+            <div style={{ fontSize: 10, color: 'var(--w-text-3)', fontWeight: 600 }}>Delivered</div>
+          </div>
+          <div style={{ borderLeft: '1px solid var(--w-border)', height: 28, alignSelf: 'center' }} />
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#ef4444' }}>{stats.failed}</div>
+            <div style={{ fontSize: 10, color: 'var(--w-text-3)', fontWeight: 600 }}>Failed</div>
           </div>
           <div style={{ borderLeft: '1px solid var(--w-border)', height: 28, alignSelf: 'center' }} />
           <div>
@@ -367,7 +381,7 @@ export default function LogisticsShipments() {
                       return (
                         <div key={order.id} style={{ borderBottom: '1px solid var(--w-border)', paddingBottom: 10, marginBottom: 6, lastChild: { borderBottom: 'none', paddingBottom: 0 } }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
-                            <span>Stop #{order.stop_sequence || 1}: {order.order_number}</span>
+                            <span>Stop #{order.stop_sequence ?? (s.orders.indexOf(order) + 1)}: {order.order_number}</span>
                             {getStopStatusBadge(order.stop_status)}
                           </div>
                           

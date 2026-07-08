@@ -1,23 +1,42 @@
 import { useState, useEffect } from 'react';
-import { dispatchAPI } from '../../api';
+import { dispatchAPI, shipmentsAPI } from '../../api';
 import toast from 'react-hot-toast';
-import { Package, RefreshCw, Calendar, User, ShoppingBag } from 'lucide-react';
+import { Package, RefreshCw, Calendar, User, ShoppingBag, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 export default function LogisticsHistory() {
-  const [orders, setOrders] = useState([]);
+  const { hasPermission } = useAuth();
+  const isDriver = !hasPermission('DISPATCH:VIEW');
+
+  const [orders, setOrders] = useState([]);       // Dispatcher: dispatched orders
+  const [shipments, setShipments] = useState([]); // Driver: completed shipments
   const [loading, setLoading] = useState(true);
 
-  const loadDispatches = () => {
+  const loadHistory = () => {
     setLoading(true);
-    dispatchAPI.list('DISPATCHED')
-      .then(r => setOrders(r.data.data))
-      .catch(() => toast.error('Failed to load dispatch history'))
-      .finally(() => setLoading(false));
+    if (isDriver) {
+      // Drivers see their own completed shipment history
+      shipmentsAPI.listAssigned()
+        .then(r => {
+          const completed = (r.data.data || []).filter(
+            s => s.status === 'DELIVERED' || s.status === 'FAILED'
+          );
+          setShipments(completed);
+        })
+        .catch(() => toast.error('Failed to load delivery history'))
+        .finally(() => setLoading(false));
+    } else {
+      // Dispatchers see the full dispatched order history
+      dispatchAPI.list('DISPATCHED')
+        .then(r => setOrders(r.data.data))
+        .catch(() => toast.error('Failed to load dispatch history'))
+        .finally(() => setLoading(false));
+    }
   };
 
   useEffect(() => {
-    loadDispatches();
-  }, []);
+    loadHistory();
+  }, [isDriver]); // eslint-disable-line
 
   if (loading) {
     return (
@@ -27,6 +46,96 @@ export default function LogisticsHistory() {
     );
   }
 
+  // ─── Driver View: Completed Shipments ─────────────────────────────────────
+  if (isDriver) {
+    return (
+      <div className="w-page w-fade-in" style={{ padding: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div>
+            <h3 style={{ fontSize: 18, fontWeight: 800 }}>My Delivery History</h3>
+            <p style={{ fontSize: 12, color: 'var(--w-text-2)', marginTop: 2 }}>
+              {shipments.length === 0 ? 'No completed deliveries yet' : `${shipments.length} completed shipment${shipments.length > 1 ? 's' : ''}`}
+            </p>
+          </div>
+          <button className="w-btn ghost sm" onClick={loadHistory} style={{ minWidth: 'auto', padding: 8 }}>
+            <RefreshCw size={16} />
+          </button>
+        </div>
+
+        {shipments.length === 0 ? (
+          <div className="w-card" style={{ padding: 32, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <Package size={36} color="var(--w-text-3)" />
+            <p style={{ fontSize: 13.5, color: 'var(--w-text-2)' }}>No completed deliveries found</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {shipments.map(s => {
+              const deliveredCount = s.orders?.filter(o => o.stop_status === 'DELIVERED').length || 0;
+              const failedCount = s.orders?.filter(o => o.stop_status === 'FAILED').length || 0;
+
+              return (
+                <div key={s.id} className="w-card" style={{ padding: 16, border: '1px solid var(--w-border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                    <div>
+                      <span style={{ fontSize: 11, color: 'var(--w-text-3)', textTransform: 'uppercase' }}>Shipment</span>
+                      <div style={{ fontSize: 14.5, fontWeight: 800, marginTop: 2 }}>{s.shipment_number}</div>
+                    </div>
+                    <span className={`badge ${s.status === 'DELIVERED' ? 'badge-green' : 'badge-red'}`} style={{ fontSize: 10, textTransform: 'uppercase' }}>
+                      {s.status}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
+                    <div style={{ textAlign: 'center', background: 'rgba(255,255,255,0.02)', padding: 10, borderRadius: 8, border: '1px solid var(--w-border)' }}>
+                      <div style={{ fontSize: 17, fontWeight: 800 }}>{s.orders?.length || 0}</div>
+                      <div style={{ fontSize: 10, color: 'var(--w-text-3)' }}>Total Stops</div>
+                    </div>
+                    <div style={{ textAlign: 'center', background: 'rgba(16,185,129,0.05)', padding: 10, borderRadius: 8, border: '1px solid rgba(16,185,129,0.2)' }}>
+                      <div style={{ fontSize: 17, fontWeight: 800, color: '#10b981' }}>{deliveredCount}</div>
+                      <div style={{ fontSize: 10, color: 'var(--w-text-3)' }}>Delivered</div>
+                    </div>
+                    <div style={{ textAlign: 'center', background: 'rgba(239,68,68,0.05)', padding: 10, borderRadius: 8, border: '1px solid rgba(239,68,68,0.2)' }}>
+                      <div style={{ fontSize: 17, fontWeight: 800, color: '#ef4444' }}>{failedCount}</div>
+                      <div style={{ fontSize: 10, color: 'var(--w-text-3)' }}>Failed</div>
+                    </div>
+                  </div>
+
+                  {s.orders?.map((order, idx) => (
+                    <div key={order.id} style={{ borderTop: idx === 0 ? '1px solid var(--w-border)' : 'none', paddingTop: idx === 0 ? 10 : 0, marginBottom: 6 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5, marginBottom: 2 }}>
+                        <span style={{ fontWeight: 600 }}>Stop #{order.stop_sequence ?? (idx + 1)}: {order.customer}</span>
+                        <span className={`badge ${order.stop_status === 'DELIVERED' ? 'badge-green' : order.stop_status === 'FAILED' ? 'badge-red' : 'badge-gray'}`} style={{ fontSize: 9.5 }}>
+                          {order.stop_status}
+                        </span>
+                      </div>
+                      {order.delivery_notes && (
+                        <div style={{ fontSize: 11, color: 'var(--w-text-3)', marginTop: 2 }}>Note: {order.delivery_notes}</div>
+                      )}
+                    </div>
+                  ))}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11.5, color: 'var(--w-text-2)', paddingTop: 10, borderTop: '1px solid var(--w-border)', marginTop: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Calendar size={13} color="var(--w-text-3)" />
+                      <span>Shipment: <strong style={{ color: 'var(--w-text)' }}>{s.created_at ? new Date(s.created_at).toLocaleString() : '—'}</strong></span>
+                    </div>
+                    {s.vehicle_number && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <ShoppingBag size={13} color="var(--w-text-3)" />
+                        <span>Vehicle: <strong style={{ color: 'var(--w-text)' }}>{s.vehicle_number}</strong></span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── Dispatcher View: Dispatched Orders ────────────────────────────────────
   return (
     <div className="w-page w-fade-in" style={{ padding: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -36,7 +145,7 @@ export default function LogisticsHistory() {
             {orders.length === 0 ? 'No completed dispatches' : `${orders.length} orders successfully dispatched`}
           </p>
         </div>
-        <button className="w-btn ghost sm" onClick={loadDispatches} style={{ minWidth: 'auto', padding: 8 }}>
+        <button className="w-btn ghost sm" onClick={loadHistory} style={{ minWidth: 'auto', padding: 8 }}>
           <RefreshCw size={16} />
         </button>
       </div>
@@ -131,3 +240,4 @@ export default function LogisticsHistory() {
     </div>
   );
 }
+
