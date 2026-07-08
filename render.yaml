@@ -9,7 +9,7 @@ services:
     envVars:
       # Connect directly to your existing PostgreSQL database using the external hostname
       - key: SPRING_DATASOURCE_URL
-        value: jdbc:postgresql://dpg-d8in6lcvikkc73c1l780-a.virginia-postgres.render.com:5432/ims_db_z4x7?sslmode=require
+        value: jdbc:postgresql://dpg-d8in6lcvikkc73c1l780-a:5432/ims_db_z4x7
       - key: SPRING_DATASOURCE_USERNAME
         value: ims_db_z4x7_user
       - key: SPRING_DATASOURCE_PASSWORD
