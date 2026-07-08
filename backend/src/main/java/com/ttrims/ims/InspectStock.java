@@ -6,15 +6,15 @@ public class InspectStock {
     public static void main(String[] args) {
         String url = System.getenv("SPRING_DATASOURCE_URL");
         if (url == null) {
-            url = "jdbc:postgresql://db.sergoskjjzfrdrzfieye.supabase.co:5432/postgres?sslmode=require";
+            url = "jdbc:postgresql://aws-1-ap-northeast-2.pooler.supabase.com:6543/postgres?sslmode=require";
         }
         String user = System.getenv("SPRING_DATASOURCE_USERNAME");
         if (user == null) {
-            user = "postgres";
+            user = "postgres.sergoskjjzfrdrzfieye";
         }
         String pass = System.getenv("SPRING_DATASOURCE_PASSWORD");
         if (pass == null) {
-            pass = "USxyGbIQprBP3koz";
+            pass = "W0N4i4sBP613kz37";
         }
 
         try (Connection conn = DriverManager.getConnection(url, user, pass)) {

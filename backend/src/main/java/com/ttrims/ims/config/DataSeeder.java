@@ -501,15 +501,15 @@ public class DataSeeder implements CommandLineRunner {
         PostgresInstance instance = postgresRepo.findByName("ttrims-postgres").orElse(new PostgresInstance());
         instance.setName("ttrims-postgres");
         instance.setDatabaseName("postgres");
-        instance.setUsername("postgres");
+        instance.setUsername("postgres.sergoskjjzfrdrzfieye");
         instance.setPassword("••••••••");
-        instance.setRegion("Supabase Cloud");
+        instance.setRegion("Supabase Cloud (Seoul)");
         instance.setVersion("16");
-        instance.setPlanOption("Free Tier");
+        instance.setPlanOption("Free Tier (Pooled)");
         instance.setStatus("ACTIVE");
         String connectionString = System.getenv("SPRING_DATASOURCE_URL");
         if (connectionString == null) {
-            connectionString = "postgresql://postgres:••••••••@db.sergoskjjzfrdrzfieye.supabase.co:5432/postgres?sslmode=require";
+            connectionString = "postgresql://postgres.sergoskjjzfrdrzfieye:••••••••@aws-1-ap-northeast-2.pooler.supabase.com:6543/postgres?sslmode=require";
         } else {
             // Convert jdbc:postgresql to standard postgresql connection string URI and mask password for display
             connectionString = connectionString.replace("jdbc:postgresql", "postgres")

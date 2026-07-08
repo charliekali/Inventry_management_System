@@ -8,11 +8,11 @@ services:
     plan: free
     envVars:
       - key: SPRING_DATASOURCE_URL
-        value: jdbc:postgresql://db.sergoskjjzfrdrzfieye.supabase.co:5432/postgres?sslmode=require
+        value: jdbc:postgresql://aws-1-ap-northeast-2.pooler.supabase.com:6543/postgres?sslmode=require
       - key: SPRING_DATASOURCE_USERNAME
-        value: postgres
+        value: postgres.sergoskjjzfrdrzfieye
       - key: SPRING_DATASOURCE_PASSWORD
-        value: USxyGbIQprBP3koz
+        value: W0N4i4sBP613kz37
       # Automatically generate a secure 32+ character JWT secret on initial deploy
       - key: JWT_SECRET
         generateValue: true
