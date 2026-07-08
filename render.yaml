@@ -1,7 +1,7 @@
 services:
   # ─── Backend Service ────────────────────────────────────────────────────────
   - type: web
-    name: ttrims-backend
+    name: ttrims-backend-4xho
     env: docker
     dockerfilePath: backend/Dockerfile
     dockerContext: backend
