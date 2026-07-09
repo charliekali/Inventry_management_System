@@ -30,7 +30,7 @@ const DRAWER_ITEMS = [
 ];
 
 export default function SalesAppLayout({ children, crmBadge = 0, collectionBadge = 0 }) {
-  const { user, logout, hasPermission } = useAuth();
+  const { user, logout, hasPermission, isPermanentSession } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);

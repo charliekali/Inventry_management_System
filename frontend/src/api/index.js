@@ -47,12 +47,20 @@ api.interceptors.response.use(
         original.headers.Authorization = `Bearer ${data.data.accessToken}`;
         return api(original);
       } catch {
-        localStorage.clear();
-        if (Capacitor.isNativePlatform()) {
-          window.location.hash = '/login';
-        } else {
-          window.location.href = '/login';
+        // For APK / whitelisted-IP sessions: never forcibly log the user out.
+        // The token is 100 years long so this catch only fires on network errors.
+        const isPermanent =
+          Capacitor.isNativePlatform() ||
+          localStorage.getItem('sessionPermanent') === 'true';
+        if (!isPermanent) {
+          localStorage.clear();
+          if (Capacitor.isNativePlatform()) {
+            window.location.hash = '/login';
+          } else {
+            window.location.href = '/login';
+          }
         }
+        // else: silently reject — caller can show a toast; user stays logged in
       }
     }
     return Promise.reject(error);
@@ -61,7 +69,9 @@ api.interceptors.response.use(
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 export const authAPI = {
-  login: (email, password) => api.post('/auth/login', { email, password }),
+  login: (email, password) => api.post('/auth/login', { email, password }, {
+    headers: Capacitor.isNativePlatform() ? { 'X-Is-Native': 'true' } : {}
+  }),
   logout: () => api.post('/auth/logout'),
   me: () => api.get('/users/me'),
 };

@@ -16,7 +16,7 @@ import toast from 'react-hot-toast';
 import './ProductionApp.css';
 
 export default function ProductionApp() {
-  const { user, logout } = useAuth();
+  const { user, logout, isPermanentSession } = useAuth();
   const navigate = useNavigate();
   const [checkingPlan, setCheckingPlan] = useState(true);
   const [isBlocked, setIsBlocked] = useState(false);

@@ -25,7 +25,7 @@ const DRAWER_ITEMS = [
 ];
 
 export default function LogisticsAppLayout({ children }) {
-  const { user, logout, hasPermission } = useAuth();
+  const { user, logout, hasPermission, isPermanentSession } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);

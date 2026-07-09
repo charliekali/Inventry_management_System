@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { User, Mail, Shield, LogOut, Award, ClipboardList, RefreshCw } from 'lucide-react';
 
 export default function LogisticsProfile() {
-  const { user, logout } = useAuth();
+  const { user, logout, isPermanentSession } = useAuth();
   const navigate = useNavigate();
   const [dispatchCount, setDispatchCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -113,14 +113,13 @@ export default function LogisticsProfile() {
           <button className="w-btn primary lg" onClick={() => navigate('/dashboard')} style={{ width: '100%', background: 'var(--w-primary)', border: 'none', color: 'white', padding: '12px', borderRadius: 'var(--w-radius-sm)', fontWeight: 700, cursor: 'pointer' }}>
             Back to Workspace Hub
           </button>
-        )}
         <div style={{ display: 'flex', gap: 10, width: '100%' }}>
           <button className="w-btn ghost lg" onClick={loadStats} style={{ flex: 1, padding: '12px', borderRadius: 'var(--w-radius-sm)', border: '1px solid var(--w-border)', background: 'transparent', color: 'var(--w-text)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <RefreshCw size={14} /> Sync Stats
           </button>
-          <button className="w-btn danger lg" onClick={handleLogout} style={{ flex: 1.2, padding: '12px', borderRadius: 'var(--w-radius-sm)', background: 'var(--w-danger)', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            <LogOut size={14} /> Log Out
-          </button>
+            <button className="w-btn danger lg" onClick={handleLogout} style={{ flex: 1.2, padding: '12px', borderRadius: 'var(--w-radius-sm)', background: 'var(--w-danger)', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <LogOut size={14} /> Log Out
+            </button>
         </div>
       </div>
     </div>

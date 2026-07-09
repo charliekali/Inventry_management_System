@@ -63,7 +63,7 @@ const NAV_ITEMS = [
 ];
 
 export default function Sidebar({ isOpen, onClose }) {
-  const { user, logout, hasPermission } = useAuth();
+  const { user, logout, hasPermission, isPermanentSession } = useAuth();
   const navigate = useNavigate();
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
   const isMobile = Capacitor.isNativePlatform();
@@ -136,14 +136,13 @@ export default function Sidebar({ isOpen, onClose }) {
             >
               <Wifi size={16} />
             </button>
-          )}
-          <button
-            className="btn btn-ghost btn-icon"
-            onClick={handleLogout}
-            title="Logout"
-          >
-            <LogOut size={16} />
-          </button>
+            <button
+              className="btn btn-ghost btn-icon"
+              onClick={handleLogout}
+              title="Logout"
+            >
+              <LogOut size={16} />
+            </button>
         </div>
         
         <ServerSettings

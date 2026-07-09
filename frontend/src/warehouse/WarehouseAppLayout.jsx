@@ -28,7 +28,7 @@ const DRAWER_ITEMS = [
 ];
 
 export default function WarehouseAppLayout({ children }) {
-  const { user, logout, hasPermission } = useAuth();
+  const { user, logout, hasPermission, isPermanentSession } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);

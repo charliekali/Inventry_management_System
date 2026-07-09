@@ -85,6 +85,7 @@ public class AuthController {
         data.put("accessToken", accessToken);
         data.put("refreshToken", refreshToken);
         data.put("user", userData);
+        data.put("sessionPermanent", sessionShouldNotExpire);
 
         return ResponseEntity.ok(success(data));
     }
