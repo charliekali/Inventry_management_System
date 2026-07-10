@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { dispatchAPI, shipmentsAPI, usersAPI } from '../api';
+import { dispatchAPI, shipmentsAPI, usersAPI, ordersAPI } from '../api';
 import toast from 'react-hot-toast';
 import {
   Truck, CheckCircle2, Clock, Package, ClipboardList, MapPin,
   User, Phone, Calendar, AlertTriangle, ShieldAlert, BarChart3, ChevronDown, ChevronUp, Trash2,
-  Play, Map, Edit, UserCheck, RefreshCw, X, Eye
+  Play, Map, Edit, UserCheck, RefreshCw, X, Eye, Merge, Scissors, MoveRight, Plus, Minus, Zap, RotateCcw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
@@ -134,6 +134,26 @@ export default function LogisticsAndDispatchPage() {
   const [overrideDriverId, setOverrideDriverId] = useState('');
   const [overrideVehicle, setOverrideVehicle] = useState('');
   const [overrideStops, setOverrideStops] = useState([]);
+
+  // Merge shipments
+  const [selectedShipmentIds, setSelectedShipmentIds] = useState([]);
+  const [showMergeModal, setShowMergeModal] = useState(false);
+
+  // Split shipment
+  const [showSplitModal, setShowSplitModal] = useState(false);
+  const [splitShipment, setSplitShipment] = useState(null);
+  const [splitOrderIds, setSplitOrderIds] = useState([]);
+
+  // Move order
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [moveOrder, setMoveOrder] = useState(null); // { orderId, fromShipmentId }
+  const [moveToShipmentId, setMoveToShipmentId] = useState('');
+
+  // Add order to shipment
+  const [showAddOrderModal, setShowAddOrderModal] = useState(false);
+  const [addOrderShipment, setAddOrderShipment] = useState(null);
+  const [allOrders, setAllOrders] = useState([]);
+  const [addOrderId, setAddOrderId] = useState('');
 
   // POD modal viewer
   const [podMediaUrl, setPodMediaUrl] = useState(null);
@@ -333,14 +353,151 @@ export default function LogisticsAndDispatchPage() {
     setPodMediaType(type);
   };
 
+  // ─── Merge Handlers ─────────────────────────────────────────────────────
+  const toggleShipmentSelect = (id) => {
+    setSelectedShipmentIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleMerge = async () => {
+    if (selectedShipmentIds.length < 2) { toast.error('Select at least 2 shipments to merge'); return; }
+    setProcessing(true);
+    try {
+      await shipmentsAPI.merge(selectedShipmentIds);
+      toast.success(`Merged ${selectedShipmentIds.length} shipments into one!`);
+      setSelectedShipmentIds([]);
+      setShowMergeModal(false);
+      loadData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Merge failed');
+    } finally { setProcessing(false); }
+  };
+
+  // ─── Split Handlers ─────────────────────────────────────────────────────
+  const handleOpenSplit = (s) => {
+    setSplitShipment(s);
+    setSplitOrderIds([]);
+    setShowSplitModal(true);
+  };
+
+  const handleSplit = async () => {
+    if (!splitShipment || splitOrderIds.length === 0) { toast.error('Select at least one order to split out'); return; }
+    setProcessing(true);
+    try {
+      await shipmentsAPI.split(splitShipment.id, splitOrderIds);
+      toast.success('Shipment split successfully!');
+      setShowSplitModal(false);
+      setSplitShipment(null);
+      setSplitOrderIds([]);
+      loadData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Split failed');
+    } finally { setProcessing(false); }
+  };
+
+  // ─── Move Order Handlers ─────────────────────────────────────────────────────
+  const handleOpenMove = (orderId, fromShipmentId, orderNumber) => {
+    setMoveOrder({ orderId, fromShipmentId, orderNumber });
+    setMoveToShipmentId('');
+    setShowMoveModal(true);
+  };
+
+  const handleMoveConfirm = async () => {
+    if (!moveOrder || !moveToShipmentId) { toast.error('Select a destination shipment'); return; }
+    if (moveToShipmentId === moveOrder.fromShipmentId) { toast.error('Cannot move to the same shipment'); return; }
+    setProcessing(true);
+    try {
+      await shipmentsAPI.moveOrder(moveOrder.fromShipmentId, moveOrder.orderId, moveToShipmentId);
+      toast.success('Order moved successfully!');
+      setShowMoveModal(false);
+      loadData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Move failed');
+    } finally { setProcessing(false); }
+  };
+
+  // ─── Add Order Handlers ─────────────────────────────────────────────────────
+  const handleOpenAddOrder = async (shipment) => {
+    setAddOrderShipment(shipment);
+    setAddOrderId('');
+    try {
+      const res = await dispatchAPI.list('PENDING');
+      setAllOrders(res.data.data || []);
+    } catch { setAllOrders([]); }
+    setShowAddOrderModal(true);
+  };
+
+  const handleAddOrderConfirm = async () => {
+    if (!addOrderShipment || !addOrderId) { toast.error('Select an order to add'); return; }
+    setProcessing(true);
+    try {
+      await shipmentsAPI.addOrder(addOrderShipment.id, addOrderId);
+      toast.success('Order added to shipment!');
+      setShowAddOrderModal(false);
+      loadData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to add order');
+    } finally { setProcessing(false); }
+  };
+
+  // ─── Remove Order ─────────────────────────────────────────────────────
+  const handleRemoveOrder = async (orderId, shipmentId, orderNumber) => {
+    if (!window.confirm(`Remove order ${orderNumber} from this shipment?`)) return;
+    setProcessing(true);
+    try {
+      await shipmentsAPI.removeOrder(shipmentId, orderId);
+      toast.success('Order removed from shipment');
+      loadData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to remove order');
+    } finally { setProcessing(false); }
+  };
+
+  // ─── Convert Delivery Method ─────────────────────────────────────────────────────
+  const handleConvertDeliveryMethod = async (shipment) => {
+    const current = shipment.delivery_method || 'COMPANY_DELIVERY';
+    const next = current === 'COMPANY_DELIVERY' ? 'CUSTOMER_PICKUP' : 'COMPANY_DELIVERY';
+    if (!window.confirm(`Convert this shipment from ${current.replace('_', ' ')} to ${next.replace('_', ' ')}?`)) return;
+    setProcessing(true);
+    try {
+      await shipmentsAPI.convertDeliveryMethod(shipment.id, next);
+      toast.success(`Delivery method changed to ${next.replace('_', ' ')}`);
+      loadData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Conversion failed');
+    } finally { setProcessing(false); }
+  };
+
+  // ─── Regenerate ─────────────────────────────────────────────────────
+  const handleRegenerate = async () => {
+    if (!window.confirm('This will delete all auto-created CREATED shipments and re-group from scratch. Continue?')) return;
+    setProcessing(true);
+    try {
+      const res = await shipmentsAPI.regenerate();
+      toast.success(res.data.message || 'Groupings regenerated!');
+      loadData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Regeneration failed');
+    } finally { setProcessing(false); }
+  };
+
   const getStatusBadge = (status) => {
     switch (status) {
       case 'CREATED': return <span className="badge badge-orange">Created</span>;
       case 'EN_ROUTE': return <span className="badge badge-blue">En Route</span>;
       case 'DELIVERED': return <span className="badge badge-green">Delivered</span>;
       case 'FAILED': return <span className="badge badge-red">Failed</span>;
+      case 'PICKED_UP': return <span className="badge badge-green" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>Picked Up</span>;
       default: return <span className="badge badge-gray">{status}</span>;
     }
+  };
+
+  const getMethodBadge = (method) => {
+    if (method === 'CUSTOMER_PICKUP') {
+      return <span className="badge" style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)', fontSize: 10, padding: '2px 7px' }}>🚶 Pickup</span>;
+    }
+    return <span className="badge" style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.3)', fontSize: 10, padding: '2px 7px' }}>🚚 Delivery</span>;
   };
 
   return (
@@ -351,7 +508,19 @@ export default function LogisticsAndDispatchPage() {
           <h2>Logistics & Dispatch</h2>
           <p>Organize shipments, assign delivery drivers, and track dispatches.</p>
         </div>
-        <div className="page-header-right">
+        <div className="page-header-right" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {hasPermission('SHIPMENTS:MANAGE') && (
+            <>
+              {selectedShipmentIds.length >= 2 && (
+                <button className="btn btn-primary btn-sm" onClick={() => setShowMergeModal(true)} disabled={processing}>
+                  <Merge size={13} style={{ marginRight: 5 }} /> Merge ({selectedShipmentIds.length})
+                </button>
+              )}
+              <button className="btn btn-secondary btn-sm" onClick={handleRegenerate} disabled={processing} title="Regenerate all auto-grouped shipments from scratch">
+                <RotateCcw size={13} style={{ marginRight: 5 }} /> Regenerate Groups
+              </button>
+            </>
+          )}
           <button className="btn btn-secondary btn-sm" onClick={loadData} disabled={loading}>
             Sync Logistics
           </button>
@@ -679,8 +848,15 @@ export default function LogisticsAndDispatchPage() {
                   <table>
                     <thead>
                       <tr>
+                        <th style={{ width: 30 }}>
+                          <input type="checkbox" onChange={e => {
+                            if (e.target.checked) setSelectedShipmentIds(shipments.filter(s => s.status === 'CREATED').map(s => s.id));
+                            else setSelectedShipmentIds([]);
+                          }} checked={selectedShipmentIds.length > 0 && selectedShipmentIds.length === shipments.filter(s => s.status === 'CREATED').length} />
+                        </th>
                         <th style={{ width: 30 }}></th>
                         <th>Shipment No</th>
+                        <th>Method</th>
                         <th>Vehicle No</th>
                         <th>Driver Details</th>
                         <th>Status</th>
@@ -693,9 +869,15 @@ export default function LogisticsAndDispatchPage() {
                     <tbody>
                       {shipments.map(s => {
                         const isExpanded = expandedShipmentId === s.id;
+                        const isSelected = selectedShipmentIds.includes(s.id);
                         return (
                           <>
-                            <tr key={s.id}>
+                            <tr key={s.id} style={{ background: isSelected ? 'rgba(99,102,241,0.06)' : undefined }}>
+                              <td>
+                                {s.status === 'CREATED' && hasPermission('SHIPMENTS:MANAGE') && (
+                                  <input type="checkbox" checked={isSelected} onChange={() => toggleShipmentSelect(s.id)} />
+                                )}
+                              </td>
                               <td>
                                 <button
                                   className="btn btn-ghost btn-sm"
@@ -705,7 +887,11 @@ export default function LogisticsAndDispatchPage() {
                                   {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                 </button>
                               </td>
-                              <td style={{ fontWeight: 700 }}>{s.shipment_number}</td>
+                              <td style={{ fontWeight: 700 }}>
+                                {s.shipment_number}
+                                {s.auto_grouped && <span style={{ fontSize: 10, color: '#06b6d4', marginLeft: 6 }}>AUTO</span>}
+                              </td>
+                              <td>{getMethodBadge(s.delivery_method)}</td>
                               <td style={{ fontWeight: 600 }}>{s.vehicle_number || '—'}</td>
                               <td>
                                 {s.driver_name ? (
@@ -725,31 +911,28 @@ export default function LogisticsAndDispatchPage() {
                                 {s.scheduled_at ? new Date(s.scheduled_at).toLocaleString() : '—'}
                               </td>
                               <td style={{ textAlign: 'right' }}>
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap' }}>
                                   {s.status === 'CREATED' && hasPermission('SHIPMENTS:MANAGE') && (
-                                    <button
-                                      className="btn btn-primary btn-sm"
-                                      onClick={() => handleStartTrip(s.id)}
-                                    >
-                                      Start Trip
-                                    </button>
+                                    <button className="btn btn-primary btn-sm" onClick={() => handleStartTrip(s.id)}>Start Trip</button>
                                   )}
                                   {s.status === 'EN_ROUTE' && hasPermission('DELIVERY:CONFIRM') && (
-                                    <button
-                                      className="btn btn-success btn-sm"
-                                      onClick={() => handleOpenDeliveryModal(s)}
-                                    >
-                                      Confirm Delivery
-                                    </button>
+                                    <button className="btn btn-success btn-sm" onClick={() => handleOpenDeliveryModal(s)}>Confirm Delivery</button>
                                   )}
                                   {s.status === 'CREATED' && hasPermission('SHIPMENTS:MANAGE') && (
-                                    <button
-                                      className="btn btn-ghost btn-sm text-danger"
-                                      onClick={() => handleCancelShipment(s.id)}
-                                      style={{ padding: 6 }}
-                                    >
-                                      <Trash2 size={15} />
-                                    </button>
+                                    <>
+                                      <button className="btn btn-ghost btn-sm" title="Split shipment" onClick={() => handleOpenSplit(s)} style={{ padding: 6 }}>
+                                        <Scissors size={14} />
+                                      </button>
+                                      <button className="btn btn-ghost btn-sm" title="Convert delivery method" onClick={() => handleConvertDeliveryMethod(s)} style={{ padding: 6 }}>
+                                        <MoveRight size={14} />
+                                      </button>
+                                      <button className="btn btn-ghost btn-sm" title="Add order" onClick={() => handleOpenAddOrder(s)} style={{ padding: 6 }}>
+                                        <Plus size={14} />
+                                      </button>
+                                      <button className="btn btn-ghost btn-sm text-danger" onClick={() => handleCancelShipment(s.id)} style={{ padding: 6 }}>
+                                        <Trash2 size={15} />
+                                      </button>
+                                    </>
                                   )}
                                 </div>
                               </td>
@@ -761,12 +944,17 @@ export default function LogisticsAndDispatchPage() {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                       <div style={{ fontWeight: 700, fontSize: 13, textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>Timeline Stops & Delivery Progress</div>
                                       {hasPermission('SHIPMENTS:MANAGE') && (
-                                        <button
-                                          className="btn btn-secondary btn-sm"
-                                          onClick={() => handleOpenOverrideModal(s)}
-                                        >
-                                          <Edit size={12} style={{ marginRight: 6 }} /> Route & Driver Overrides
-                                        </button>
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                          <button className="btn btn-secondary btn-sm" onClick={() => handleOpenAddOrder(s)}>
+                                            <Plus size={12} style={{ marginRight: 4 }} /> Add Order
+                                          </button>
+                                          <button className="btn btn-secondary btn-sm" onClick={() => handleOpenSplit(s)} disabled={!s.orders || s.orders.length < 2}>
+                                            <Scissors size={12} style={{ marginRight: 4 }} /> Split
+                                          </button>
+                                          <button className="btn btn-secondary btn-sm" onClick={() => handleOpenOverrideModal(s)}>
+                                            <Edit size={12} style={{ marginRight: 6 }} /> Route &amp; Driver Overrides
+                                          </button>
+                                        </div>
                                       )}
                                     </div>
 
@@ -829,6 +1017,25 @@ export default function LogisticsAndDispatchPage() {
                                                       </button>
                                                     )}
                                                   </div>
+                                                </div>
+                                              )}
+                                              {/* Per-stop actions for Super Admin */}
+                                              {hasPermission('SHIPMENTS:MANAGE') && s.status === 'CREATED' && (
+                                                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                                                  <button
+                                                    className="btn btn-ghost btn-sm"
+                                                    onClick={() => handleOpenMove(order.id, s.id, order.order_number)}
+                                                    style={{ fontSize: 11, padding: '3px 8px' }}
+                                                  >
+                                                    <MoveRight size={11} style={{ marginRight: 4 }} /> Move to Shipment
+                                                  </button>
+                                                  <button
+                                                    className="btn btn-ghost btn-sm text-danger"
+                                                    onClick={() => handleRemoveOrder(order.id, s.id, order.order_number)}
+                                                    style={{ fontSize: 11, padding: '3px 8px' }}
+                                                  >
+                                                    <Minus size={11} style={{ marginRight: 4 }} /> Remove
+                                                  </button>
                                                 </div>
                                               )}
                                             </div>
@@ -1152,6 +1359,146 @@ export default function LogisticsAndDispatchPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MERGE MODAL */}
+      {showMergeModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 460 }}>
+            <div className="modal-header">
+              <h3>Merge Shipments</h3>
+              <button className="modal-close" onClick={() => setShowMergeModal(false)}>&times;</button>
+            </div>
+            <div style={{ margin: '16px 0' }}>
+              <p style={{ color: 'var(--color-text-secondary)', fontSize: 13.5, marginBottom: 14 }}>
+                The following <strong>{selectedShipmentIds.length}</strong> CREATED shipments will be merged into the first one. All orders will be re-optimized.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {shipments.filter(s => selectedShipmentIds.includes(s.id)).map((s, i) => (
+                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', borderRadius: 8 }}>
+                    <span style={{ fontWeight: 700, fontSize: 11, color: i === 0 ? 'var(--color-primary)' : 'var(--color-text-muted)', minWidth: 60 }}>{i === 0 ? 'PRIMARY' : `MERGE #${i}`}</span>
+                    <span style={{ fontWeight: 600, fontSize: 13 }}>{s.shipment_number}</span>
+                    <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>{s.orders?.length || 0} stops</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button className="btn btn-secondary" onClick={() => setShowMergeModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleMerge} disabled={processing}>
+                <Merge size={13} style={{ marginRight: 5 }} /> Confirm Merge
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SPLIT MODAL */}
+      {showSplitModal && splitShipment && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 480 }}>
+            <div className="modal-header">
+              <h3>Split Shipment: {splitShipment.shipment_number}</h3>
+              <button className="modal-close" onClick={() => setShowSplitModal(false)}>&times;</button>
+            </div>
+            <div style={{ margin: '16px 0' }}>
+              <p style={{ color: 'var(--color-text-secondary)', fontSize: 13, marginBottom: 14 }}>
+                Select orders to move into a new separate shipment:
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {splitShipment.orders?.map(order => (
+                  <label key={order.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--color-bg-card)', border: `1px solid ${splitOrderIds.includes(order.id) ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 8, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={splitOrderIds.includes(order.id)} onChange={e => {
+                      if (e.target.checked) setSplitOrderIds(prev => [...prev, order.id]);
+                      else setSplitOrderIds(prev => prev.filter(id => id !== order.id));
+                    }} />
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{order.order_number} — {order.customer}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{order.delivery_address || 'Delivery Zone'}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button className="btn btn-secondary" onClick={() => setShowSplitModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSplit} disabled={processing || splitOrderIds.length === 0}>
+                <Scissors size={13} style={{ marginRight: 5 }} /> Split Into New Shipment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MOVE ORDER MODAL */}
+      {showMoveModal && moveOrder && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <h3>Move Order to Different Shipment</h3>
+              <button className="modal-close" onClick={() => setShowMoveModal(false)}>&times;</button>
+            </div>
+            <div style={{ margin: '16px 0' }}>
+              <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 14 }}>
+                Moving order <strong>{moveOrder.orderNumber}</strong>. Select destination:
+              </p>
+              <div className="form-group">
+                <label>Destination Shipment</label>
+                <select className="form-control" value={moveToShipmentId} onChange={e => setMoveToShipmentId(e.target.value)}>
+                  <option value="">-- Select Shipment --</option>
+                  {shipments
+                    .filter(s => s.status === 'CREATED' && s.id !== moveOrder.fromShipmentId)
+                    .map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.shipment_number} ({s.orders?.length || 0}/5 stops) — {s.driver_name || 'No Driver'}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+            <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button className="btn btn-secondary" onClick={() => setShowMoveModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleMoveConfirm} disabled={processing || !moveToShipmentId}>
+                <MoveRight size={13} style={{ marginRight: 5 }} /> Confirm Move
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD ORDER TO SHIPMENT MODAL */}
+      {showAddOrderModal && addOrderShipment && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <h3>Add Order to {addOrderShipment.shipment_number}</h3>
+              <button className="modal-close" onClick={() => setShowAddOrderModal(false)}>&times;</button>
+            </div>
+            <div style={{ margin: '16px 0' }}>
+              <div className="form-group">
+                <label>Select Pending Order</label>
+                {allOrders.length === 0 ? (
+                  <p style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>No pending orders available to add.</p>
+                ) : (
+                  <select className="form-control" value={addOrderId} onChange={e => setAddOrderId(e.target.value)}>
+                    <option value="">-- Select an Order --</option>
+                    {allOrders.map(o => (
+                      <option key={o.id} value={o.id}>
+                        {o.order_number} — {o.customer}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+            <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button className="btn btn-secondary" onClick={() => setShowAddOrderModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleAddOrderConfirm} disabled={processing || !addOrderId}>
+                <Plus size={13} style={{ marginRight: 5 }} /> Add to Shipment
+              </button>
+            </div>
           </div>
         </div>
       )}

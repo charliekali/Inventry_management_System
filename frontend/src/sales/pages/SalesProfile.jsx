@@ -196,6 +196,7 @@ export default function SalesProfile() {
           <button className="s-btn primary lg" onClick={() => navigate('/dashboard')} style={{ width: '100%' }}>
             Back to Workspace Hub
           </button>
+        )}
         <div style={{ display: 'flex', gap: 10, width: '100%' }}>
           <button className="s-btn ghost lg" onClick={loadStats} style={{ flex: 1 }}>
             <RefreshCw size={14} /> Sync Data
@@ -205,6 +206,7 @@ export default function SalesProfile() {
             </button>
         </div>
       </div>
+
     </div>
   );
 }

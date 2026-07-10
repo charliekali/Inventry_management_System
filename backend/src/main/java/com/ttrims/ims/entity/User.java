@@ -41,6 +41,9 @@ public class User {
     @Column(name = "vehicle_number")
     private String vehicleNumber;
 
+    @Column(name = "delivery_zone")
+    private String deliveryZone;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -78,6 +81,8 @@ public class User {
     public void setCurrentLongitude(Double currentLongitude) { this.currentLongitude = currentLongitude; }
     public String getVehicleNumber() { return vehicleNumber; }
     public void setVehicleNumber(String vehicleNumber) { this.vehicleNumber = vehicleNumber; }
+    public String getDeliveryZone() { return deliveryZone; }
+    public void setDeliveryZone(String deliveryZone) { this.deliveryZone = deliveryZone; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

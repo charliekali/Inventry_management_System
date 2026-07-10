@@ -111,6 +111,7 @@ export default function ProductionProfile() {
           <button className="p-btn primary lg" onClick={() => navigate('/dashboard')} style={{ width: '100%' }}>
             Back to Workspace Hub
           </button>
+        )}
         <div style={{ display: 'flex', gap: 10, width: '100%' }}>
           <button className="p-btn ghost lg" onClick={loadStats} style={{ flex: 1 }}>
             <RefreshCw size={14} /> Sync Stats

@@ -1,9 +1,156 @@
 import { useState, useEffect, useMemo } from 'react';
 import { dispatchAPI, shipmentsAPI } from '../../api';
 import toast from 'react-hot-toast';
-import { Truck, Package, Clock, RefreshCw, AlertTriangle, CheckCircle2, Navigation, MapPin, User, Power, ShieldAlert } from 'lucide-react';
+import { Truck, Package, Clock, RefreshCw, AlertTriangle, CheckCircle2, Navigation, MapPin, User, Power, ShieldAlert, Users, Zap, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+
+// ─── Delivery Method Modal ─────────────────────────────────────────────────────
+function DispatchMethodModal({ order, onConfirm, onClose, processing }) {
+  const [method, setMethod] = useState('COMPANY_DELIVERY');
+  if (!order) return null;
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      padding: '0 0 env(safe-area-inset-bottom,0px)'
+    }}>
+      <div style={{
+        background: 'var(--w-card-bg)', borderRadius: '18px 18px 0 0',
+        width: '100%', maxWidth: 560, padding: '24px 20px 32px',
+        boxShadow: '0 -8px 32px rgba(0,0,0,0.4)',
+        animation: 'slideUp 0.25s cubic-bezier(.22,1,.36,1)'
+      }}>
+        {/* Handle bar */}
+        <div style={{ width: 40, height: 4, background: 'var(--w-border)', borderRadius: 2, margin: '0 auto 20px' }} />
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--w-text)' }}>Dispatch Order</div>
+            <div style={{ fontSize: 12, color: 'var(--w-text-3)', marginTop: 4 }}>
+              {order.order_number} · {order.customer}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-text-3)', padding: 4 }}>
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Delivery Method */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--w-text-3)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>
+            Select Delivery Method
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+            {/* Company Delivery option */}
+            <button
+              onClick={() => setMethod('COMPANY_DELIVERY')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '14px 16px', borderRadius: 12,
+                border: method === 'COMPANY_DELIVERY' ? '2px solid var(--w-primary)' : '2px solid var(--w-border)',
+                background: method === 'COMPANY_DELIVERY' ? 'rgba(99,102,241,0.08)' : 'var(--w-input-bg)',
+                cursor: 'pointer', textAlign: 'left', width: '100%',
+                transition: 'all 0.2s'
+              }}
+            >
+              <div style={{
+                width: 44, height: 44, borderRadius: 10,
+                background: method === 'COMPANY_DELIVERY' ? 'var(--w-primary)' : 'var(--w-border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+              }}>
+                <Truck size={22} color={method === 'COMPANY_DELIVERY' ? 'white' : 'var(--w-text-3)'} />
+              </div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--w-text)' }}>Delivered by Company</div>
+                <div style={{ fontSize: 11.5, color: 'var(--w-text-3)', marginTop: 3 }}>
+                  Auto-assigns a driver · Enables tracking & delivery status updates
+                </div>
+              </div>
+              {method === 'COMPANY_DELIVERY' && (
+                <CheckCircle2 size={20} color="var(--w-primary)" style={{ marginLeft: 'auto', flexShrink: 0 }} />
+              )}
+            </button>
+
+            {/* Customer Self Pickup option */}
+            <button
+              onClick={() => setMethod('CUSTOMER_PICKUP')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '14px 16px', borderRadius: 12,
+                border: method === 'CUSTOMER_PICKUP' ? '2px solid #10b981' : '2px solid var(--w-border)',
+                background: method === 'CUSTOMER_PICKUP' ? 'rgba(16,185,129,0.08)' : 'var(--w-input-bg)',
+                cursor: 'pointer', textAlign: 'left', width: '100%',
+                transition: 'all 0.2s'
+              }}
+            >
+              <div style={{
+                width: 44, height: 44, borderRadius: 10,
+                background: method === 'CUSTOMER_PICKUP' ? '#10b981' : 'var(--w-border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+              }}>
+                <Users size={22} color={method === 'CUSTOMER_PICKUP' ? 'white' : 'var(--w-text-3)'} />
+              </div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--w-text)' }}>Customer Self Pickup</div>
+                <div style={{ fontSize: 11.5, color: 'var(--w-text-3)', marginTop: 3 }}>
+                  No driver required · Customer collects from warehouse
+                </div>
+              </div>
+              {method === 'CUSTOMER_PICKUP' && (
+                <CheckCircle2 size={20} color="#10b981" style={{ marginLeft: 'auto', flexShrink: 0 }} />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Item summary */}
+        {order.items && order.items.length > 0 && (
+          <div style={{
+            background: 'var(--w-input-bg)', borderRadius: 10, padding: '10px 14px', marginBottom: 20,
+            border: '1px solid var(--w-border)'
+          }}>
+            <div style={{ fontSize: 11, color: 'var(--w-text-3)', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase' }}>Items</div>
+            {order.items.map((item, i) => (
+              <div key={i} style={{ fontSize: 12, color: 'var(--w-text)', display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                <span>{item.product_name}</span>
+                <span style={{ fontWeight: 700 }}>{item.qty_required} {item.unit}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Confirm button */}
+        <button
+          onClick={() => onConfirm(order.id, method)}
+          disabled={processing}
+          style={{
+            width: '100%', padding: '15px 20px',
+            background: method === 'CUSTOMER_PICKUP'
+              ? 'linear-gradient(135deg, #10b981, #059669)'
+              : 'linear-gradient(135deg, var(--w-primary), #4f46e5)',
+            color: 'white', border: 'none', borderRadius: 12,
+            fontSize: 14, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            opacity: processing ? 0.7 : 1, transition: 'all 0.2s'
+          }}
+        >
+          {processing ? (
+            <><RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> Processing...</>
+          ) : method === 'CUSTOMER_PICKUP' ? (
+            <><CheckCircle2 size={16} /> Confirm Customer Pickup</>
+          ) : (
+            <><Truck size={16} /> Confirm Company Delivery</>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function OrderCard({ order, onDispatch, processing, hasPermission }) {
   const [checkedItems, setCheckedItems] = useState({});
@@ -195,6 +342,10 @@ export default function LogisticsHome() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [groupingAll, setGroupingAll] = useState(false);
+
+  // Dispatch method modal
+  const [dispatchModal, setDispatchModal] = useState(null); // order object or null
 
   // Driver states
   const [assignedShipments, setAssignedShipments] = useState([]);
@@ -229,18 +380,51 @@ export default function LogisticsHome() {
     }
   }, [isDriver]);
 
-  const handleDispatch = async (id) => {
-    if (!window.confirm('Are you sure you want to mark this order as dispatched? This will calculate the total bags and pieces.')) return;
+  // Opens the delivery method modal for a specific order
+  const handleDispatch = (id) => {
+    const order = orders.find(o => o.id === id);
+    if (order) setDispatchModal(order);
+  };
+
+  // Called when the user confirms inside the modal
+  const handleConfirmDispatch = async (id, deliveryMethod) => {
     setProcessing(true);
     try {
-      const res = await dispatchAPI.complete(id);
+      const res = await dispatchAPI.complete(id, deliveryMethod);
       const data = res.data.data;
-      toast.success(`Dispatched Successfully!\nBags: ${data.dispatch_bags} | Pcs: ${data.dispatch_pcs}`, { duration: 5000 });
+      const method = res.data.delivery_method;
+      const driver = res.data.driver_name;
+      const shipNum = res.data.shipment_number;
+
+      if (method === 'CUSTOMER_PICKUP') {
+        toast.success(
+          `Customer Pickup Recorded!\nShipment: ${shipNum}\nBags: ${data.dispatch_bags} | Pcs: ${data.dispatch_pcs}`,
+          { duration: 5000 }
+        );
+      } else {
+        toast.success(
+          `Dispatched!\nDriver: ${driver || 'Auto-assigned'}\nShipment: ${shipNum}\nBags: ${data.dispatch_bags} | Pcs: ${data.dispatch_pcs}`,
+          { duration: 5000 }
+        );
+      }
+      setDispatchModal(null);
       loadDispatches();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to dispatch order');
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const handleGroupAll = async () => {
+    setGroupingAll(true);
+    try {
+      const res = await dispatchAPI.groupAll();
+      toast.success(res.data.message || 'Orders grouped into shipments', { duration: 4000 });
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to group orders');
+    } finally {
+      setGroupingAll(false);
     }
   };
 
@@ -552,16 +736,40 @@ export default function LogisticsHome() {
 
   return (
     <div className="w-page w-fade-in" style={{ padding: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      {/* Delivery Method Modal */}
+      {dispatchModal && (
+        <DispatchMethodModal
+          order={dispatchModal}
+          onConfirm={handleConfirmDispatch}
+          onClose={() => setDispatchModal(null)}
+          processing={processing}
+        />
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div>
           <h3 style={{ fontSize: 18, fontWeight: 800 }}>Pending Dispatches</h3>
           <p style={{ fontSize: 12, color: 'var(--w-text-2)', marginTop: 2 }}>
             {orders.length === 0 ? 'No orders awaiting dispatch' : `${orders.length} orders ready to dispatch`}
           </p>
         </div>
-        <button className="w-btn ghost sm" onClick={loadDispatches} style={{ minWidth: 'auto', padding: 8 }}>
-          <RefreshCw size={16} />
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {hasPermission('DISPATCH:MANAGE') && (
+            <button
+              className="w-btn ghost sm"
+              onClick={handleGroupAll}
+              disabled={groupingAll}
+              title="Re-group all eligible orders into optimized shipments"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', fontSize: 12 }}
+            >
+              <Zap size={14} />
+              {groupingAll ? 'Grouping...' : 'Auto-Group'}
+            </button>
+          )}
+          <button className="w-btn ghost sm" onClick={loadDispatches} style={{ minWidth: 'auto', padding: 8 }}>
+            <RefreshCw size={16} />
+          </button>
+        </div>
       </div>
 
       {orders.length === 0 ? (
@@ -572,12 +780,12 @@ export default function LogisticsHome() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {orders.map(order => (
-            <OrderCard 
-              key={order.id} 
-              order={order} 
-              onDispatch={handleDispatch} 
-              processing={processing} 
-              hasPermission={hasPermission} 
+            <OrderCard
+              key={order.id}
+              order={order}
+              onDispatch={handleDispatch}
+              processing={processing}
+              hasPermission={hasPermission}
             />
           ))}
         </div>

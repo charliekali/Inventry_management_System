@@ -40,187 +40,319 @@ public class LogisticsService {
         this.attendanceRepo = attendanceRepo;
     }
 
+    // ─── Auto Shipment Creation ────────────────────────────────────────────────
+
+    /**
+     * Groups ALL eligible pending orders into optimized shipments.
+     * Called on demand (e.g. via /dispatch/group-all) or when a single order is dispatched.
+     * Returns list of created/updated shipment numbers.
+     */
+    @Transactional
+    public List<String> groupAllEligibleOrders() {
+        log.info("Running bulk auto-grouping for all eligible pending orders");
+
+        List<Order> eligible = orderRepo.findEligibleForGrouping();
+        if (eligible.isEmpty()) {
+            log.info("No eligible orders found for grouping.");
+            return Collections.emptyList();
+        }
+
+        // Assign default coordinates for orders missing lat/lng
+        for (Order order : eligible) {
+            ensureCoordinates(order);
+        }
+
+        // Find existing CREATED auto-grouped shipments that still have capacity
+        List<Shipment> openShipments = shipmentRepo.findByStatusOrderByCreatedAtDesc(Shipment.Status.CREATED)
+                .stream()
+                .filter(s -> Boolean.TRUE.equals(s.getAutoGrouped()))
+                .collect(Collectors.toList());
+
+        // Set of order IDs already in a shipment
+        Set<String> alreadyGrouped = new HashSet<>();
+        for (Shipment s : openShipments) {
+            for (ShipmentOrder so : s.getShipmentOrders()) {
+                alreadyGrouped.add(so.getOrder().getId());
+            }
+        }
+
+        // Only process truly unassigned orders
+        List<Order> unassigned = eligible.stream()
+                .filter(o -> !alreadyGrouped.contains(o.getId()))
+                .collect(Collectors.toList());
+
+        Set<String> createdOrUpdated = new LinkedHashSet<>();
+
+        for (Order order : unassigned) {
+            Shipment target = findOrCreateShipment(order, openShipments);
+            linkOrderToShipment(order, target);
+            if (!openShipments.contains(target)) {
+                openShipments.add(target);
+            }
+            createdOrUpdated.add(target.getShipmentNumber());
+        }
+
+        // Re-optimize routes for all touched shipments
+        Set<String> touchedIds = new HashSet<>();
+        for (String sNum : createdOrUpdated) {
+            openShipments.stream()
+                    .filter(s -> s.getShipmentNumber().equals(sNum))
+                    .findFirst()
+                    .ifPresent(s -> {
+                        if (!touchedIds.contains(s.getId())) {
+                            touchedIds.add(s.getId());
+                            optimizeRoute(s);
+                        }
+                    });
+        }
+
+        return new ArrayList<>(createdOrUpdated);
+    }
+
+    /**
+     * Handles auto-shipment for a single order after dispatch is confirmed.
+     * Checks if the order is already grouped; if not, groups it.
+     */
     @Transactional
     public void handleAutoShipment(Order order) {
         log.info("Starting automated shipment allocation for order: {}", order.getOrderNumber());
 
-        // 1. Ensure order has coordinates for clustering (default to Colombo offset if null)
-        if (order.getLatitude() == null || order.getLongitude() == null) {
-            Random rand = new Random(order.getId().hashCode());
-            // Random offset within ~5km of depot
-            double latOffset = (rand.nextDouble() - 0.5) * 0.06;
-            double lngOffset = (rand.nextDouble() - 0.5) * 0.06;
-            order.setLatitude(DEPOT_LAT + latOffset);
-            order.setLongitude(DEPOT_LNG + lngOffset);
-            if (order.getDeliveryAddress() == null || order.getDeliveryAddress().isBlank()) {
-                order.setDeliveryAddress("Colombo Delivery Zone " + (char)('A' + rand.nextInt(4)));
-            }
-            orderRepo.save(order);
+        // Check if already in a shipment
+        Optional<ShipmentOrder> existing = shipmentOrderRepo.findByOrderId(order.getId());
+        if (existing.isPresent()) {
+            log.info("Order {} is already in shipment {}. Skipping.",
+                    order.getOrderNumber(), existing.get().getShipment().getShipmentNumber());
+            return;
         }
 
-        // 2. Find eligible active shipments (status = CREATED, same day)
+        ensureCoordinates(order);
+
         List<Shipment> activeShipments = shipmentRepo.findByStatusOrderByCreatedAtDesc(Shipment.Status.CREATED);
-        Shipment targetShipment = null;
-
-        for (Shipment s : activeShipments) {
-            if (s.getShipmentOrders().size() >= MAX_STOPS_PER_SHIPMENT) {
-                continue; // Skip full shipments
-            }
-
-            // Get first stop location to check proximity
-            if (!s.getShipmentOrders().isEmpty()) {
-                Order firstOrder = s.getShipmentOrders().get(0).getOrder();
-                if (firstOrder != null && firstOrder.getLatitude() != null) {
-                    double dist = calculateDistance(order.getLatitude(), order.getLongitude(),
-                            firstOrder.getLatitude(), firstOrder.getLongitude());
-                    if (dist <= SERVICE_RADIUS_KM) {
-                        targetShipment = s;
-                        log.info("Clustered order {} into existing Shipment {} (Distance: {} km)", 
-                                order.getOrderNumber(), s.getShipmentNumber(), dist);
-                        break;
-                    }
-                }
-            }
-        }
-
-        // 3. Create new shipment if no matching cluster found
-        if (targetShipment == null) {
-            targetShipment = new Shipment();
-            targetShipment.setShipmentNumber("SHM-" + System.currentTimeMillis());
-            targetShipment.setStatus(Shipment.Status.CREATED);
-            targetShipment.setOrigin("Main Warehouse Depot");
-            targetShipment.setDestination(order.getDeliveryAddress());
-            targetShipment.setScheduledAt(LocalDateTime.now().plusHours(2));
-            targetShipment.setCreatedBy("Automation Engine");
-
-            // Auto allocate driver
-            allocateDriver(targetShipment, order.getLatitude(), order.getLongitude());
-            targetShipment = shipmentRepo.save(targetShipment);
-            log.info("Created new automated Shipment {} for order {}", 
-                    targetShipment.getShipmentNumber(), order.getOrderNumber());
-        }
-
-        // 4. Link order to shipment
-        ShipmentOrder so = new ShipmentOrder();
-        so.setShipment(targetShipment);
-        so.setOrder(order);
-        so.setStatus("PENDING");
-
-        // Calculate dispatch bags/pcs
-        int orderPcs = 0;
-        int orderBags = 0;
-        for (OrderItem item : order.getItems()) {
-            Product p = item.getProduct();
-            if (p != null) {
-                double qty = item.getQtyRequired() != null ? item.getQtyRequired() : 0.0;
-                if ("PCS".equalsIgnoreCase(item.getUnit()) || "PACK".equalsIgnoreCase(item.getUnit()) || "PCS".equalsIgnoreCase(p.getUnit())) {
-                    orderPcs += qty;
-                }
-                int pcsPerBag = 0;
-                if (p.getPcsPerBag() != null && p.getPcsPerBag() > 0) {
-                    pcsPerBag = p.getPcsPerBag();
-                } else if (p.getPcsPerInnerbag() != null && p.getInnerbagsPerBag() != null) {
-                    pcsPerBag = p.getPcsPerInnerbag() * p.getInnerbagsPerBag();
-                }
-                if (pcsPerBag > 0) {
-                    orderBags += (int) Math.ceil(qty / pcsPerBag);
-                }
-            }
-        }
-        so.setDispatchBags(orderBags);
-        so.setDispatchPcs(orderPcs);
-        shipmentOrderRepo.save(so);
-
-        // Fetch targetShipment again to refresh association
-        if (targetShipment.getShipmentOrders() == null) {
-            targetShipment.setShipmentOrders(new ArrayList<>());
-        }
-        targetShipment.getShipmentOrders().add(so);
-
-        // 5. Run route optimization
+        Shipment targetShipment = findOrCreateShipment(order, activeShipments);
+        linkOrderToShipment(order, targetShipment);
         optimizeRoute(targetShipment);
     }
 
-    private void allocateDriver(Shipment shipment, double targetLat, double targetLng) {
-        Role driverRole = roleRepo.findByName("Driver").orElse(null);
-        if (driverRole == null) {
-            log.warn("Driver role not found. Skipping auto driver allocation.");
-            shipment.setDriverName("Unassigned");
-            return;
+    // ─── Shipment Merge / Split / Move ────────────────────────────────────────
+
+    /**
+     * Merges multiple CREATED shipments into the first one.
+     * Releases old shipments and re-optimizes the merged one.
+     */
+    @Transactional
+    public Shipment mergeShipments(List<String> shipmentIds) {
+        if (shipmentIds == null || shipmentIds.size() < 2) {
+            throw new IllegalArgumentException("At least 2 shipment IDs are required for a merge");
         }
 
-        // Query all drivers
-        List<User> allDrivers = userRepo.findAll().stream()
-                .filter(u -> u.getRole() != null && u.getRole().getId().equals(driverRole.getId()) && u.isActive())
+        List<Shipment> shipments = shipmentIds.stream()
+                .map(id -> shipmentRepo.findById(id).orElseThrow(() -> new IllegalArgumentException("Shipment not found: " + id)))
                 .collect(Collectors.toList());
 
-        // Query active attendance sessions to find currently clocked-in users
-        List<Attendance> activeSessions = attendanceRepo.findByStatusOrderByClockInAtDesc("ACTIVE");
-        Set<String> activeUserIds = activeSessions.stream()
-                .map(Attendance::getUserId)
-                .collect(Collectors.toSet());
-
-        // Filter available drivers who are currently clocked in
-        List<User> availableDrivers = allDrivers.stream()
-                .filter(d -> activeUserIds.contains(d.getId()))
-                .filter(d -> "AVAILABLE".equalsIgnoreCase(d.getDriverStatus()) || "IDLE".equalsIgnoreCase(d.getDriverStatus()) || d.getDriverStatus() == null)
-                .collect(Collectors.toList());
-
-        // Fallback 1: If no clocked-in AVAILABLE drivers, try any clocked-in drivers
-        if (availableDrivers.isEmpty()) {
-            availableDrivers = allDrivers.stream()
-                    .filter(d -> activeUserIds.contains(d.getId()))
-                    .collect(Collectors.toList());
-        }
-
-        // Fallback 2: If absolutely no driver is clocked in, use all available drivers in system
-        if (availableDrivers.isEmpty()) {
-            availableDrivers = allDrivers.stream()
-                    .filter(d -> "AVAILABLE".equalsIgnoreCase(d.getDriverStatus()) || "IDLE".equalsIgnoreCase(d.getDriverStatus()) || d.getDriverStatus() == null)
-                    .collect(Collectors.toList());
-        }
-
-        if (availableDrivers.isEmpty()) {
-            log.warn("No available or active drivers found. Assigning fallback driver.");
-            if (!allDrivers.isEmpty()) {
-                User fallback = allDrivers.get(0);
-                shipment.setDriver(fallback);
-                shipment.setDriverName(fallback.getName());
-                shipment.setDriverPhone("077-1234560");
-                shipment.setVehicleNumber(fallback.getVehicleNumber());
-            } else {
-                shipment.setDriverName("Unassigned");
-            }
-            return;
-        }
-
-        // Proximity check: Nearest available driver
-        User bestDriver = null;
-        double minDistance = Double.MAX_VALUE;
-
-        for (User driver : availableDrivers) {
-            double driverLat = driver.getCurrentLatitude() != null ? driver.getCurrentLatitude() : DEPOT_LAT;
-            double driverLng = driver.getCurrentLongitude() != null ? driver.getCurrentLongitude() : DEPOT_LNG;
-
-            double dist = calculateDistance(driverLat, driverLng, targetLat, targetLng);
-            if (dist < minDistance) {
-                minDistance = dist;
-                bestDriver = driver;
+        for (Shipment s : shipments) {
+            if (s.getStatus() != Shipment.Status.CREATED) {
+                throw new IllegalStateException("Only CREATED shipments can be merged. Shipment " + s.getShipmentNumber() + " has status " + s.getStatus());
             }
         }
 
-        if (bestDriver != null) {
-            bestDriver.setDriverStatus("BUSY");
-            userRepo.save(bestDriver);
+        Shipment primary = shipments.get(0);
+        List<Shipment> secondaries = shipments.subList(1, shipments.size());
 
-            shipment.setDriver(bestDriver);
-            shipment.setDriverName(bestDriver.getName());
-            shipment.setDriverPhone("077-123456" + bestDriver.getName().length());
-            shipment.setVehicleNumber(bestDriver.getVehicleNumber() != null ? bestDriver.getVehicleNumber() : "WP-CAR-7788");
-            log.info("Auto-assigned driver: {} (Vehicle: {}) to Shipment (Distance: {} km)", 
-                    bestDriver.getName(), shipment.getVehicleNumber(), minDistance);
+        for (Shipment secondary : secondaries) {
+            // Re-link all orders from secondary to primary
+            for (ShipmentOrder so : secondary.getShipmentOrders()) {
+                so.setShipment(primary);
+                so.setStopSequence(primary.getShipmentOrders().size() + 1);
+                shipmentOrderRepo.save(so);
+                primary.getShipmentOrders().add(so);
+            }
+            secondary.getShipmentOrders().clear();
+
+            // Release driver of secondary if different from primary
+            if (secondary.getDriver() != null &&
+                    (primary.getDriver() == null || !secondary.getDriver().getId().equals(primary.getDriver().getId()))) {
+                User driver = secondary.getDriver();
+                driver.setDriverStatus("AVAILABLE");
+                userRepo.save(driver);
+            }
+
+            shipmentRepo.delete(secondary);
+            log.info("Merged shipment {} into {}", secondary.getShipmentNumber(), primary.getShipmentNumber());
         }
+
+        optimizeRoute(primary);
+        return shipmentRepo.save(primary);
     }
+
+    /**
+     * Splits specified orders out of an existing shipment into a new one.
+     */
+    @Transactional
+    public Shipment splitShipment(String shipmentId, List<String> orderIdsToSplit) {
+        Shipment original = shipmentRepo.findById(shipmentId)
+                .orElseThrow(() -> new IllegalArgumentException("Shipment not found: " + shipmentId));
+
+        if (original.getStatus() != Shipment.Status.CREATED) {
+            throw new IllegalStateException("Only CREATED shipments can be split");
+        }
+
+        if (orderIdsToSplit == null || orderIdsToSplit.isEmpty()) {
+            throw new IllegalArgumentException("No orders specified for split");
+        }
+
+        // Create the new shipment
+        Shipment newShipment = new Shipment();
+        newShipment.setShipmentNumber("SHM-" + System.currentTimeMillis());
+        newShipment.setStatus(Shipment.Status.CREATED);
+        newShipment.setOrigin(original.getOrigin());
+        newShipment.setScheduledAt(original.getScheduledAt());
+        newShipment.setCreatedBy("Admin Split");
+        newShipment.setAutoGrouped(false);
+        newShipment = shipmentRepo.save(newShipment);
+
+        Set<String> splitSet = new HashSet<>(orderIdsToSplit);
+        List<ShipmentOrder> toMove = original.getShipmentOrders().stream()
+                .filter(so -> splitSet.contains(so.getOrder().getId()))
+                .collect(Collectors.toList());
+
+        if (toMove.isEmpty()) {
+            shipmentRepo.delete(newShipment);
+            throw new IllegalArgumentException("None of the specified order IDs were found in this shipment");
+        }
+
+        for (ShipmentOrder so : toMove) {
+            original.getShipmentOrders().remove(so);
+            so.setShipment(newShipment);
+            shipmentOrderRepo.save(so);
+        }
+        newShipment.getShipmentOrders().addAll(toMove);
+
+        // Auto-allocate driver for new shipment
+        if (!newShipment.getShipmentOrders().isEmpty()) {
+            Order firstOrder = newShipment.getShipmentOrders().get(0).getOrder();
+            double lat = firstOrder.getLatitude() != null ? firstOrder.getLatitude() : DEPOT_LAT;
+            double lng = firstOrder.getLongitude() != null ? firstOrder.getLongitude() : DEPOT_LNG;
+            allocateDriver(newShipment, lat, lng);
+        }
+
+        optimizeRoute(original);
+        optimizeRoute(newShipment);
+
+        shipmentRepo.save(original);
+        return shipmentRepo.save(newShipment);
+    }
+
+    /**
+     * Moves a single order from one CREATED shipment to another.
+     */
+    @Transactional
+    public void moveOrder(String orderId, String fromShipmentId, String toShipmentId) {
+        Shipment from = shipmentRepo.findById(fromShipmentId)
+                .orElseThrow(() -> new IllegalArgumentException("Source shipment not found"));
+        Shipment to = shipmentRepo.findById(toShipmentId)
+                .orElseThrow(() -> new IllegalArgumentException("Destination shipment not found"));
+
+        if (to.getShipmentOrders().size() >= MAX_STOPS_PER_SHIPMENT) {
+            throw new IllegalStateException("Destination shipment is full (max " + MAX_STOPS_PER_SHIPMENT + " stops)");
+        }
+
+        ShipmentOrder soToMove = from.getShipmentOrders().stream()
+                .filter(so -> so.getOrder().getId().equals(orderId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Order not found in source shipment"));
+
+        from.getShipmentOrders().remove(soToMove);
+        soToMove.setShipment(to);
+        soToMove.setStopSequence(to.getShipmentOrders().size() + 1);
+        to.getShipmentOrders().add(soToMove);
+        shipmentOrderRepo.save(soToMove);
+
+        optimizeRoute(from);
+        optimizeRoute(to);
+
+        shipmentRepo.save(from);
+        shipmentRepo.save(to);
+    }
+
+    /**
+     * Adds an unassigned order to an existing CREATED shipment.
+     */
+    @Transactional
+    public void addOrderToShipment(String orderId, String shipmentId) {
+        Order order = orderRepo.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+        Shipment shipment = shipmentRepo.findById(shipmentId)
+                .orElseThrow(() -> new IllegalArgumentException("Shipment not found"));
+
+        if (shipment.getShipmentOrders().size() >= MAX_STOPS_PER_SHIPMENT) {
+            throw new IllegalStateException("Shipment is full (max " + MAX_STOPS_PER_SHIPMENT + " stops)");
+        }
+
+        // Remove from any existing shipment first
+        Optional<ShipmentOrder> existing = shipmentOrderRepo.findByOrderId(orderId);
+        existing.ifPresent(so -> {
+            so.getShipment().getShipmentOrders().remove(so);
+            shipmentOrderRepo.delete(so);
+        });
+
+        ensureCoordinates(order);
+        ShipmentOrder so = buildShipmentOrder(order, shipment);
+        shipmentOrderRepo.save(so);
+        shipment.getShipmentOrders().add(so);
+        optimizeRoute(shipment);
+        shipmentRepo.save(shipment);
+    }
+
+    /**
+     * Removes an order from a shipment, returning it to the unassigned pool.
+     */
+    @Transactional
+    public void removeOrderFromShipment(String orderId, String shipmentId) {
+        Shipment shipment = shipmentRepo.findById(shipmentId)
+                .orElseThrow(() -> new IllegalArgumentException("Shipment not found"));
+
+        ShipmentOrder so = shipment.getShipmentOrders().stream()
+                .filter(s -> s.getOrder().getId().equals(orderId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Order not found in this shipment"));
+
+        shipment.getShipmentOrders().remove(so);
+        shipmentOrderRepo.delete(so);
+
+        optimizeRoute(shipment);
+        shipmentRepo.save(shipment);
+    }
+
+    /**
+     * Cancels all auto-created CREATED shipments and re-runs full clustering from scratch.
+     */
+    @Transactional
+    public List<String> regenerateGroupings() {
+        log.info("Regenerating all shipment groupings...");
+
+        List<Shipment> autoCreated = shipmentRepo.findByStatusOrderByCreatedAtDesc(Shipment.Status.CREATED)
+                .stream()
+                .filter(s -> Boolean.TRUE.equals(s.getAutoGrouped()))
+                .collect(Collectors.toList());
+
+        // Release drivers
+        for (Shipment s : autoCreated) {
+            if (s.getDriver() != null) {
+                User driver = s.getDriver();
+                driver.setDriverStatus("AVAILABLE");
+                userRepo.save(driver);
+            }
+        }
+
+        // Delete all auto-grouped CREATED shipments (cascade deletes shipment orders)
+        shipmentRepo.deleteAll(autoCreated);
+        log.info("Deleted {} auto-grouped shipments for regeneration", autoCreated.size());
+
+        // Re-group all eligible orders
+        return groupAllEligibleOrders();
+    }
+
+    // ─── Route Optimization ────────────────────────────────────────────────────
 
     public void optimizeRoute(Shipment shipment) {
         List<ShipmentOrder> stops = shipment.getShipmentOrders();
@@ -286,12 +418,204 @@ public class LogisticsService {
         }
 
         shipmentRepo.save(shipment);
-        log.info("Optimized route for Shipment: {}. Distance: {} km, Duration: {} mins", 
+        log.info("Optimized route for Shipment: {}. Distance: {} km, Duration: {} mins",
                 shipment.getShipmentNumber(), shipment.getDistanceKm(), shipment.getDurationMin());
     }
 
+    // ─── Driver Allocation ─────────────────────────────────────────────────────
+
+    public void allocateDriver(Shipment shipment, double targetLat, double targetLng) {
+        Role driverRole = roleRepo.findByName("Driver").orElse(null);
+        if (driverRole == null) {
+            log.warn("Driver role not found. Skipping auto driver allocation.");
+            shipment.setDriverName("Unassigned");
+            return;
+        }
+
+        // Query all active drivers
+        List<User> allDrivers = userRepo.findAll().stream()
+                .filter(u -> u.getRole() != null && u.getRole().getId().equals(driverRole.getId()) && u.isActive())
+                .collect(Collectors.toList());
+
+        // Query clocked-in users
+        List<Attendance> activeSessions = attendanceRepo.findByStatusOrderByClockInAtDesc("ACTIVE");
+        Set<String> activeUserIds = activeSessions.stream()
+                .map(Attendance::getUserId)
+                .collect(Collectors.toSet());
+
+        // Filter clocked-in + available drivers
+        List<User> availableDrivers = allDrivers.stream()
+                .filter(d -> activeUserIds.contains(d.getId()))
+                .filter(d -> "AVAILABLE".equalsIgnoreCase(d.getDriverStatus()) || "IDLE".equalsIgnoreCase(d.getDriverStatus()) || d.getDriverStatus() == null)
+                .collect(Collectors.toList());
+
+        // Fallback 1: clocked-in any status
+        if (availableDrivers.isEmpty()) {
+            availableDrivers = allDrivers.stream()
+                    .filter(d -> activeUserIds.contains(d.getId()))
+                    .collect(Collectors.toList());
+        }
+
+        // Fallback 2: any available driver regardless of attendance
+        if (availableDrivers.isEmpty()) {
+            availableDrivers = allDrivers.stream()
+                    .filter(d -> "AVAILABLE".equalsIgnoreCase(d.getDriverStatus()) || "IDLE".equalsIgnoreCase(d.getDriverStatus()) || d.getDriverStatus() == null)
+                    .collect(Collectors.toList());
+        }
+
+        if (availableDrivers.isEmpty()) {
+            log.warn("No available or active drivers found. Assigning fallback driver.");
+            if (!allDrivers.isEmpty()) {
+                User fallback = allDrivers.get(0);
+                assignDriverToShipment(shipment, fallback);
+            } else {
+                shipment.setDriverName("Unassigned");
+            }
+            return;
+        }
+
+        // Score each driver: distance from target + workload penalty
+        User bestDriver = null;
+        double bestScore = Double.MAX_VALUE;
+
+        for (User driver : availableDrivers) {
+            double driverLat = driver.getCurrentLatitude() != null ? driver.getCurrentLatitude() : DEPOT_LAT;
+            double driverLng = driver.getCurrentLongitude() != null ? driver.getCurrentLongitude() : DEPOT_LNG;
+
+            double dist = calculateDistance(driverLat, driverLng, targetLat, targetLng);
+            long activeShipments = shipmentRepo.countActiveShipmentsByDriver(driver.getId());
+
+            // Zone matching bonus: reduce score by 5km if zones match
+            double zoneBonus = 0;
+            if (driver.getDeliveryZone() != null && !driver.getDeliveryZone().isBlank()) {
+                // Simple area matching — if shipment destination contains driver zone name
+                if (shipment.getDestination() != null &&
+                        shipment.getDestination().toLowerCase().contains(driver.getDeliveryZone().toLowerCase())) {
+                    zoneBonus = -5.0;
+                }
+            }
+
+            // Score = distance + 3km penalty per active shipment + zone bonus
+            double score = dist + (activeShipments * 3.0) + zoneBonus;
+
+            if (score < bestScore) {
+                bestScore = score;
+                bestDriver = driver;
+            }
+        }
+
+        if (bestDriver != null) {
+            assignDriverToShipment(shipment, bestDriver);
+            log.info("Auto-assigned driver: {} (Vehicle: {}) to Shipment (Score: {})",
+                    bestDriver.getName(), shipment.getVehicleNumber(), bestScore);
+        }
+    }
+
+    private void assignDriverToShipment(Shipment shipment, User driver) {
+        driver.setDriverStatus("BUSY");
+        userRepo.save(driver);
+        shipment.setDriver(driver);
+        shipment.setDriverName(driver.getName());
+        shipment.setDriverPhone(driver.getDeliveryZone() != null ? driver.getDeliveryZone() : "077-1234560");
+        shipment.setVehicleNumber(driver.getVehicleNumber() != null ? driver.getVehicleNumber() : "WP-CAR-7788");
+    }
+
+    // ─── Internal Helpers ─────────────────────────────────────────────────────
+
+    private Shipment findOrCreateShipment(Order order, List<Shipment> openShipments) {
+        // Try to cluster into an existing open shipment
+        for (Shipment s : openShipments) {
+            if (s.getShipmentOrders().size() >= MAX_STOPS_PER_SHIPMENT) continue;
+
+            if (!s.getShipmentOrders().isEmpty()) {
+                Order firstOrder = s.getShipmentOrders().get(0).getOrder();
+                if (firstOrder != null && firstOrder.getLatitude() != null) {
+                    double dist = calculateDistance(order.getLatitude(), order.getLongitude(),
+                            firstOrder.getLatitude(), firstOrder.getLongitude());
+                    if (dist <= SERVICE_RADIUS_KM) {
+                        log.info("Clustered order {} into existing Shipment {} (dist: {} km)",
+                                order.getOrderNumber(), s.getShipmentNumber(), dist);
+                        return s;
+                    }
+                }
+            } else {
+                // Empty shipment — can be reused
+                return s;
+            }
+        }
+
+        // Create a new shipment
+        Shipment newShipment = new Shipment();
+        newShipment.setShipmentNumber("SHM-" + System.currentTimeMillis());
+        newShipment.setStatus(Shipment.Status.CREATED);
+        newShipment.setOrigin("Main Warehouse Depot");
+        newShipment.setDestination(order.getDeliveryAddress());
+        newShipment.setScheduledAt(LocalDateTime.now().plusHours(2));
+        newShipment.setCreatedBy("Automation Engine");
+        newShipment.setAutoGrouped(true);
+        allocateDriver(newShipment, order.getLatitude(), order.getLongitude());
+        newShipment = shipmentRepo.save(newShipment);
+        log.info("Created new automated Shipment {} for order {}", newShipment.getShipmentNumber(), order.getOrderNumber());
+        return newShipment;
+    }
+
+    private void linkOrderToShipment(Order order, Shipment shipment) {
+        // Guard: don't double-link
+        boolean alreadyLinked = shipment.getShipmentOrders().stream()
+                .anyMatch(so -> so.getOrder().getId().equals(order.getId()));
+        if (alreadyLinked) return;
+
+        ShipmentOrder so = buildShipmentOrder(order, shipment);
+        shipmentOrderRepo.save(so);
+        shipment.getShipmentOrders().add(so);
+    }
+
+    private ShipmentOrder buildShipmentOrder(Order order, Shipment shipment) {
+        int orderPcs = 0;
+        int orderBags = 0;
+        for (OrderItem item : order.getItems()) {
+            Product p = item.getProduct();
+            if (p != null) {
+                double qty = item.getQtyRequired() != null ? item.getQtyRequired() : 0.0;
+                if ("PCS".equalsIgnoreCase(item.getUnit()) || "PACK".equalsIgnoreCase(item.getUnit()) || "PCS".equalsIgnoreCase(p.getUnit())) {
+                    orderPcs += qty;
+                }
+                int pcsPerBag = 0;
+                if (p.getPcsPerBag() != null && p.getPcsPerBag() > 0) {
+                    pcsPerBag = p.getPcsPerBag();
+                } else if (p.getPcsPerInnerbag() != null && p.getInnerbagsPerBag() != null) {
+                    pcsPerBag = p.getPcsPerInnerbag() * p.getInnerbagsPerBag();
+                }
+                if (pcsPerBag > 0) {
+                    orderBags += (int) Math.ceil(qty / pcsPerBag);
+                }
+            }
+        }
+        ShipmentOrder so = new ShipmentOrder();
+        so.setShipment(shipment);
+        so.setOrder(order);
+        so.setStatus("PENDING");
+        so.setDispatchBags(orderBags);
+        so.setDispatchPcs(orderPcs);
+        return so;
+    }
+
+    private void ensureCoordinates(Order order) {
+        if (order.getLatitude() == null || order.getLongitude() == null) {
+            Random rand = new Random(order.getId().hashCode());
+            double latOffset = (rand.nextDouble() - 0.5) * 0.06;
+            double lngOffset = (rand.nextDouble() - 0.5) * 0.06;
+            order.setLatitude(DEPOT_LAT + latOffset);
+            order.setLongitude(DEPOT_LNG + lngOffset);
+            if (order.getDeliveryAddress() == null || order.getDeliveryAddress().isBlank()) {
+                order.setDeliveryAddress("Delivery Zone " + (char) ('A' + rand.nextInt(4)));
+            }
+            orderRepo.save(order);
+        }
+    }
+
     private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-        final int R = 6371; // Earth radius in km
+        final int R = 6371;
         double latDistance = Math.toRadians(lat2 - lat1);
         double lonDistance = Math.toRadians(lon2 - lon1);
         double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)

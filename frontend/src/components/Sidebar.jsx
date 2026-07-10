@@ -128,21 +128,24 @@ export default function Sidebar({ isOpen, onClose }) {
             <div className="sidebar-user-role">{user?.role || 'Super Admin'}</div>
           </div>
           {isMobile && (
-            <button
-              className="btn btn-ghost btn-icon"
-              onClick={() => setServerSettingsOpen(true)}
-              title="Server Settings"
-              style={{ marginRight: '6px' }}
-            >
-              <Wifi size={16} />
-            </button>
-            <button
-              className="btn btn-ghost btn-icon"
-              onClick={handleLogout}
-              title="Logout"
-            >
-              <LogOut size={16} />
-            </button>
+            <>
+              <button
+                className="btn btn-ghost btn-icon"
+                onClick={() => setServerSettingsOpen(true)}
+                title="Server Settings"
+                style={{ marginRight: '6px' }}
+              >
+                <Wifi size={16} />
+              </button>
+              <button
+                className="btn btn-ghost btn-icon"
+                onClick={handleLogout}
+                title="Logout"
+              >
+                <LogOut size={16} />
+              </button>
+            </>
+          )}
         </div>
         
         <ServerSettings

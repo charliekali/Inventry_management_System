@@ -88,10 +88,16 @@ public class ShipmentController {
         String origin = (String) body.get("origin");
         String destination = (String) body.get("destination");
         String scheduledAtStr = (String) body.get("scheduled_at");
+        String deliveryMethodStr = (String) body.get("delivery_method");
         List<String> orderIds = (List<String>) body.get("order_ids");
 
         if (orderIds == null || orderIds.isEmpty()) {
             return bad("At least one order must be selected for shipment");
+        }
+
+        Shipment.DeliveryMethod deliveryMethod = Shipment.DeliveryMethod.COMPANY_DELIVERY;
+        if ("CUSTOMER_PICKUP".equalsIgnoreCase(deliveryMethodStr)) {
+            deliveryMethod = Shipment.DeliveryMethod.CUSTOMER_PICKUP;
         }
 
         Shipment shipment = new Shipment();
@@ -102,6 +108,8 @@ public class ShipmentController {
         shipment.setOrigin(origin);
         shipment.setDestination(destination);
         shipment.setCreatedBy(auth.currentUser().getName());
+        shipment.setDeliveryMethod(deliveryMethod);
+        shipment.setAutoGrouped(false);
 
         if (scheduledAtStr != null && !scheduledAtStr.isBlank()) {
             try {
@@ -121,10 +129,8 @@ public class ShipmentController {
             Order order = orderRepo.findById(orderId).orElse(null);
             if (order == null) continue;
 
-            // Calculate bags/pcs for this order
             int orderPcs = 0;
             int orderBags = 0;
-
             for (OrderItem item : order.getItems()) {
                 Product p = item.getProduct();
                 if (p != null) {
@@ -132,14 +138,12 @@ public class ShipmentController {
                     if ("PCS".equalsIgnoreCase(item.getUnit()) || "PACK".equalsIgnoreCase(item.getUnit()) || "PCS".equalsIgnoreCase(p.getUnit())) {
                         orderPcs += qty;
                     }
-
                     int pcsPerBag = 0;
                     if (p.getPcsPerBag() != null && p.getPcsPerBag() > 0) {
                         pcsPerBag = p.getPcsPerBag();
                     } else if (p.getPcsPerInnerbag() != null && p.getInnerbagsPerBag() != null) {
                         pcsPerBag = p.getPcsPerInnerbag() * p.getInnerbagsPerBag();
                     }
-
                     if (pcsPerBag > 0) {
                         orderBags += (int) Math.ceil(qty / pcsPerBag);
                     }
@@ -171,11 +175,11 @@ public class ShipmentController {
 
         try {
             Shipment.Status newStatus = Shipment.Status.valueOf(statusStr.toUpperCase());
-            
+
             if (newStatus == Shipment.Status.EN_ROUTE && shipment.getStatus() == Shipment.Status.CREATED) {
                 shipment.setDispatchedAt(LocalDateTime.now());
             }
-            
+
             shipment.setStatus(newStatus);
             shipmentRepo.save(shipment);
             return ResponseEntity.ok(Map.of("success", true, "data", toDto(shipment)));
@@ -196,7 +200,7 @@ public class ShipmentController {
         }
 
         String notes = body.get("delivery_notes");
-        String status = body.get("status"); // DELIVERED or FAILED
+        String status = body.get("status");
 
         Shipment.Status shipmentStatus = Shipment.Status.DELIVERED;
         if ("FAILED".equalsIgnoreCase(status)) {
@@ -208,7 +212,6 @@ public class ShipmentController {
         shipment.setDeliveryNotes(notes);
         shipmentRepo.save(shipment);
 
-        // If delivered successfully, mark all linked orders as DISPATCHED
         if (shipmentStatus == Shipment.Status.DELIVERED) {
             for (ShipmentOrder so : shipment.getShipmentOrders()) {
                 Order order = so.getOrder();
@@ -237,6 +240,13 @@ public class ShipmentController {
             return bad("Only shipments in CREATED state can be cancelled");
         }
 
+        // Release driver if assigned
+        if (shipment.getDriver() != null) {
+            User driver = shipment.getDriver();
+            driver.setDriverStatus("AVAILABLE");
+            userRepo.save(driver);
+        }
+
         shipmentRepo.delete(shipment);
         return ResponseEntity.ok(Map.of("success", true, "message", "Shipment cancelled successfully"));
     }
@@ -256,8 +266,8 @@ public class ShipmentController {
 
     @PatchMapping("/{id}/stop/{stopId}")
     @Transactional
-    public ResponseEntity<?> updateStopStatus(@PathVariable String id, 
-                                              @PathVariable String stopId, 
+    public ResponseEntity<?> updateStopStatus(@PathVariable String id,
+                                              @PathVariable String stopId,
                                               @RequestBody Map<String, Object> body) {
         auth.requirePermission("DELIVERY:CONFIRM");
         Shipment shipment = shipmentRepo.findById(id).orElse(null);
@@ -266,7 +276,7 @@ public class ShipmentController {
         ShipmentOrder stop = shipmentOrderRepo.findById(stopId).orElse(null);
         if (stop == null) return bad("Stop not found");
 
-        String newStatus = (String) body.get("status"); // DELIVERED, FAILED, PENDING
+        String newStatus = (String) body.get("status");
         if (newStatus == null || newStatus.isBlank()) return bad("Status is required");
 
         stop.setStatus(newStatus.toUpperCase());
@@ -276,7 +286,7 @@ public class ShipmentController {
         stop.setReceiverName((String) body.get("receiver_name"));
         stop.setReceiverMobile((String) body.get("receiver_mobile"));
         stop.setFailedReason((String) body.get("failed_reason"));
-        
+
         if (body.get("latitude") != null) {
             stop.setDeliveryLatitude(((Number) body.get("latitude")).doubleValue());
         }
@@ -286,7 +296,6 @@ public class ShipmentController {
         stop.setDeliveredAt(LocalDateTime.now());
         shipmentOrderRepo.save(stop);
 
-        // If stop is marked DELIVERED, also ensure the Order dispatch status is updated (if not already)
         if ("DELIVERED".equalsIgnoreCase(newStatus)) {
             Order order = stop.getOrder();
             if (order != null) {
@@ -299,7 +308,6 @@ public class ShipmentController {
             }
         }
 
-        // Check if all stops in this shipment have been processed
         boolean allProcessed = true;
         boolean anyDelivered = false;
         for (ShipmentOrder so : shipment.getShipmentOrders()) {
@@ -314,8 +322,7 @@ public class ShipmentController {
         if (allProcessed) {
             shipment.setStatus(anyDelivered ? Shipment.Status.DELIVERED : Shipment.Status.FAILED);
             shipment.setDeliveredAt(LocalDateTime.now());
-            
-            // Release driver back to AVAILABLE status
+
             User driver = shipment.getDriver();
             if (driver != null) {
                 driver.setDriverStatus("AVAILABLE");
@@ -351,11 +358,13 @@ public class ShipmentController {
         driver.setDriverStatus(newStatus.toUpperCase());
         userRepo.save(driver);
         return ResponseEntity.ok(Map.of(
-            "success", true, 
+            "success", true,
             "message", "Driver status updated to " + driver.getDriverStatus(),
             "data", Map.of("status", driver.getDriverStatus())
         ));
     }
+
+    // ─── Admin Override ────────────────────────────────────────────────────────
 
     @PostMapping("/{id}/admin-override")
     @Transactional
@@ -383,13 +392,22 @@ public class ShipmentController {
                 userRepo.save(newDriver);
                 shipment.setDriver(newDriver);
                 shipment.setDriverName(newDriver.getName());
-                shipment.setDriverPhone("077-1234560");
+                shipment.setDriverPhone(newDriver.getDeliveryZone() != null ? newDriver.getDeliveryZone() : "077-1234560");
                 shipment.setVehicleNumber(newDriver.getVehicleNumber());
             }
         }
 
         if (body.containsKey("vehicle_number")) {
             shipment.setVehicleNumber((String) body.get("vehicle_number"));
+        }
+
+        if (body.containsKey("delivery_method")) {
+            String dm = (String) body.get("delivery_method");
+            try {
+                shipment.setDeliveryMethod(Shipment.DeliveryMethod.valueOf(dm.toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                return bad("Invalid delivery_method: " + dm);
+            }
         }
 
         if (body.containsKey("route_sequence")) {
@@ -409,16 +427,169 @@ public class ShipmentController {
 
         shipmentRepo.save(shipment);
         logisticsService.optimizeRoute(shipment);
-        
+
         return ResponseEntity.ok(Map.of("success", true, "data", toDto(shipment)));
     }
+
+    // ─── Merge Shipments ───────────────────────────────────────────────────────
+
+    @PostMapping("/merge")
+    @Transactional
+    public ResponseEntity<?> mergeShipments(@RequestBody Map<String, Object> body) {
+        auth.requirePermission("SHIPMENTS:MANAGE");
+        List<String> ids = (List<String>) body.get("shipment_ids");
+        if (ids == null || ids.size() < 2) return bad("At least 2 shipment IDs required");
+        try {
+            Shipment merged = logisticsService.mergeShipments(ids);
+            return ResponseEntity.ok(Map.of("success", true, "data", toDto(merged)));
+        } catch (Exception e) {
+            return bad(e.getMessage());
+        }
+    }
+
+    // ─── Split Shipment ────────────────────────────────────────────────────────
+
+    @PostMapping("/{id}/split")
+    @Transactional
+    public ResponseEntity<?> splitShipment(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        auth.requirePermission("SHIPMENTS:MANAGE");
+        List<String> orderIds = (List<String>) body.get("order_ids");
+        if (orderIds == null || orderIds.isEmpty()) return bad("order_ids are required");
+        try {
+            Shipment newShipment = logisticsService.splitShipment(id, orderIds);
+            return ResponseEntity.ok(Map.of("success", true, "data", toDto(newShipment)));
+        } catch (Exception e) {
+            return bad(e.getMessage());
+        }
+    }
+
+    // ─── Move Order ────────────────────────────────────────────────────────────
+
+    @PostMapping("/{id}/move-order")
+    @Transactional
+    public ResponseEntity<?> moveOrder(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        auth.requirePermission("SHIPMENTS:MANAGE");
+        String orderId = (String) body.get("order_id");
+        String toShipmentId = (String) body.get("to_shipment_id");
+        if (orderId == null || toShipmentId == null) return bad("order_id and to_shipment_id are required");
+        try {
+            logisticsService.moveOrder(orderId, id, toShipmentId);
+            Shipment updated = shipmentRepo.findById(id).orElse(null);
+            return ResponseEntity.ok(Map.of("success", true, "data", updated != null ? toDto(updated) : Map.of()));
+        } catch (Exception e) {
+            return bad(e.getMessage());
+        }
+    }
+
+    // ─── Add Order ─────────────────────────────────────────────────────────────
+
+    @PostMapping("/{id}/add-order")
+    @Transactional
+    public ResponseEntity<?> addOrder(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        auth.requirePermission("SHIPMENTS:MANAGE");
+        String orderId = (String) body.get("order_id");
+        if (orderId == null || orderId.isBlank()) return bad("order_id is required");
+        try {
+            logisticsService.addOrderToShipment(orderId, id);
+            Shipment updated = shipmentRepo.findById(id).orElse(null);
+            return ResponseEntity.ok(Map.of("success", true, "data", updated != null ? toDto(updated) : Map.of()));
+        } catch (Exception e) {
+            return bad(e.getMessage());
+        }
+    }
+
+    // ─── Remove Order ──────────────────────────────────────────────────────────
+
+    @DeleteMapping("/{id}/remove-order/{orderId}")
+    @Transactional
+    public ResponseEntity<?> removeOrder(@PathVariable String id, @PathVariable String orderId) {
+        auth.requirePermission("SHIPMENTS:MANAGE");
+        try {
+            logisticsService.removeOrderFromShipment(orderId, id);
+            Shipment updated = shipmentRepo.findById(id).orElse(null);
+            return ResponseEntity.ok(Map.of("success", true, "data", updated != null ? toDto(updated) : Map.of()));
+        } catch (Exception e) {
+            return bad(e.getMessage());
+        }
+    }
+
+    // ─── Convert Delivery Method ───────────────────────────────────────────────
+
+    @PostMapping("/{id}/convert-delivery-method")
+    @Transactional
+    public ResponseEntity<?> convertDeliveryMethod(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        auth.requirePermission("SHIPMENTS:MANAGE");
+        Shipment shipment = shipmentRepo.findById(id).orElse(null);
+        if (shipment == null) return bad("Shipment not found");
+
+        String methodStr = (String) body.get("delivery_method");
+        if (methodStr == null || methodStr.isBlank()) return bad("delivery_method is required");
+
+        try {
+            Shipment.DeliveryMethod newMethod = Shipment.DeliveryMethod.valueOf(methodStr.toUpperCase());
+            Shipment.DeliveryMethod oldMethod = shipment.getDeliveryMethod();
+
+            shipment.setDeliveryMethod(newMethod);
+
+            // Switching to CUSTOMER_PICKUP: release driver
+            if (newMethod == Shipment.DeliveryMethod.CUSTOMER_PICKUP && oldMethod == Shipment.DeliveryMethod.COMPANY_DELIVERY) {
+                if (shipment.getDriver() != null) {
+                    User driver = shipment.getDriver();
+                    driver.setDriverStatus("AVAILABLE");
+                    userRepo.save(driver);
+                    shipment.setDriver(null);
+                    shipment.setDriverName("Customer Pickup - No Driver");
+                }
+            }
+
+            // Switching to COMPANY_DELIVERY: auto-assign driver if not assigned
+            if (newMethod == Shipment.DeliveryMethod.COMPANY_DELIVERY && oldMethod == Shipment.DeliveryMethod.CUSTOMER_PICKUP) {
+                if (shipment.getDriver() == null && !shipment.getShipmentOrders().isEmpty()) {
+                    Order firstOrder = shipment.getShipmentOrders().get(0).getOrder();
+                    double lat = firstOrder.getLatitude() != null ? firstOrder.getLatitude() : 9.9252;
+                    double lng = firstOrder.getLongitude() != null ? firstOrder.getLongitude() : 78.1198;
+                    logisticsService.allocateDriver(shipment, lat, lng);
+                }
+                // Reset status back to CREATED if it was PICKED_UP
+                if (shipment.getStatus() == Shipment.Status.PICKED_UP) {
+                    shipment.setStatus(Shipment.Status.CREATED);
+                    shipment.setDeliveredAt(null);
+                }
+            }
+
+            shipmentRepo.save(shipment);
+            return ResponseEntity.ok(Map.of("success", true, "data", toDto(shipment)));
+        } catch (IllegalArgumentException e) {
+            return bad("Invalid delivery_method: " + methodStr);
+        }
+    }
+
+    // ─── Regenerate Groupings ──────────────────────────────────────────────────
+
+    @PostMapping("/regenerate")
+    @Transactional
+    public ResponseEntity<?> regenerateGroupings() {
+        auth.requirePermission("SHIPMENTS:MANAGE");
+        try {
+            List<String> created = logisticsService.regenerateGroupings();
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Regenerated " + created.size() + " shipment group(s)",
+                "shipments", created
+            ));
+        } catch (Exception e) {
+            return bad("Regeneration failed: " + e.getMessage());
+        }
+    }
+
+    // ─── Analytics ─────────────────────────────────────────────────────────────
 
     @GetMapping("/analytics")
     public ResponseEntity<?> getAnalytics() {
         auth.requirePermission("SHIPMENTS:VIEW");
         List<Shipment> all = shipmentRepo.findAll();
 
-        int created = 0, enRoute = 0, delivered = 0, failed = 0;
+        int created = 0, enRoute = 0, delivered = 0, failed = 0, pickedUp = 0;
         int totalBags = 0;
         int totalPcs = 0;
 
@@ -434,6 +605,7 @@ public class ShipmentController {
                     }
                 }
                 case FAILED -> failed++;
+                case PICKED_UP -> pickedUp++;
             }
         }
 
@@ -443,11 +615,14 @@ public class ShipmentController {
         stats.put("en_route", enRoute);
         stats.put("delivered", delivered);
         stats.put("failed", failed);
+        stats.put("picked_up", pickedUp);
         stats.put("delivered_bags", totalBags);
         stats.put("delivered_pcs", totalPcs);
 
         return ResponseEntity.ok(Map.of("success", true, "data", stats));
     }
+
+    // ─── DTO ───────────────────────────────────────────────────────────────────
 
     private Map<String, Object> toDto(Shipment s) {
         Map<String, Object> dto = new LinkedHashMap<>();
@@ -456,7 +631,9 @@ public class ShipmentController {
         dto.put("vehicle_number", s.getVehicleNumber());
         dto.put("driver_name", s.getDriverName());
         dto.put("driver_phone", s.getDriverPhone());
-        
+        dto.put("delivery_method", s.getDeliveryMethod() != null ? s.getDeliveryMethod().name() : "COMPANY_DELIVERY");
+        dto.put("auto_grouped", s.getAutoGrouped());
+
         if (s.getDriver() != null) {
             Map<String, Object> driverMap = new LinkedHashMap<>();
             driverMap.put("id", s.getDriver().getId());
@@ -466,6 +643,7 @@ public class ShipmentController {
             driverMap.put("lat", s.getDriver().getCurrentLatitude());
             driverMap.put("lng", s.getDriver().getCurrentLongitude());
             driverMap.put("vehicle_number", s.getDriver().getVehicleNumber());
+            driverMap.put("delivery_zone", s.getDriver().getDeliveryZone());
             dto.put("driver", driverMap);
         } else {
             dto.put("driver", null);
@@ -500,7 +678,7 @@ public class ShipmentController {
                 orderMap.put("order_number", o.getOrderNumber());
                 orderMap.put("customer", o.getCustomer());
                 orderMap.put("status", o.getStatus().name());
-                
+
                 orderMap.put("stop_id", so.getId());
                 orderMap.put("stop_status", so.getStatus());
                 orderMap.put("stop_sequence", so.getStopSequence());

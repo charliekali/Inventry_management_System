@@ -33,5 +33,9 @@ public interface OrderRepository extends JpaRepository<Order, String> {
     long countPosOrders();
 
     List<Order> findTop10ByInvoiceNumberIsNotNullOrderByInvoiceDateDesc();
+
+    // Orders that are ready for dispatch grouping: not POS, not yet dispatched
+    @Query("SELECT o FROM Order o WHERE o.dispatchStatus = 'PENDING' AND o.isPosOrder = false AND o.status IN ('FEASIBLE', 'PARTIAL', 'FULFILLED') ORDER BY o.createdAt ASC")
+    List<Order> findEligibleForGrouping();
 }
 

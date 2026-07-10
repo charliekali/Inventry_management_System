@@ -171,9 +171,10 @@ export const ordersAPI = {
 // ─── Dispatch ─────────────────────────────────────────────────────────────────
 export const dispatchAPI = {
   list: (status) => api.get('/dispatch', { params: { status } }),
-  complete: (id) => api.post(`/dispatch/${id}/complete`),
+  complete: (id, deliveryMethod = 'COMPANY_DELIVERY') => api.post(`/dispatch/${id}/complete`, { delivery_method: deliveryMethod }),
   cancel: (id) => api.post(`/dispatch/${id}/cancel`),
   summary: () => api.get('/dispatch/summary'),
+  groupAll: () => api.post('/dispatch/group-all'),
 };
 
 // ─── Shipments ────────────────────────────────────────────────────────────────
@@ -190,7 +191,16 @@ export const shipmentsAPI = {
   reportLocation: (data) => api.post('/shipments/driver/location', data),
   updateDriverStatus: (status) => api.patch('/shipments/driver/status', { status }),
   adminOverride: (id, data) => api.post(`/shipments/${id}/admin-override`, data),
+  // Super Admin override operations
+  merge: (shipmentIds) => api.post('/shipments/merge', { shipment_ids: shipmentIds }),
+  split: (id, orderIds) => api.post(`/shipments/${id}/split`, { order_ids: orderIds }),
+  moveOrder: (id, orderId, toShipmentId) => api.post(`/shipments/${id}/move-order`, { order_id: orderId, to_shipment_id: toShipmentId }),
+  addOrder: (id, orderId) => api.post(`/shipments/${id}/add-order`, { order_id: orderId }),
+  removeOrder: (id, orderId) => api.delete(`/shipments/${id}/remove-order/${orderId}`),
+  convertDeliveryMethod: (id, method) => api.post(`/shipments/${id}/convert-delivery-method`, { delivery_method: method }),
+  regenerate: () => api.post('/shipments/regenerate'),
 };
+
 
 // ─── Production Orders ────────────────────────────────────────────────────────
 export const productionOrdersAPI = {

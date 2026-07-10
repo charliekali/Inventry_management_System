@@ -113,6 +113,7 @@ export default function LogisticsProfile() {
           <button className="w-btn primary lg" onClick={() => navigate('/dashboard')} style={{ width: '100%', background: 'var(--w-primary)', border: 'none', color: 'white', padding: '12px', borderRadius: 'var(--w-radius-sm)', fontWeight: 700, cursor: 'pointer' }}>
             Back to Workspace Hub
           </button>
+        )}
         <div style={{ display: 'flex', gap: 10, width: '100%' }}>
           <button className="w-btn ghost lg" onClick={loadStats} style={{ flex: 1, padding: '12px', borderRadius: 'var(--w-radius-sm)', border: '1px solid var(--w-border)', background: 'transparent', color: 'var(--w-text)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <RefreshCw size={14} /> Sync Stats
@@ -122,6 +123,7 @@ export default function LogisticsProfile() {
             </button>
         </div>
       </div>
+
     </div>
   );
 }

@@ -8,7 +8,8 @@ import java.util.List;
 @Entity
 @Table(name = "shipments")
 public class Shipment {
-    public enum Status { CREATED, EN_ROUTE, DELIVERED, FAILED }
+    public enum Status { CREATED, EN_ROUTE, DELIVERED, FAILED, PICKED_UP }
+    public enum DeliveryMethod { COMPANY_DELIVERY, CUSTOMER_PICKUP }
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -44,6 +45,13 @@ public class Shipment {
 
     @Enumerated(EnumType.STRING)
     private Status status = Status.CREATED;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "delivery_method")
+    private DeliveryMethod deliveryMethod = DeliveryMethod.COMPANY_DELIVERY;
+
+    @Column(name = "auto_grouped")
+    private Boolean autoGrouped = false;
 
     @Column(name = "scheduled_at")
     private LocalDateTime scheduledAt;
@@ -108,6 +116,12 @@ public class Shipment {
 
     public Status getStatus() { return status; }
     public void setStatus(Status status) { this.status = status; }
+
+    public DeliveryMethod getDeliveryMethod() { return deliveryMethod; }
+    public void setDeliveryMethod(DeliveryMethod deliveryMethod) { this.deliveryMethod = deliveryMethod; }
+
+    public Boolean getAutoGrouped() { return autoGrouped; }
+    public void setAutoGrouped(Boolean autoGrouped) { this.autoGrouped = autoGrouped; }
 
     public LocalDateTime getScheduledAt() { return scheduledAt; }
     public void setScheduledAt(LocalDateTime scheduledAt) { this.scheduledAt = scheduledAt; }
