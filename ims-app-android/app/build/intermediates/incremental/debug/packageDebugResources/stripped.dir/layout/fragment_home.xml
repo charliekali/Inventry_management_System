@@ -1,0 +1,360 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_deep">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/margin_md">
+
+        <!-- Driver Profile Hero Card -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/card_driver_hero"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="@color/primary"
+            app:cardElevation="0dp"
+            app:cardCornerRadius="@dimen/radius_md"
+            android:layout_marginBottom="@dimen/margin_sm">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="@dimen/margin_md"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/driver_avatar"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:text="DR"
+                    android:textSize="18sp"
+                    android:textColor="@color/white"
+                    android:textStyle="bold"
+                    android:gravity="center"
+                    android:background="@drawable/bg_gradient_header"
+                    android:layout_marginEnd="@dimen/margin_md" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/driver_name"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Driver"
+                        android:textSize="16sp"
+                        android:textColor="@color/white"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/driver_vehicle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Vehicle: —"
+                        android:textSize="12sp"
+                        android:textColor="#ccffffff"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Duty Status Card -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/card_duty_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="@color/bg_card"
+            app:cardElevation="0dp"
+            app:cardCornerRadius="@dimen/radius_md"
+            app:strokeColor="@color/border_color"
+            app:strokeWidth="1dp"
+            android:layout_marginBottom="@dimen/margin_sm">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="14dp"
+                android:gravity="center_vertical">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="DUTY STATUS"
+                        android:textSize="10sp"
+                        android:textColor="@color/text_muted"
+                        android:textAllCaps="true"
+                        android:letterSpacing="0.08"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_duty_status"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="AVAILABLE"
+                        android:textSize="14sp"
+                        android:textColor="@color/color_success"
+                        android:textStyle="bold"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+                <Spinner
+                    android:id="@+id/spinner_duty_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_card"
+                    android:spinnerMode="dialog" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Active Shipment Card -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/card_active_shipment"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="@color/bg_card"
+            app:cardElevation="0dp"
+            app:cardCornerRadius="@dimen/radius_md"
+            app:strokeColor="@color/border_color"
+            app:strokeWidth="1dp"
+            android:layout_marginBottom="@dimen/margin_sm"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="@dimen/margin_md">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="@dimen/margin_sm">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="ACTIVE ROUTE"
+                            android:textSize="10sp"
+                            android:textColor="@color/primary"
+                            android:textAllCaps="true"
+                            android:letterSpacing="0.08"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tv_active_shipment_number"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="SHM-XXXXXX"
+                            android:textSize="15sp"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:layout_marginTop="2dp" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/badge_active_status"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="EN ROUTE"
+                        android:textSize="10sp"
+                        android:textColor="@color/badge_en_route_text"
+                        android:textStyle="bold"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="4dp"
+                        android:background="@drawable/bg_badge" />
+                </LinearLayout>
+
+                <!-- Stop progress grid -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="@dimen/margin_md">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:background="@drawable/bg_card"
+                        android:padding="10dp"
+                        android:layout_marginEnd="6dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Completed"
+                            android:textSize="10sp"
+                            android:textColor="@color/text_muted" />
+
+                        <TextView
+                            android:id="@+id/tv_completed_stops"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0 / 0"
+                            android:textSize="20sp"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:layout_marginTop="2dp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:background="@drawable/bg_card"
+                        android:padding="10dp"
+                        android:layout_marginStart="6dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Remaining"
+                            android:textSize="10sp"
+                            android:textColor="@color/text_muted" />
+
+                        <TextView
+                            android:id="@+id/tv_remaining_stops"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textSize="20sp"
+                            android:textColor="@color/color_warning"
+                            android:textStyle="bold"
+                            android:layout_marginTop="2dp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_open_shipments"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="Start Navigation Timeline"
+                    android:textColor="@color/white"
+                    app:backgroundTint="@color/primary"
+                    app:cornerRadius="@dimen/radius_sm"
+                    app:elevation="0dp" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- No Shipment empty state -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/card_no_shipment"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="@color/bg_card"
+            app:cardElevation="0dp"
+            app:cardCornerRadius="@dimen/radius_md"
+            app:strokeColor="@color/border_color"
+            app:strokeWidth="1dp"
+            android:layout_marginBottom="@dimen/margin_sm">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="@dimen/margin_xl"
+                android:gravity="center">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🚛"
+                    android:textSize="36sp"
+                    android:layout_marginBottom="@dimen/margin_sm" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="No Assigned Shipment"
+                    android:textSize="14sp"
+                    android:textColor="@color/text_primary"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="You are not assigned to any active shipments.\nWait for dispatchers to release a route."
+                    android:textSize="12sp"
+                    android:textColor="@color/text_secondary"
+                    android:gravity="center"
+                    android:layout_marginTop="6dp"
+                    android:layout_marginBottom="@dimen/margin_md" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_check_work"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:text="Check for Work"
+                    android:textColor="@color/text_primary"
+                    style="@style/Widget.TTRIMSDriver.Button.Ghost"
+                    app:cornerRadius="@dimen/radius_sm" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Quick Action: Report GPS -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_report_gps"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="📍  Report GPS Coordinates"
+            android:textColor="@color/accent_cyan"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            app:backgroundTint="#1a06b6d4"
+            app:cornerRadius="@dimen/radius_sm"
+            app:elevation="0dp"
+            android:layout_marginBottom="@dimen/margin_sm" />
+
+        <!-- Quick Action: View History -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_view_history"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="View Completed Deliveries"
+            android:textColor="@color/text_primary"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            style="@style/Widget.TTRIMSDriver.Button.Ghost"
+            app:cornerRadius="@dimen/radius_sm" />
+
+        <!-- Loading indicator -->
+        <ProgressBar
+            android:id="@+id/home_progress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:indeterminateTint="@color/primary"
+            android:visibility="gone"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="@dimen/margin_md" />
+
+    </LinearLayout>
+</ScrollView>

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Network & Internet permissions -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Location permissions -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- Wake Lock for background GPS loop -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Post Notifications (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Foreground Service permissions -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <!-- Battery & Startup permissions -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="TTRIMS IMS"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="false"
+        android:theme="@style/Theme.TTRIMSDriver"
+        android:usesCleartextTraffic="true">
+
+        <!-- Splash Activity (Entry Point) -->
+        <activity
+            android:name=".SplashActivity"
+            android:exported="true"
+            android:theme="@style/Theme.TTRIMSDriver.Splash"
+            android:noHistory="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Login Activity -->
+        <activity
+            android:name=".LoginActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- Router MainActivity (decides driver vs console) -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="false" />
+
+        <!-- Console (Warehouse/Admin) Main UI -->
+        <activity
+            android:name=".ConsoleMainActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustPan" />
+
+        <!-- Driver (Logistics) Main UI -->
+        <activity
+            android:name=".DriverMainActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustPan" />
+
+        <!-- Background Location Service -->
+        <service
+            android:name=".services.LocationService"
+            android:enabled="true"
+            android:stopWithTask="false"
+            android:exported="false"
+            android:foregroundServiceType="location|dataSync" />
+
+        <!-- Boot receiver — restarts GPS service after device reboot or app update -->
+        <receiver
+            android:name=".services.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- AlarmManager watchdog receiver — checks every 60s if tracking service is alive -->
+        <receiver
+            android:name=".services.TrackingWatchdog"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.ttrims.ims.TRACKING_WATCHDOG" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+</manifest>

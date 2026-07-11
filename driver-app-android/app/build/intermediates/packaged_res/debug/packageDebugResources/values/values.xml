@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="accent_cyan">#06b6d4</color>
+    <color name="badge_available_bg">#1a10b981</color>
+    <color name="badge_breakdown_bg">#1aef4444</color>
+    <color name="badge_busy_bg">#1af59e0b</color>
+    <color name="badge_created_bg">#1af59e0b</color>
+    <color name="badge_created_text">#fbbf24</color>
+    <color name="badge_delivered_bg">#1a10b981</color>
+    <color name="badge_delivered_text">#34d399</color>
+    <color name="badge_en_route_bg">#1a3b82f6</color>
+    <color name="badge_en_route_text">#60a5fa</color>
+    <color name="badge_failed_bg">#1aef4444</color>
+    <color name="badge_failed_text">#f87171</color>
+    <color name="badge_offline_bg">#1a64748b</color>
+    <color name="bg_card">#171d2b</color>
+    <color name="bg_card_hover">#1e2537</color>
+    <color name="bg_deep">#090d16</color>
+    <color name="bg_surface">#0f1422</color>
+    <color name="border_color">#262e3f</color>
+    <color name="border_light">#2f3b50</color>
+    <color name="colorAccent">@color/accent_cyan</color>
+    <color name="colorPrimary">@color/primary</color>
+    <color name="colorPrimaryDark">@color/primary_dark</color>
+    <color name="color_danger">#ef4444</color>
+    <color name="color_info">#3b82f6</color>
+    <color name="color_success">#10b981</color>
+    <color name="color_warning">#f59e0b</color>
+    <color name="ic_launcher_background">#FFFFFF</color>
+    <color name="primary">#2563eb</color>
+    <color name="primary_dark">#1d4ed8</color>
+    <color name="primary_glow">#332563eb</color>
+    <color name="text_muted">#64748B</color>
+    <color name="text_primary">#F1F5F9</color>
+    <color name="text_secondary">#94A3B8</color>
+    <color name="transparent">#00000000</color>
+    <color name="white">#FFFFFF</color>
+    <dimen name="avatar_size">44dp</dimen>
+    <dimen name="badge_height">22dp</dimen>
+    <dimen name="bottom_nav_height">64dp</dimen>
+    <dimen name="btn_height">52dp</dimen>
+    <dimen name="card_elevation">0dp</dimen>
+    <dimen name="icon_size">20dp</dimen>
+    <dimen name="input_height">52dp</dimen>
+    <dimen name="margin_lg">24dp</dimen>
+    <dimen name="margin_md">16dp</dimen>
+    <dimen name="margin_sm">8dp</dimen>
+    <dimen name="margin_xl">32dp</dimen>
+    <dimen name="margin_xs">4dp</dimen>
+    <dimen name="radius_full">100dp</dimen>
+    <dimen name="radius_lg">20dp</dimen>
+    <dimen name="radius_md">14dp</dimen>
+    <dimen name="radius_sm">8dp</dimen>
+    <dimen name="signature_height">140dp</dimen>
+    <dimen name="text_2xl">22sp</dimen>
+    <dimen name="text_lg">16sp</dimen>
+    <dimen name="text_md">14sp</dimen>
+    <dimen name="text_sm">12sp</dimen>
+    <dimen name="text_xl">18sp</dimen>
+    <dimen name="text_xs">10sp</dimen>
+    <dimen name="topbar_height">60dp</dimen>
+    <string name="app_name">TTRIMS Driver</string>
+    <string name="app_tagline">Delivery Management</string>
+    <string name="attendance_active">Shift Active</string>
+    <string name="attendance_inactive">Not Clocked In</string>
+    <string name="btn_clock_in">Clock In &amp; Start Shift</string>
+    <string name="btn_clock_out">Clock Out</string>
+    <string name="btn_confirm_delivery">Confirm Delivery</string>
+    <string name="btn_login">Sign In</string>
+    <string name="btn_logout">Sign Out</string>
+    <string name="btn_navigate">Navigate</string>
+    <string name="btn_start_trip">Start Delivery Route</string>
+    <string name="btn_sync">Sync Stats</string>
+    <string name="cancel">Cancel</string>
+    <string name="confirm">Confirm</string>
+    <string name="error_network">Network error. Check your connection.</string>
+    <string name="error_server">Server error. Please try again.</string>
+    <string name="error_unauthorized">Session expired. Please log in again.</string>
+    <string name="gps_permission_denied">Location permission denied. Enable GPS in settings.</string>
+    <string name="gps_unavailable">GPS is not available on this device.</string>
+    <string name="hint_email">Driver Email</string>
+    <string name="hint_password">Password</string>
+    <string name="label_distance">Distance</string>
+    <string name="label_driver">Driver</string>
+    <string name="label_email">Email Address</string>
+    <string name="label_name">Full Name</string>
+    <string name="label_role">System Role</string>
+    <string name="label_stops">Stops</string>
+    <string name="label_vehicle">Vehicle</string>
+    <string name="loading">Loading…</string>
+    <string name="login_error_empty">Email and password are required</string>
+    <string name="login_loading">Authenticating…</string>
+    <string name="nav_attendance">Attend</string>
+    <string name="nav_history">History</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_profile">Profile</string>
+    <string name="nav_shipments">Shipments</string>
+    <string name="no_history">No delivery history yet.</string>
+    <string name="no_shipments">No shipments assigned yet.\nWait for a route assignment.</string>
+    <string name="ok">OK</string>
+    <string name="pod_capture_photo">Capture Photo</string>
+    <string name="pod_clear_signature">Clear</string>
+    <string name="pod_error_signature">Customer signature is required for delivery.</string>
+    <string name="pod_notes_hint">Delivery notes or remarks…</string>
+    <string name="pod_outcome_delivered">Delivered Successfully</string>
+    <string name="pod_outcome_failed">Failed / Rejected</string>
+    <string name="pod_receiver_mobile">Receiver Phone</string>
+    <string name="pod_receiver_name">Receiver Name</string>
+    <string name="pod_signature_label">Customer Signature (Draw below)</string>
+    <string name="pod_submit">Confirm Stop</string>
+    <string name="pod_title">Confirm Stop</string>
+    <string name="reason_not_available">Customer Not Available</string>
+    <string name="reason_other">Other Reason</string>
+    <string name="reason_payment">Payment Issue (COD)</string>
+    <string name="reason_refused">Customer Refused / Rejected</string>
+    <string name="reason_vehicle">Vehicle / Logistics Issue</string>
+    <string name="reason_wrong_address">Wrong Address</string>
+    <string name="refresh">Refresh</string>
+    <string name="shipment_ref">Shipment Ref</string>
+    <string name="status_available">Available</string>
+    <string name="status_breakdown">Breakdown</string>
+    <string name="status_busy">On Trip</string>
+    <string name="status_offline">Offline</string>
+    <style name="TextStyle"/>
+    <style name="TextStyle.Label">
+        <item name="android:textSize">@dimen/text_xs</item>
+        <item name="android:textColor">@color/text_muted</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    <style name="TextStyle.Muted">
+        <item name="android:textSize">@dimen/text_sm</item>
+        <item name="android:textColor">@color/text_secondary</item>
+    </style>
+    <style name="TextStyle.SectionHeader">
+        <item name="android:textSize">@dimen/text_xl</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    <style name="TextStyle.Value">
+        <item name="android:textSize">@dimen/text_md</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    <style name="Theme.TTRIMSDriver" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryDark">@color/primary_dark</item>
+        <item name="colorAccent">@color/accent_cyan</item>
+        <item name="android:windowBackground">@color/bg_deep</item>
+        <item name="android:statusBarColor">@color/bg_deep</item>
+        <item name="android:navigationBarColor">@color/bg_surface</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:fontFamily">sans-serif</item>
+
+        
+        <item name="textInputStyle">@style/Widget.TTRIMSDriver.TextInputLayout</item>
+        <item name="boxBackgroundColor">@color/bg_card</item>
+        <item name="boxStrokeColor">@color/border_color</item>
+
+        
+        <item name="materialButtonStyle">@style/Widget.TTRIMSDriver.Button</item>
+
+        
+        <item name="bottomNavigationStyle">@style/Widget.TTRIMSDriver.BottomNav</item>
+    </style>
+    <style name="Theme.TTRIMSDriver.Splash" parent="Theme.TTRIMSDriver">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowBackground">@color/bg_deep</item>
+    </style>
+    <style name="Widget.TTRIMSDriver.BottomNav" parent="Widget.MaterialComponents.BottomNavigationView">
+        <item name="android:background">@color/bg_surface</item>
+        <item name="itemIconTint">@drawable/bottom_nav_icon_tint</item>
+        <item name="itemTextColor">@drawable/bottom_nav_icon_tint</item>
+        <item name="labelVisibilityMode">labeled</item>
+        <item name="elevation">8dp</item>
+    </style>
+    <style name="Widget.TTRIMSDriver.Button" parent="Widget.MaterialComponents.Button">
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0</item>
+        <item name="cornerRadius">@dimen/radius_sm</item>
+        <item name="android:minHeight">@dimen/btn_height</item>
+        <item name="backgroundTint">@color/primary</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:textSize">@dimen/text_md</item>
+        <item name="android:textStyle">bold</item>
+        <item name="elevation">0dp</item>
+    </style>
+    <style name="Widget.TTRIMSDriver.Button.Danger">
+        <item name="backgroundTint">@color/color_danger</item>
+    </style>
+    <style name="Widget.TTRIMSDriver.Button.Ghost" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="android:textAllCaps">false</item>
+        <item name="cornerRadius">@dimen/radius_sm</item>
+        <item name="android:minHeight">@dimen/btn_height</item>
+        <item name="strokeColor">@color/border_color</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">@dimen/text_md</item>
+    </style>
+    <style name="Widget.TTRIMSDriver.Button.Success">
+        <item name="backgroundTint">@color/color_success</item>
+    </style>
+    <style name="Widget.TTRIMSDriver.Card" parent="Widget.MaterialComponents.CardView">
+        <item name="cardBackgroundColor">@color/bg_card</item>
+        <item name="cardElevation">0dp</item>
+        <item name="cardCornerRadius">@dimen/radius_md</item>
+        <item name="strokeColor">@color/border_color</item>
+        <item name="strokeWidth">1dp</item>
+    </style>
+    <style name="Widget.TTRIMSDriver.TextInputLayout" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        <item name="boxBackgroundColor">@color/bg_card</item>
+        <item name="boxStrokeColor">@color/border_color</item>
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="boxCornerRadiusTopStart">@dimen/radius_sm</item>
+        <item name="boxCornerRadiusTopEnd">@dimen/radius_sm</item>
+        <item name="boxCornerRadiusBottomStart">@dimen/radius_sm</item>
+        <item name="boxCornerRadiusBottomEnd">@dimen/radius_sm</item>
+        <item name="hintTextColor">@color/text_muted</item>
+        <item name="android:textColorHint">@color/text_muted</item>
+        <item name="endIconTint">@color/text_muted</item>
+        <item name="startIconTint">@color/text_muted</item>
+    </style>
+</resources>

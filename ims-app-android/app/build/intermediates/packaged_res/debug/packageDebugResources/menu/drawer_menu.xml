@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <group android:checkableBehavior="single">
+        <item
+            android:id="@+id/nav_home"
+            android:icon="@android:drawable/ic_menu_today"
+            android:title="Home Dashboard" />
+    </group>
+
+    <item android:title="Warehouse Management">
+        <menu>
+            <item
+                android:id="@+id/nav_warehouse"
+                android:icon="@android:drawable/ic_dialog_map"
+                android:title="Warehouses &amp; Sections" />
+            <item
+                android:id="@+id/nav_stock_in"
+                android:icon="@android:drawable/ic_menu_add"
+                android:title="Receive Stock (In)" />
+            <item
+                android:id="@+id/nav_stock_out"
+                android:icon="@android:drawable/ic_menu_close_clear_cancel"
+                android:title="Dispatch Stock (Out)" />
+            <item
+                android:id="@+id/nav_finder"
+                android:icon="@android:drawable/ic_menu_search"
+                android:title="Locate Finder" />
+        </menu>
+    </item>
+
+    <item android:title="Sales &amp; POS">
+        <menu>
+            <item
+                android:id="@+id/nav_pos"
+                android:icon="@android:drawable/ic_menu_gallery"
+                android:title="POS Checkout" />
+        </menu>
+    </item>
+
+    <item android:title="Production Control">
+        <menu>
+            <item
+                android:id="@+id/nav_recipes"
+                android:icon="@android:drawable/ic_menu_agenda"
+                android:title="Recipes &amp; Formulas" />
+            <item
+                android:id="@+id/nav_production_runs"
+                android:icon="@android:drawable/ic_menu_preferences"
+                android:title="Production Runs" />
+        </menu>
+    </item>
+
+    <item android:title="Logistics &amp; Keys">
+        <menu>
+            <item
+                android:id="@+id/nav_key_registry"
+                android:icon="@android:drawable/ic_lock_lock"
+                android:title="Key Registry" />
+        </menu>
+    </item>
+
+    <item android:title="System Administration">
+        <menu>
+            <item
+                android:id="@+id/nav_users"
+                android:icon="@android:drawable/ic_menu_myplaces"
+                android:title="User Management" />
+            <item
+                android:id="@+id/nav_roles"
+                android:icon="@android:drawable/ic_menu_info_details"
+                android:title="Role Management" />
+        </menu>
+    </item>
+
+</menu>

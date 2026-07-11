@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg_deep">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Delivery History"
+        android:textSize="18sp"
+        android:textColor="@color/text_primary"
+        android:textStyle="bold"
+        android:padding="@dimen/margin_md" />
+
+    <ProgressBar
+        android:id="@+id/history_progress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:indeterminateTint="@color/primary"
+        android:visibility="gone"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="@dimen/margin_lg" />
+
+    <TextView
+        android:id="@+id/tv_no_history"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/no_history"
+        android:textSize="13sp"
+        android:textColor="@color/text_secondary"
+        android:gravity="center"
+        android:padding="@dimen/margin_xl"
+        android:visibility="gone" />
+
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipe_refresh_history"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_history"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingStart="@dimen/margin_md"
+            android:paddingEnd="@dimen/margin_md"
+            android:paddingBottom="80dp" />
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+</LinearLayout>

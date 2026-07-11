@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- ── Base App Theme ── -->
+    <style name="Theme.TTRIMSDriver" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryDark">@color/primary_dark</item>
+        <item name="colorAccent">@color/accent_cyan</item>
+        <item name="android:windowBackground">@color/bg_deep</item>
+        <item name="android:statusBarColor">@color/bg_deep</item>
+        <item name="android:navigationBarColor">@color/bg_surface</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:fontFamily">sans-serif</item>
+
+        <!-- TextInputLayout -->
+        <item name="textInputStyle">@style/Widget.TTRIMSDriver.TextInputLayout</item>
+        <item name="boxBackgroundColor">@color/bg_card</item>
+        <item name="boxStrokeColor">@color/border_color</item>
+
+        <!-- Buttons -->
+        <item name="materialButtonStyle">@style/Widget.TTRIMSDriver.Button</item>
+
+        <!-- BottomNavigationView -->
+        <item name="bottomNavigationStyle">@style/Widget.TTRIMSDriver.BottomNav</item>
+    </style>
+
+    <!-- Splash (keeps bg_deep, no system UI) -->
+    <style name="Theme.TTRIMSDriver.Splash" parent="Theme.TTRIMSDriver">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowBackground">@color/bg_deep</item>
+    </style>
+
+    <!-- ── Custom Widgets ── -->
+    <style name="Widget.TTRIMSDriver.TextInputLayout" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        <item name="boxBackgroundColor">@color/bg_card</item>
+        <item name="boxStrokeColor">@color/border_color</item>
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="boxCornerRadiusTopStart">@dimen/radius_sm</item>
+        <item name="boxCornerRadiusTopEnd">@dimen/radius_sm</item>
+        <item name="boxCornerRadiusBottomStart">@dimen/radius_sm</item>
+        <item name="boxCornerRadiusBottomEnd">@dimen/radius_sm</item>
+        <item name="hintTextColor">@color/text_muted</item>
+        <item name="android:textColorHint">@color/text_muted</item>
+        <item name="endIconTint">@color/text_muted</item>
+        <item name="startIconTint">@color/text_muted</item>
+    </style>
+
+    <style name="Widget.TTRIMSDriver.Button" parent="Widget.MaterialComponents.Button">
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0</item>
+        <item name="cornerRadius">@dimen/radius_sm</item>
+        <item name="android:minHeight">@dimen/btn_height</item>
+        <item name="backgroundTint">@color/primary</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:textSize">@dimen/text_md</item>
+        <item name="android:textStyle">bold</item>
+        <item name="elevation">0dp</item>
+    </style>
+
+    <style name="Widget.TTRIMSDriver.Button.Danger">
+        <item name="backgroundTint">@color/color_danger</item>
+    </style>
+
+    <style name="Widget.TTRIMSDriver.Button.Success">
+        <item name="backgroundTint">@color/color_success</item>
+    </style>
+
+    <style name="Widget.TTRIMSDriver.Button.Ghost" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="android:textAllCaps">false</item>
+        <item name="cornerRadius">@dimen/radius_sm</item>
+        <item name="android:minHeight">@dimen/btn_height</item>
+        <item name="strokeColor">@color/border_color</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">@dimen/text_md</item>
+    </style>
+
+    <style name="Widget.TTRIMSDriver.BottomNav" parent="Widget.MaterialComponents.BottomNavigationView">
+        <item name="android:background">@color/bg_surface</item>
+        <item name="itemIconTint">@drawable/bottom_nav_icon_tint</item>
+        <item name="itemTextColor">@drawable/bottom_nav_icon_tint</item>
+        <item name="labelVisibilityMode">labeled</item>
+        <item name="elevation">8dp</item>
+    </style>
+
+    <!-- Card style -->
+    <style name="Widget.TTRIMSDriver.Card" parent="Widget.MaterialComponents.CardView">
+        <item name="cardBackgroundColor">@color/bg_card</item>
+        <item name="cardElevation">0dp</item>
+        <item name="cardCornerRadius">@dimen/radius_md</item>
+        <item name="strokeColor">@color/border_color</item>
+        <item name="strokeWidth">1dp</item>
+    </style>
+
+    <!-- Text styles -->
+    <style name="TextStyle" />
+
+    <style name="TextStyle.Label">
+        <item name="android:textSize">@dimen/text_xs</item>
+        <item name="android:textColor">@color/text_muted</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="TextStyle.Value">
+        <item name="android:textSize">@dimen/text_md</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="TextStyle.Muted">
+        <item name="android:textSize">@dimen/text_sm</item>
+        <item name="android:textColor">@color/text_secondary</item>
+    </style>
+
+    <style name="TextStyle.SectionHeader">
+        <item name="android:textSize">@dimen/text_xl</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+</resources>

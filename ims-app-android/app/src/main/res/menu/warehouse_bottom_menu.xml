@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_finder"
+        android:icon="@android:drawable/ic_menu_search"
+        android:title="Finder" />
+    <item
+        android:id="@+id/nav_stock_in"
+        android:icon="@android:drawable/ic_menu_add"
+        android:title="Stock IN" />
+    <item
+        android:id="@+id/nav_scan"
+        android:icon="@android:drawable/ic_menu_camera"
+        android:title="Scan QR" />
+    <item
+        android:id="@+id/nav_stock_out"
+        android:icon="@android:drawable/ic_menu_close_clear_cancel"
+        android:title="Stock OUT" />
+    <item
+        android:id="@+id/nav_warehouse"
+        android:icon="@android:drawable/ic_dialog_map"
+        android:title="Warehouses" />
+</menu>

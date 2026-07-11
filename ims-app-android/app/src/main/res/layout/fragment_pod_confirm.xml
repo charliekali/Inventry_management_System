@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_deep">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/margin_md">
+
+        <!-- Stop title -->
+        <TextView
+            android:id="@+id/pod_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Confirm Stop: ORD-001"
+            android:textSize="16sp"
+            android:textColor="@color/text_primary"
+            android:textStyle="bold"
+            android:layout_marginBottom="@dimen/margin_md" />
+
+        <!-- Outcome selector -->
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="DELIVERY OUTCOME" style="@style/TextStyle.Label" android:layout_marginBottom="6dp" />
+
+        <Spinner
+            android:id="@+id/spinner_outcome"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:background="@drawable/bg_card"
+            android:padding="10dp"
+            android:layout_marginBottom="@dimen/margin_md" />
+
+        <!-- Receiver Name + Mobile (for DELIVERED) -->
+        <LinearLayout
+            android:id="@+id/layout_delivered_fields"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="@dimen/margin_sm">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/til_receiver_name"
+                    style="@style/Widget.TTRIMSDriver.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="@string/pod_receiver_name"
+                    android:layout_marginEnd="6dp">
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/et_receiver_name"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPersonName"
+                        android:textColor="@color/text_primary" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/til_receiver_mobile"
+                    style="@style/Widget.TTRIMSDriver.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="@string/pod_receiver_mobile"
+                    android:layout_marginStart="6dp">
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/et_receiver_mobile"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="phone"
+                        android:textColor="@color/text_primary" />
+                </com.google.android.material.textfield.TextInputLayout>
+            </LinearLayout>
+
+            <!-- Signature Pad -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="6dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:text="RECEIVER SIGNATURE (Draw Below)"
+                    style="@style/TextStyle.Label" />
+                <TextView android:id="@+id/btn_clear_signature"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="Clear" android:textSize="11sp" android:textColor="@color/color_danger"
+                    android:textStyle="bold" android:clickable="true" android:focusable="true" />
+            </LinearLayout>
+
+            <com.ttrims.ims.views.SignatureView
+                android:id="@+id/signature_view"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/signature_height"
+                android:background="@drawable/bg_signature_pad"
+                android:layout_marginBottom="@dimen/margin_md" />
+        </LinearLayout>
+
+        <!-- Failure reason (for FAILED) -->
+        <LinearLayout
+            android:id="@+id/layout_failed_fields"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="REASON FOR FAILURE" style="@style/TextStyle.Label"
+                android:layout_marginBottom="6dp" />
+
+            <Spinner
+                android:id="@+id/spinner_failed_reason"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:background="@drawable/bg_card"
+                android:padding="10dp"
+                android:layout_marginBottom="@dimen/margin_md" />
+        </LinearLayout>
+
+        <!-- Photo capture -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="@dimen/margin_md">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_capture_photo"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="📷 Capture Photo"
+                android:textSize="12sp"
+                android:textColor="@color/text_primary"
+                style="@style/Widget.TTRIMSDriver.Button.Ghost"
+                app:cornerRadius="@dimen/radius_sm"
+                android:layout_marginEnd="@dimen/margin_sm" />
+
+            <TextView
+                android:id="@+id/tv_photo_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="No photo captured"
+                android:textSize="12sp"
+                android:textColor="@color/text_muted" />
+        </LinearLayout>
+
+        <!-- Photo preview -->
+        <ImageView
+            android:id="@+id/iv_photo_preview"
+            android:layout_width="match_parent"
+            android:layout_height="100dp"
+            android:scaleType="centerCrop"
+            android:visibility="gone"
+            android:layout_marginBottom="@dimen/margin_md" />
+
+        <!-- Notes -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/til_notes"
+            style="@style/Widget.TTRIMSDriver.TextInputLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/pod_notes_hint"
+            android:layout_marginBottom="@dimen/margin_md">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_notes"
+                android:layout_width="match_parent"
+                android:layout_height="72dp"
+                android:inputType="textMultiLine"
+                android:gravity="top"
+                android:textColor="@color/text_primary" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Action buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="@dimen/margin_sm">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_pod_cancel"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/btn_height"
+                android:layout_weight="1"
+                android:text="@string/cancel"
+                android:textColor="@color/text_primary"
+                style="@style/Widget.TTRIMSDriver.Button.Ghost"
+                android:layout_marginEnd="@dimen/margin_sm" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_pod_submit"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/btn_height"
+                android:layout_weight="1.2"
+                android:text="Confirm Stop"
+                android:textColor="@color/white"
+                android:textStyle="bold"
+                app:backgroundTint="@color/color_success"
+                app:cornerRadius="@dimen/radius_sm"
+                app:elevation="0dp" />
+        </LinearLayout>
+
+        <!-- POD loading -->
+        <ProgressBar
+            android:id="@+id/pod_progress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:indeterminateTint="@color/primary"
+            android:visibility="gone"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="@dimen/margin_sm" />
+
+    </LinearLayout>
+</ScrollView>

@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="6dp"
+    android:layout_marginVertical="6dp"
+    style="@style/Widget.TTRIMSDriver.Card">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Top Row: Key Name, Number Tag, Status Badge -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp">
+
+            <TextView
+                android:id="@+id/tv_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Main Gate Key"
+                android:textColor="@color/white"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:layout_alignParentStart="true"
+                android:layout_toStartOf="@id/tv_status_badge"
+                android:ellipsize="end"
+                android:singleLine="true" />
+
+            <TextView
+                android:id="@+id/tv_status_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:text="Available"
+                android:textColor="@color/color_success"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:background="@drawable/bg_badge"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="4dp" />
+        </RelativeLayout>
+
+        <!-- Subtitle details (Key Physical Number / Tag ID) -->
+        <TextView
+            android:id="@+id/tv_tag_number"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Tag: K-001"
+            android:textColor="@color/text_muted"
+            android:textSize="11sp"
+            android:layout_marginBottom="8dp" />
+
+        <!-- Details block (Holder, time, reason) -->
+        <LinearLayout
+            android:id="@+id/layout_detail_block"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tv_holder"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Holder: John Doe (john@ttrims.com)"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tv_reason"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Reason: Routine rack counting in Sec A"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tv_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Checked Out: Jul 10, 08:30 PM"
+                android:textColor="@color/text_muted"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <!-- Dynamic Action buttons (Approved / Reject) -->
+        <LinearLayout
+            android:id="@+id/layout_action_buttons"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:visibility="gone">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_reject"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="Reject"
+                android:textColor="@color/white"
+                android:textSize="12sp"
+                app:backgroundTint="@color/color_danger"
+                app:cornerRadius="6dp"
+                android:layout_marginEnd="8dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_approve"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="Approve"
+                android:textColor="@color/white"
+                android:textSize="12sp"
+                app:backgroundTint="@color/color_success"
+                app:cornerRadius="6dp" />
+        </LinearLayout>
+
+    </LinearLayout>
+</androidx.cardview.widget.CardView>

@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg_deep">
+
+    <!-- Top Bar -->
+    <LinearLayout
+        android:id="@+id/topbar"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/topbar_height"
+        android:background="@color/bg_surface"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/margin_md"
+        android:paddingEnd="@dimen/margin_md"
+        android:gravity="center_vertical">
+
+        <!-- Logo / Icon -->
+        <TextView
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:text="🚚"
+            android:textSize="22sp"
+            android:gravity="center"
+            android:background="@drawable/bg_gradient_header"
+            android:layout_marginEnd="@dimen/margin_sm" />
+
+        <!-- Title block -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="TTRIMS Logistics"
+                android:textSize="15sp"
+                android:textColor="@color/text_primary"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/topbar_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Home"
+                android:textSize="11sp"
+                android:textColor="@color/text_secondary" />
+        </LinearLayout>
+
+        <!-- Avatar button -->
+        <TextView
+            android:id="@+id/topbar_avatar"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:text="DR"
+            android:textSize="13sp"
+            android:textColor="@color/white"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:background="@drawable/bg_gradient_header"
+            android:padding="4dp" />
+    </LinearLayout>
+
+    <!-- Fragment container -->
+    <FrameLayout
+        android:id="@+id/fragment_container"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <!-- Bottom Navigation -->
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottom_nav"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/bottom_nav_height"
+        android:background="@color/bg_surface"
+        app:menu="@menu/bottom_nav_menu"
+        app:itemIconTint="@drawable/bottom_nav_icon_tint"
+        app:itemTextColor="@drawable/bottom_nav_icon_tint"
+        app:labelVisibilityMode="labeled"
+        app:elevation="8dp" />
+
+</LinearLayout>

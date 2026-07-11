@@ -175,7 +175,7 @@ export default function LogisticsAndDispatchPage() {
       setShipments(shipmentsRes.data.data);
       setSummary(summaryRes.data.data);
 
-      const driverUsers = (usersRes.data.data || []).filter(u => u.role?.name === 'Driver');
+      const driverUsers = (usersRes.data.data || []).filter(u => u.role === 'Driver' || u.role_name === 'Driver');
       setDrivers(driverUsers);
     } catch (err) {
       toast.error('Failed to load logistics data');

@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_deep"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/margin_lg">
+
+        <!-- Branding block -->
+        <LinearLayout
+            android:id="@+id/login_brand"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:paddingTop="56dp"
+            android:paddingBottom="40dp">
+
+            <TextView
+                android:layout_width="72dp"
+                android:layout_height="72dp"
+                android:text="📦"
+                android:textSize="44sp"
+                android:gravity="center"
+                android:background="@drawable/bg_gradient_header"
+                android:layout_marginBottom="20dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="TTRIMS Warehouse"
+                android:textSize="26sp"
+                android:textColor="@color/text_primary"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="INVENTORY CONSOLE"
+                android:textSize="11sp"
+                android:textColor="@color/accent_cyan"
+                android:textAllCaps="true"
+                android:letterSpacing="0.14"
+                android:layout_marginTop="6dp" />
+        </LinearLayout>
+
+        <!-- Login card -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/login_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="@color/bg_card"
+            app:cardElevation="0dp"
+            app:cardCornerRadius="@dimen/radius_lg"
+            app:strokeColor="@color/border_color"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="@dimen/margin_lg">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Sign in to your account"
+                    android:textSize="@dimen/text_lg"
+                    android:textColor="@color/text_primary"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="@dimen/margin_md" />
+
+                <!-- Email -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/til_email"
+                    style="@style/Widget.TTRIMSDriver.TextInputLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/hint_email"
+                    android:layout_marginBottom="@dimen/margin_sm">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/et_email"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textEmailAddress"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/text_md"
+                        android:imeOptions="actionNext" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Password -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/til_password"
+                    style="@style/Widget.TTRIMSDriver.TextInputLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/hint_password"
+                    app:endIconMode="password_toggle"
+                    android:layout_marginBottom="@dimen/margin_md">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/et_password"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPassword"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/text_md"
+                        android:imeOptions="actionDone" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Error text -->
+                <TextView
+                    android:id="@+id/tv_login_error"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/color_danger"
+                    android:textSize="@dimen/text_sm"
+                    android:visibility="gone"
+                    android:layout_marginBottom="@dimen/margin_sm" />
+
+                <!-- Login button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_login"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/btn_height"
+                    android:text="@string/btn_login"
+                    android:textColor="@color/white"
+                    android:textSize="@dimen/text_md"
+                    android:textStyle="bold"
+                    app:backgroundTint="@color/primary"
+                    app:cornerRadius="@dimen/radius_sm"
+                    app:elevation="0dp" />
+
+                <!-- Loading progress -->
+                <ProgressBar
+                    android:id="@+id/login_progress"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:indeterminateTint="@color/primary"
+                    android:visibility="gone"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="@dimen/margin_sm" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Server URL config (long press on login card) -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/til_server_url"
+            style="@style/Widget.TTRIMSDriver.TextInputLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Custom Server URL (optional)"
+            android:visibility="gone"
+            android:layout_marginTop="@dimen/margin_md">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_server_url"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textUri"
+                android:textColor="@color/text_primary"
+                android:textSize="@dimen/text_sm"
+                android:hint="https://your-backend.example.com/api" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+    </LinearLayout>
+</ScrollView>

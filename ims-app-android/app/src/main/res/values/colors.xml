@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ── Backgrounds ── -->
+    <color name="bg_deep">#090d16</color>
+    <color name="bg_surface">#0f1422</color>
+    <color name="bg_card">#171d2b</color>
+    <color name="bg_card_hover">#1e2537</color>
+    <color name="border_color">#262e3f</color>
+    <color name="border_light">#2f3b50</color>
+
+    <!-- ── Brand ── -->
+    <color name="primary">#2563eb</color>
+    <color name="primary_dark">#1d4ed8</color>
+    <color name="primary_glow">#332563eb</color>
+    <color name="accent_cyan">#06b6d4</color>
+
+    <!-- ── Semantic ── -->
+    <color name="color_success">#10b981</color>
+    <color name="color_warning">#f59e0b</color>
+    <color name="color_danger">#ef4444</color>
+    <color name="color_info">#3b82f6</color>
+
+    <!-- ── Text ── -->
+    <color name="text_primary">#F1F5F9</color>
+    <color name="text_secondary">#94A3B8</color>
+    <color name="text_muted">#64748B</color>
+
+    <!-- ── Status badges ── -->
+    <color name="badge_en_route_bg">#1a3b82f6</color>
+    <color name="badge_en_route_text">#60a5fa</color>
+    <color name="badge_created_bg">#1af59e0b</color>
+    <color name="badge_created_text">#fbbf24</color>
+    <color name="badge_delivered_bg">#1a10b981</color>
+    <color name="badge_delivered_text">#34d399</color>
+    <color name="badge_failed_bg">#1aef4444</color>
+    <color name="badge_failed_text">#f87171</color>
+    <color name="badge_available_bg">#1a10b981</color>
+    <color name="badge_busy_bg">#1af59e0b</color>
+    <color name="badge_offline_bg">#1a64748b</color>
+    <color name="badge_breakdown_bg">#1aef4444</color>
+
+    <!-- ── Material overrides ── -->
+    <color name="colorPrimary">@color/primary</color>
+    <color name="colorPrimaryDark">@color/primary_dark</color>
+    <color name="colorAccent">@color/accent_cyan</color>
+    <color name="white">#FFFFFF</color>
+    <color name="transparent">#00000000</color>
+</resources>

@@ -1,0 +1,222 @@
+[
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/menu_warehouse_bottom_menu.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/menu/warehouse_bottom_menu.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_activity_login.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/activity_login.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_item_user.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/item_user.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/mipmap-xxxhdpi_ic_launcher.png.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/mipmap-xxxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/mipmap-xxxhdpi_ic_launcher_foreground.png.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/mipmap-xxxhdpi/ic_launcher_foreground.png"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_fragment_users.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/fragment_users.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_fragment_roles.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/fragment_roles.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_fragment_finder.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/fragment_finder.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_fragment_stock_out.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/fragment_stock_out.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/drawable_bg_badge.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/drawable/bg_badge.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_activity_main.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/activity_main.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_fragment_production_runs.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/fragment_production_runs.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/menu_drawer_menu.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/menu/drawer_menu.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_fragment_dashboard.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/fragment_dashboard.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/mipmap-mdpi_ic_launcher_round.png.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/mipmap-mdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/mipmap-hdpi_ic_launcher_foreground.png.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/mipmap-hdpi/ic_launcher_foreground.png"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/drawable_bg_input.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/drawable/bg_input.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_item_product.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/item_product.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/mipmap-hdpi_ic_launcher_round.png.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/mipmap-hdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_item_key_registry.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/item_key_registry.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_fragment_stock_in.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/fragment_stock_in.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/mipmap-hdpi_ic_launcher.png.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/mipmap-hdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/mipmap-xxhdpi_ic_launcher_foreground.png.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/mipmap-xxhdpi/ic_launcher_foreground.png"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_item_transaction.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/item_transaction.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/mipmap-xhdpi_ic_launcher_round.png.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/mipmap-xhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/mipmap-xxxhdpi_ic_launcher_round.png.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/mipmap-xxxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_fragment_recipes.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/fragment_recipes.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/mipmap-xhdpi_ic_launcher.png.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/mipmap-xhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/drawable_bg_avatar.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/drawable/bg_avatar.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_item_cart_product.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/item_cart_product.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_item_recipe.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/item_recipe.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_fragment_pos.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/fragment_pos.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_fragment_warehouse_host.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/fragment_warehouse_host.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/drawable_bg_signature_pad.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/drawable/bg_signature_pad.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_fragment_scan.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/fragment_scan.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/mipmap-xhdpi_ic_launcher_foreground.png.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/mipmap-xhdpi/ic_launcher_foreground.png"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/mipmap-mdpi_ic_launcher_foreground.png.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/mipmap-mdpi/ic_launcher_foreground.png"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_item_role.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/item_role.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/drawable_bottom_nav_icon_tint.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/drawable/bottom_nav_icon_tint.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_nav_header.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/nav_header.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_activity_splash.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/activity_splash.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/mipmap-xxhdpi_ic_launcher.png.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/mipmap-xxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/drawable_bg_btn_primary.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/drawable/bg_btn_primary.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/mipmap-mdpi_ic_launcher.png.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/mipmap-mdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/drawable_bg_gradient_header.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/drawable/bg_gradient_header.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_item_production_run.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/item_production_run.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/mipmap-xxhdpi_ic_launcher_round.png.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/mipmap-xxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_fragment_warehouse.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/fragment_warehouse.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_item_warehouse.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/item_warehouse.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_fragment_key_registry.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/fragment_key_registry.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/menu_bottom_nav_menu.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/menu/bottom_nav_menu.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/drawable_bg_card.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/drawable/bg_card.xml"
+    },
+    {
+        "merged": "com.ttrims.warehouse.app-debug-4:/layout_item_key.xml.flat",
+        "source": "com.ttrims.warehouse.app-main-6:/layout/item_key.xml"
+    }
+]

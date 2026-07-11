@@ -780,7 +780,7 @@ export default function OrderPage() {
                     >
                       <option value="">Unassigned</option>
                       {usersList.map(u => (
-                        <option key={u.id} value={u.id}>{u.name} ({u.role?.name || 'No Role'})</option>
+                        <option key={u.id} value={u.id}>{u.name} ({u.role || u.role_name || 'No Role'})</option>
                       ))}
                     </select>
                   ) : (
@@ -1085,7 +1085,7 @@ export default function OrderPage() {
                   >
                     <option value="">Select Sales Person</option>
                     {usersList.map(u => (
-                      <option key={u.id} value={u.id}>{u.name} ({u.role?.name || 'No Role'})</option>
+                      <option key={u.id} value={u.id}>{u.name} ({u.role || u.role_name || 'No Role'})</option>
                     ))}
                   </select>
                 </div>

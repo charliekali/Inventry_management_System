@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg_deep">
+
+    <!-- Daily stats summary bar -->
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardBackgroundColor="@color/bg_card"
+        app:cardElevation="0dp"
+        app:cardCornerRadius="0dp"
+        app:strokeColor="@color/border_color"
+        app:strokeWidth="1dp"
+        android:layout_marginBottom="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="TODAY'S DELIVERY PROGRESS"
+                android:textSize="11sp"
+                android:textColor="@color/text_secondary"
+                android:textAllCaps="true"
+                android:letterSpacing="0.08"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                    <TextView android:id="@+id/tv_stat_total"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="0" android:textSize="20sp" android:textStyle="bold"
+                        android:textColor="@color/text_primary" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Total" android:textSize="10sp" android:textColor="@color/text_muted"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <View android:layout_width="1dp" android:layout_height="28dp"
+                    android:background="@color/border_color" />
+
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                    <TextView android:id="@+id/tv_stat_delivered"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="0" android:textSize="20sp" android:textStyle="bold"
+                        android:textColor="@color/color_success" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Delivered" android:textSize="10sp" android:textColor="@color/text_muted"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <View android:layout_width="1dp" android:layout_height="28dp"
+                    android:background="@color/border_color" />
+
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                    <TextView android:id="@+id/tv_stat_failed"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="0" android:textSize="20sp" android:textStyle="bold"
+                        android:textColor="@color/color_danger" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Failed" android:textSize="10sp" android:textColor="@color/text_muted"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <View android:layout_width="1dp" android:layout_height="28dp"
+                    android:background="@color/border_color" />
+
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                    <TextView android:id="@+id/tv_stat_pending"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="0" android:textSize="20sp" android:textStyle="bold"
+                        android:textColor="@color/primary" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Remaining" android:textSize="10sp" android:textColor="@color/text_muted"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Header row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="@dimen/margin_md"
+        android:paddingEnd="@dimen/margin_md"
+        android:paddingTop="14dp"
+        android:paddingBottom="10dp">
+
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Trips &amp; Shipments"
+                android:textSize="18sp" android:textColor="@color/text_primary"
+                android:textStyle="bold" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Manage deliveries and track routes."
+                android:textSize="12sp" android:textColor="@color/text_secondary" />
+        </LinearLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_refresh_shipments"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:text="↻"
+            android:textSize="16sp"
+            android:textColor="@color/text_primary"
+            android:padding="0dp"
+            style="@style/Widget.TTRIMSDriver.Button.Ghost"
+            app:cornerRadius="8dp" />
+    </LinearLayout>
+
+    <!-- Loading -->
+    <ProgressBar
+        android:id="@+id/shipments_progress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:indeterminateTint="@color/primary"
+        android:visibility="gone"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="@dimen/margin_lg" />
+
+    <!-- Empty state -->
+    <LinearLayout
+        android:id="@+id/layout_empty_shipments"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="@dimen/margin_xl"
+        android:visibility="gone">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="🗺" android:textSize="36sp" android:layout_marginBottom="12dp" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="No shipments allocated yet."
+            android:textSize="14sp" android:textColor="@color/text_secondary"
+            android:gravity="center" />
+    </LinearLayout>
+
+    <!-- RecyclerView for shipments -->
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipe_refresh_shipments"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_shipments"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingStart="@dimen/margin_md"
+            android:paddingEnd="@dimen/margin_md"
+            android:paddingBottom="80dp" />
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+</LinearLayout>

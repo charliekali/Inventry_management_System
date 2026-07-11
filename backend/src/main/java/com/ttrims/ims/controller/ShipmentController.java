@@ -182,6 +182,13 @@ public class ShipmentController {
 
             shipment.setStatus(newStatus);
             shipmentRepo.save(shipment);
+
+            if ((newStatus == Shipment.Status.DELIVERED || newStatus == Shipment.Status.FAILED || newStatus == Shipment.Status.PICKED_UP) && shipment.getDriver() != null) {
+                User driver = shipment.getDriver();
+                driver.setDriverStatus("AVAILABLE");
+                userRepo.save(driver);
+            }
+
             return ResponseEntity.ok(Map.of("success", true, "data", toDto(shipment)));
         } catch (IllegalArgumentException e) {
             return bad("Invalid status");
@@ -211,6 +218,12 @@ public class ShipmentController {
         shipment.setDeliveredAt(LocalDateTime.now());
         shipment.setDeliveryNotes(notes);
         shipmentRepo.save(shipment);
+
+        if (shipment.getDriver() != null) {
+            User driver = shipment.getDriver();
+            driver.setDriverStatus("AVAILABLE");
+            userRepo.save(driver);
+        }
 
         if (shipmentStatus == Shipment.Status.DELIVERED) {
             for (ShipmentOrder so : shipment.getShipmentOrders()) {

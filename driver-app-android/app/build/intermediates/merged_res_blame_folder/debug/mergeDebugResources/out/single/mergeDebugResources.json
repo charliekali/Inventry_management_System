@@ -1,0 +1,154 @@
+[
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/mipmap-hdpi_ic_launcher.png.flat",
+        "source": "com.ttrims.driver.app-main-6:/mipmap-hdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/mipmap-xxhdpi_ic_launcher.png.flat",
+        "source": "com.ttrims.driver.app-main-6:/mipmap-xxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/mipmap-hdpi_ic_launcher_round.png.flat",
+        "source": "com.ttrims.driver.app-main-6:/mipmap-hdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/drawable_bottom_nav_icon_tint.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/drawable/bottom_nav_icon_tint.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/drawable_ic_stat_tracking.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/drawable/ic_stat_tracking.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/layout_fragment_profile.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/layout/fragment_profile.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/mipmap-xxxhdpi_ic_launcher_round.png.flat",
+        "source": "com.ttrims.driver.app-main-6:/mipmap-xxxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/layout_item_shipment.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/layout/item_shipment.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/mipmap-xhdpi_ic_launcher_round.png.flat",
+        "source": "com.ttrims.driver.app-main-6:/mipmap-xhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/layout_item_history_shipment.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/layout/item_history_shipment.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/layout_fragment_home.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/layout/fragment_home.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/mipmap-xhdpi_ic_launcher.png.flat",
+        "source": "com.ttrims.driver.app-main-6:/mipmap-xhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/mipmap-xxxhdpi_ic_launcher_foreground.png.flat",
+        "source": "com.ttrims.driver.app-main-6:/mipmap-xxxhdpi/ic_launcher_foreground.png"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/drawable_bg_gradient_header.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/drawable/bg_gradient_header.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/mipmap-hdpi_ic_launcher_foreground.png.flat",
+        "source": "com.ttrims.driver.app-main-6:/mipmap-hdpi/ic_launcher_foreground.png"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/mipmap-mdpi_ic_launcher_foreground.png.flat",
+        "source": "com.ttrims.driver.app-main-6:/mipmap-mdpi/ic_launcher_foreground.png"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/mipmap-xxxhdpi_ic_launcher.png.flat",
+        "source": "com.ttrims.driver.app-main-6:/mipmap-xxxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/mipmap-xxhdpi_ic_launcher_round.png.flat",
+        "source": "com.ttrims.driver.app-main-6:/mipmap-xxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/layout_fragment_pod_confirm.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/layout/fragment_pod_confirm.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/mipmap-mdpi_ic_launcher_round.png.flat",
+        "source": "com.ttrims.driver.app-main-6:/mipmap-mdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/mipmap-xhdpi_ic_launcher_foreground.png.flat",
+        "source": "com.ttrims.driver.app-main-6:/mipmap-xhdpi/ic_launcher_foreground.png"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/layout_fragment_history.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/layout/fragment_history.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/layout_fragment_shipments.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/layout/fragment_shipments.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/drawable_bg_card.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/drawable/bg_card.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/menu_bottom_nav_menu.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/menu/bottom_nav_menu.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/mipmap-xxhdpi_ic_launcher_foreground.png.flat",
+        "source": "com.ttrims.driver.app-main-6:/mipmap-xxhdpi/ic_launcher_foreground.png"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/drawable_bg_signature_pad.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/drawable/bg_signature_pad.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/layout_item_stop.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/layout/item_stop.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/layout_activity_splash.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/layout/activity_splash.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/drawable_bg_input.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/drawable/bg_input.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/layout_activity_login.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/layout/activity_login.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/drawable_bg_badge.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/drawable/bg_badge.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/drawable_bg_btn_primary.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/drawable/bg_btn_primary.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/layout_activity_main.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/layout/activity_main.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/mipmap-mdpi_ic_launcher.png.flat",
+        "source": "com.ttrims.driver.app-main-6:/mipmap-mdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.ttrims.driver.app-debug-4:/layout_fragment_attendance.xml.flat",
+        "source": "com.ttrims.driver.app-main-6:/layout/fragment_attendance.xml"
+    }
+]

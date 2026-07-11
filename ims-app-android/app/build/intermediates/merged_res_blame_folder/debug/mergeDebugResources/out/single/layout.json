@@ -1,0 +1,150 @@
+[
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_history.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_history.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_stock_in.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_stock_in.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_warehouse_host.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_warehouse_host.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/activity_splash.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/activity_splash.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/activity_login.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/activity_login.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_production_runs.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_production_runs.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_scan.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_scan.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/nav_header.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/nav_header.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/item_role.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/item_role.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_dashboard.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_dashboard.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/item_stop.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/item_stop.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/activity_main_driver.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/activity_main_driver.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_roles.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_roles.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/item_warehouse.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/item_warehouse.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/activity_main_console.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/activity_main_console.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_recipes.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_recipes.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_pos.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_pos.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/item_history_shipment.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/item_history_shipment.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_warehouse.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_warehouse.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/item_transaction.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/item_transaction.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/item_key_registry.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/item_key_registry.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_profile.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_profile.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/item_production_run.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/item_production_run.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_home.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_home.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/item_shipment.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/item_shipment.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_key_registry.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_key_registry.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/item_cart_product.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/item_cart_product.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/item_user.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/item_user.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_pod_confirm.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_pod_confirm.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_shipments.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_shipments.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_users.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_users.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_attendance.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_attendance.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_finder.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_finder.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/item_key.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/item_key.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/item_product.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/item_product.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/item_recipe.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/item_recipe.xml"
+    },
+    {
+        "merged": "com.ttrims.ims.app-mergeDebugResources-3:/layout/fragment_stock_out.xml",
+        "source": "com.ttrims.ims.app-main-6:/layout/fragment_stock_out.xml"
+    }
+]
