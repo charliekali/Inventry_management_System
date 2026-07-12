@@ -15,6 +15,12 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.net.URL;
+import java.net.HttpURLConnection;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 @RestController
 @RequestMapping("/api/pickups")
@@ -63,6 +69,7 @@ public class PickupController {
         }
         loc.setContactPerson((String) body.get("contact_person"));
         loc.setContactPhone((String) body.get("contact_phone"));
+        loc.setGoogleMapsLink((String) body.get("google_maps_link"));
 
         loc = locationRepo.save(loc);
         return ResponseEntity.ok(Map.of("success", true, "data", loc));
@@ -85,6 +92,7 @@ public class PickupController {
         }
         if (body.containsKey("contact_person")) loc.setContactPerson((String) body.get("contact_person"));
         if (body.containsKey("contact_phone")) loc.setContactPhone((String) body.get("contact_phone"));
+        if (body.containsKey("google_maps_link")) loc.setGoogleMapsLink((String) body.get("google_maps_link"));
 
         loc = locationRepo.save(loc);
         return ResponseEntity.ok(Map.of("success", true, "data", loc));
@@ -100,6 +108,123 @@ public class PickupController {
             return ResponseEntity.ok(Map.of("success", true, "message", "Location deleted"));
         } catch (Exception e) {
             return bad("Cannot delete location: it may be referenced by existing pickup tasks");
+        }
+    }
+
+    // ─── Resolve coordinates from Google Maps Link ─────────────────────────
+    @PostMapping("/locations/resolve-coords")
+    public ResponseEntity<?> resolveCoords(@RequestBody Map<String, String> body) {
+        auth.requirePermission("DISPATCH:MANAGE");
+        String urlString = body.get("url");
+        if (urlString == null || urlString.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "URL is required"));
+        }
+
+        try {
+            String finalUrl = urlString;
+            
+            // Resolve redirects for shortened Google Maps links
+            if (urlString.contains("maps.app.goo.gl") || urlString.contains("goo.gl/maps") || urlString.contains("t.co") || urlString.contains("bit.ly")) {
+                int redirects = 0;
+                while (redirects < 5) {
+                    URL url = new URL(finalUrl);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setInstanceFollowRedirects(false);
+                    conn.setConnectTimeout(5000);
+                    conn.setReadTimeout(5000);
+                    conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+                    
+                    int status = conn.getResponseCode();
+                    if (status >= 300 && status < 400) {
+                        String loc = conn.getHeaderField("Location");
+                        if (loc != null && !loc.isBlank()) {
+                            finalUrl = loc;
+                            redirects++;
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+            }
+
+            Double lat = null;
+            Double lng = null;
+
+            // Pattern 1: @lat,lng
+            Pattern p1 = Pattern.compile("@(-?\\d+\\.\\d+),(-?\\d+\\.\\d+)");
+            Matcher m1 = p1.matcher(finalUrl);
+            if (m1.find()) {
+                lat = Double.parseDouble(m1.group(1));
+                lng = Double.parseDouble(m1.group(2));
+            }
+
+            // Pattern 2: !3dlat!4dlng
+            if (lat == null) {
+                Pattern p2 = Pattern.compile("!3d(-?\\d+\\.\\d+)!4d(-?\\d+\\.\\d+)");
+                Matcher m2 = p2.matcher(finalUrl);
+                if (m2.find()) {
+                    lat = Double.parseDouble(m2.group(1));
+                    lng = Double.parseDouble(m2.group(2));
+                }
+            }
+
+            // Pattern 3: ll=lat,lng
+            if (lat == null) {
+                Pattern p3 = Pattern.compile("[?&]ll=(-?\\d+\\.\\d+),(-?\\d+\\.\\d+)");
+                Matcher m3 = p3.matcher(finalUrl);
+                if (m3.find()) {
+                    lat = Double.parseDouble(m3.group(1));
+                    lng = Double.parseDouble(m3.group(2));
+                }
+            }
+
+            // Pattern 4: q=lat,lng
+            if (lat == null) {
+                Pattern p4 = Pattern.compile("[?&]q=(-?\\d+\\.\\d+),(-?\\d+\\.\\d+)");
+                Matcher m4 = p4.matcher(finalUrl);
+                if (m4.find()) {
+                    lat = Double.parseDouble(m4.group(1));
+                    lng = Double.parseDouble(m4.group(2));
+                }
+            }
+
+            // Pattern 5: place/lat,lng
+            if (lat == null) {
+                Pattern p5 = Pattern.compile("place/(-?\\d+\\.\\d+),(-?\\d+\\.\\d+)");
+                Matcher m5 = p5.matcher(finalUrl);
+                if (m5.find()) {
+                    lat = Double.parseDouble(m5.group(1));
+                    lng = Double.parseDouble(m5.group(2));
+                }
+            }
+
+            if (lat != null && lng != null) {
+                String suggestedName = "";
+                if (finalUrl.contains("/place/")) {
+                    String part = finalUrl.split("/place/")[1];
+                    if (part.contains("/")) {
+                        part = part.split("/")[0];
+                    }
+                    if (part.contains("@")) {
+                        part = part.split("@")[0];
+                    }
+                    suggestedName = URLDecoder.decode(part, StandardCharsets.UTF_8).replace("+", " ");
+                }
+
+                return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "latitude", lat,
+                    "longitude", lng,
+                    "address", suggestedName,
+                    "expanded_url", finalUrl
+                ));
+            } else {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Could not extract coordinates from URL."));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "Error resolving URL: " + e.getMessage()));
         }
     }
 

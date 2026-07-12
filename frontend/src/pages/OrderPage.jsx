@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
-import { ordersAPI, productsAPI, productionOrdersAPI, usersAPI } from '../api';
+import { ordersAPI, productsAPI, productionOrdersAPI, usersAPI, pickupAPI } from '../api';
 import toast from 'react-hot-toast';
-import { BookOpen, Plus, Trash2, Eye, ShieldCheck, Clipboard, Factory, Upload, Download, FileText, Printer, Check, X, MapPin } from 'lucide-react';
+import { BookOpen, Plus, Trash2, Eye, ShieldCheck, Clipboard, Factory, Upload, Download, FileText, Printer, Check, X, MapPin, Map } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import useFormSettings from '../hooks/useFormSettings';
 import { useAuth } from '../context/AuthContext';
@@ -115,6 +115,69 @@ export default function OrderPage() {
 
   const [feasibilityResults, setFeasibilityResults] = useState(null);
   const [checkingFeasibility, setCheckingFeasibility] = useState(false);
+
+  // New Location Fields for Customer Order placement
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [orderLat, setOrderLat] = useState('');
+  const [orderLng, setOrderLng] = useState('');
+  const [googleMapsLink, setGoogleMapsLink] = useState('');
+  const [isNewCustomer, setIsNewCustomer] = useState(true);
+  const [resolvingLink, setResolvingLink] = useState(false);
+  const [customerSuggestionsOpen, setCustomerSuggestionsOpen] = useState(false);
+
+  const allCustomerNames = Array.from(new Set(orders.map(o => o.customer).filter(Boolean))).sort();
+
+  const handleCustomerChange = (val) => {
+    setCustomer(val);
+    const match = orders.find(o => o.customer && o.customer.toLowerCase().trim() === val.toLowerCase().trim());
+    if (match) {
+      setIsNewCustomer(false);
+      setDeliveryAddress(match.delivery_address || '');
+      setOrderLat(match.latitude ? match.latitude.toString() : '');
+      setOrderLng(match.longitude ? match.longitude.toString() : '');
+    } else {
+      setIsNewCustomer(true);
+    }
+  };
+
+  const handleSelectSuggestedCustomer = (name) => {
+    setCustomer(name);
+    setCustomerSuggestionsOpen(false);
+    const match = orders.find(o => o.customer && o.customer.toLowerCase().trim() === name.toLowerCase().trim());
+    if (match) {
+      setIsNewCustomer(false);
+      setDeliveryAddress(match.delivery_address || '');
+      setOrderLat(match.latitude ? match.latitude.toString() : '');
+      setOrderLng(match.longitude ? match.longitude.toString() : '');
+      toast.success(`Matched existing customer: ${name}. Delivery details loaded.`);
+    } else {
+      setIsNewCustomer(true);
+    }
+  };
+
+  const handleResolveOrderCoords = async () => {
+    if (!googleMapsLink || !googleMapsLink.trim()) {
+      return toast.error('Please paste a Google Maps link first');
+    }
+    setResolvingLink(true);
+    try {
+      const res = await pickupAPI.resolveCoords(googleMapsLink.trim());
+      if (res.data && res.data.latitude && res.data.longitude) {
+        setOrderLat(res.data.latitude.toString());
+        setOrderLng(res.data.longitude.toString());
+        if (res.data.address && !deliveryAddress) {
+          setDeliveryAddress(res.data.address);
+        }
+        toast.success('Coordinates extracted successfully!');
+      } else {
+        toast.error('Could not extract coordinates from link');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to extract coordinates');
+    } finally {
+      setResolvingLink(false);
+    }
+  };
 
   // Dynamic form settings
   const { fields, isVisible, isRequired, getLabel, loading: settingsLoading, invalidate: invalidateSettings } = useFormSettings('ORDER');
@@ -382,6 +445,12 @@ export default function OrderPage() {
     setCustomFieldsData({});
     setItemsList([]);
     setFeasibilityResults(null);
+    setDeliveryAddress('');
+    setOrderLat('');
+    setOrderLng('');
+    setGoogleMapsLink('');
+    setIsNewCustomer(true);
+    setCustomerSuggestionsOpen(false);
     setShowCreateModal(true);
   };
 
@@ -481,6 +550,9 @@ export default function OrderPage() {
         remarks,
         custom_fields: customFieldsData,
         tax_percent: parseFloat(taxPercent) || 0.0,
+        delivery_address: deliveryAddress || null,
+        latitude: orderLat ? parseFloat(orderLat) : null,
+        longitude: orderLng ? parseFloat(orderLng) : null,
         items: itemsList.map(i => ({
           product_id: i.product_id,
           qty_required: i.qty_required,
@@ -499,6 +571,11 @@ export default function OrderPage() {
       setItemsList([]);
       setFeasibilityResults(null);
       setTaxPercent(18);
+      setDeliveryAddress('');
+      setOrderLat('');
+      setOrderLng('');
+      setGoogleMapsLink('');
+      setIsNewCustomer(true);
       loadOrders();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to place order');
@@ -1179,27 +1256,169 @@ export default function OrderPage() {
                         {getLabel(f.field_key, f.label)}
                         {isRequired(f.field_key) && <span style={{ color: 'var(--color-danger)' }}> *</span>}
                       </label>
-                      <input 
-                        type="text" 
-                        className="form-control" 
-                        value={f.field_key === 'customer' ? customer : (f.field_key === 'remarks' ? remarks : (customFieldsData[f.field_key] || ''))} 
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (f.field_key === 'customer') setCustomer(val);
-                          else if (f.field_key === 'remarks') setRemarks(val);
-                          else setCustomFieldsData(prev => ({ ...prev, [f.field_key]: val }));
-                        }} 
-                        placeholder={
-                          f.field_key === 'customer' ? "e.g. Acme Corp, John Doe" :
-                          f.field_key === 'remarks' ? "e.g. Rush delivery, special shipping requirements" :
-                          `Enter ${getLabel(f.field_key, f.label).toLowerCase()}...`
-                        }
-                        required={isRequired(f.field_key)} 
-                      />
+                      {f.field_key === 'customer' ? (
+                        <div style={{ position: 'relative' }}>
+                          <input 
+                            type="text" 
+                            className="form-control" 
+                            value={customer} 
+                            onChange={(e) => handleCustomerChange(e.target.value)} 
+                            onFocus={() => setCustomerSuggestionsOpen(true)}
+                            placeholder="e.g. Acme Corp, John Doe"
+                            required={isRequired(f.field_key)} 
+                          />
+                          {customerSuggestionsOpen && customer.trim().length > 0 && (
+                            <div style={{
+                              position: 'absolute', top: '100%', left: 0, right: 0,
+                              background: 'var(--color-bg-card)', border: '1px solid var(--color-border)',
+                              borderRadius: 4, zIndex: 100, maxHeight: 150, overflowY: 'auto',
+                              boxShadow: 'var(--shadow-md)'
+                            }}>
+                              {allCustomerNames
+                                .filter(name => name.toLowerCase().includes(customer.toLowerCase()))
+                                .map(name => (
+                                  <div
+                                    key={name}
+                                    style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--color-border)' }}
+                                    onClick={() => handleSelectSuggestedCustomer(name)}
+                                    onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.05)'}
+                                    onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                                  >
+                                    {name}
+                                  </div>
+                                ))
+                              }
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <input 
+                          type="text" 
+                          className="form-control" 
+                          value={f.field_key === 'remarks' ? remarks : (customFieldsData[f.field_key] || '')} 
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (f.field_key === 'remarks') setRemarks(val);
+                            else setCustomFieldsData(prev => ({ ...prev, [f.field_key]: val }));
+                          }} 
+                          placeholder={
+                            f.field_key === 'remarks' ? "e.g. Rush delivery, special shipping requirements" :
+                            `Enter ${getLabel(f.field_key, f.label).toLowerCase()}...`
+                          }
+                          required={isRequired(f.field_key)} 
+                        />
+                      )}
                     </div>
                   ))}
                 </div>
               ))}
+
+              {/* Dynamic location section depending on customer status */}
+              <div style={{
+                background: 'rgba(255,255,255,0.02)', padding: 16, borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-border)', marginBottom: 16
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <h4 style={{ fontSize: 13, fontWeight: 700, margin: 0 }}>Customer Delivery Location</h4>
+                  {!isNewCustomer ? (
+                    <span className="badge badge-green" style={{ fontSize: 11 }}>🟢 Existing Customer Found</span>
+                  ) : (
+                    <span className="badge badge-orange" style={{ fontSize: 11 }}>🟠 New Customer Location Required</span>
+                  )}
+                </div>
+
+                {/* Google Maps Link resolver for new customers */}
+                {isNewCustomer && (
+                  <div className="form-group" style={{ marginBottom: 12 }}>
+                    <label className="form-label">Google Maps Link / Short Link (Optional)</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Paste link to extract coordinates e.g. https://maps.app.goo.gl/xxx"
+                        value={googleMapsLink}
+                        onChange={(e) => setGoogleMapsLink(e.target.value)}
+                        style={{ flex: 1 }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={handleResolveOrderCoords}
+                        disabled={resolvingLink}
+                        style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}
+                      >
+                        {resolvingLink ? (
+                          <div className="loading-spinner" style={{ width: 12, height: 12, borderWidth: 2 }}></div>
+                        ) : (
+                          <Map size={13} />
+                        )}
+                        Extract GPS
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="form-group" style={{ marginBottom: 12 }}>
+                  <label className="form-label">Delivery Address</label>
+                  <textarea
+                    className="form-control"
+                    rows={2}
+                    placeholder="Enter customer shipping address details..."
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-row" style={{ marginBottom: 12 }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Latitude</label>
+                    <input
+                      type="number"
+                      step="any"
+                      className="form-control"
+                      placeholder="e.g. 13.0827"
+                      value={orderLat}
+                      onChange={(e) => setOrderLat(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Longitude</label>
+                    <input
+                      type="number"
+                      step="any"
+                      className="form-control"
+                      placeholder="e.g. 80.2707"
+                      value={orderLng}
+                      onChange={(e) => setOrderLng(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 8, fontSize: 11, color: 'var(--color-text-secondary)' }}>
+                  📍 Click on the map to manually pin coordinates for this customer delivery destination.
+                </div>
+
+                <div style={{ height: 200, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+                  <MapContainer
+                    center={orderLat && orderLng ? [parseFloat(orderLat), parseFloat(orderLng)] : [13.0827, 80.2707]}
+                    zoom={11}
+                    style={{ height: '100%', width: '100%' }}
+                  >
+                    <TileLayer
+                      attribution='&copy; OpenStreetMap contributors'
+                      url={tileUrl}
+                      className={isDark ? 'leaflet-dark-filter' : ''}
+                    />
+                    <MapEvents onClick={(lat, lng) => {
+                      setOrderLat(lat.toString());
+                      setOrderLng(lng.toString());
+                    }} />
+                    {orderLat && orderLng && (
+                      <Marker position={[parseFloat(orderLat), parseFloat(orderLng)]} icon={defaultMarkerIcon} />
+                    )}
+                  </MapContainer>
+                </div>
+              </div>
 
               <div className="divider"></div>
 

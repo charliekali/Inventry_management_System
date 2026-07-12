@@ -215,6 +215,8 @@ export const pickupAPI = {
   createLocation: (data) => api.post('/pickups/locations', data),
   updateLocation: (id, data) => api.patch(`/pickups/locations/${id}`, data),
   deleteLocation: (id) => api.delete(`/pickups/locations/${id}`),
+  resolveCoords: (url) => api.post('/pickups/locations/resolve-coords', { url }),
+
   listTasks: (driverId) => api.get('/pickups/tasks', { params: { driver_id: driverId } }),
   createTask: (data) => api.post('/pickups/tasks', data),
   updateTaskStatus: (id, status, remarks) => api.patch(`/pickups/tasks/${id}/status`, { status, remarks }),

@@ -31,6 +31,8 @@ export default function DriverDispatchManagementPage() {
   const [locLng, setLocLng] = useState('');
   const [locContactName, setLocContactName] = useState('');
   const [locContactPhone, setLocContactPhone] = useState('');
+  const [locGoogleMapsLink, setLocGoogleMapsLink] = useState('');
+  const [resolvingLink, setResolvingLink] = useState(false);
 
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [taskLocationId, setTaskLocationId] = useState('');
@@ -86,6 +88,7 @@ export default function DriverDispatchManagementPage() {
     setLocLng('');
     setLocContactName('');
     setLocContactPhone('');
+    setLocGoogleMapsLink('');
   };
 
   const handleEditLocation = (loc) => {
@@ -96,7 +99,32 @@ export default function DriverDispatchManagementPage() {
     setLocLng(loc.longitude || '');
     setLocContactName(loc.contactPerson || '');
     setLocContactPhone(loc.contactPhone || '');
+    setLocGoogleMapsLink(loc.googleMapsLink || '');
     setShowLocationModal(true);
+  };
+
+  const handleResolveCoords = async () => {
+    if (!locGoogleMapsLink || !locGoogleMapsLink.trim()) {
+      return toast.error('Please enter a Google Maps link first');
+    }
+    setResolvingLink(true);
+    try {
+      const res = await pickupAPI.resolveCoords(locGoogleMapsLink.trim());
+      if (res.data && res.data.latitude && res.data.longitude) {
+        setLocLat(res.data.latitude.toString());
+        setLocLng(res.data.longitude.toString());
+        if (res.data.address && !locAddress) {
+          setLocAddress(res.data.address);
+        }
+        toast.success('Coordinates extracted successfully!');
+      } else {
+        toast.error('Could not extract coordinates from link');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to extract coordinates from link');
+    } finally {
+      setResolvingLink(false);
+    }
   };
 
   const handleLocationSubmit = async (e) => {
@@ -112,7 +140,8 @@ export default function DriverDispatchManagementPage() {
         latitude: locLat ? parseFloat(locLat) : null,
         longitude: locLng ? parseFloat(locLng) : null,
         contact_person: locContactName,
-        contact_phone: locContactPhone
+        contact_phone: locContactPhone,
+        google_maps_link: locGoogleMapsLink
       };
 
       if (editingLocId) {
@@ -747,7 +776,16 @@ export default function DriverDispatchManagementPage() {
                     ) : (
                       locations.map(loc => (
                         <tr key={loc.id}>
-                          <td style={{ fontWeight: 700 }}>{loc.name}</td>
+                          <td style={{ fontWeight: 700 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {loc.name}
+                              {loc.googleMapsLink && (
+                                <a href={loc.googleMapsLink} target="_blank" rel="noopener noreferrer" title="View on Google Maps">
+                                  <Map size={14} color="#3b82f6" />
+                                </a>
+                              )}
+                            </div>
+                          </td>
                           <td>{loc.address || '—'}</td>
                           <td>
                             {loc.latitude && loc.longitude ? (
@@ -896,6 +934,36 @@ export default function DriverDispatchManagementPage() {
                   placeholder="e.g. North Supplier Depot"
                   required
                 />
+              </div>
+              <div className="form-group">
+                <label>Google Maps Link / Short Link</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={locGoogleMapsLink}
+                    onChange={(e) => setLocGoogleMapsLink(e.target.value)}
+                    placeholder="e.g. https://maps.app.goo.gl/xxxx"
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleResolveCoords}
+                    disabled={resolvingLink}
+                    style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    {resolvingLink ? (
+                      <div className="loading-spinner" style={{ width: 12, height: 12, borderWidth: 2 }}></div>
+                    ) : (
+                      <MapPin size={13} />
+                    )}
+                    Extract GPS
+                  </button>
+                </div>
+                <small style={{ color: 'var(--color-text-muted)', fontSize: 10.5, marginTop: 3, display: 'block' }}>
+                  Paste a maps link and click Extract to parse coordinates and address details.
+                </small>
               </div>
               <div className="form-group">
                 <label>Address</label>

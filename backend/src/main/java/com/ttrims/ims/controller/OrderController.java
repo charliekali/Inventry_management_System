@@ -189,6 +189,16 @@ public class OrderController {
         order.setCreatedBy(auth.currentUser());
         order.setStatus(Order.Status.PENDING);
 
+        if (body.containsKey("delivery_address")) {
+            order.setDeliveryAddress((String) body.get("delivery_address"));
+        }
+        if (body.containsKey("latitude") && body.get("latitude") != null) {
+            order.setLatitude(((Number) body.get("latitude")).doubleValue());
+        }
+        if (body.containsKey("longitude") && body.get("longitude") != null) {
+            order.setLongitude(((Number) body.get("longitude")).doubleValue());
+        }
+
         @SuppressWarnings("unchecked")
         Map<String, String> customFields = (Map<String, String>) body.get("custom_fields");
         if (customFields != null) {
@@ -1197,6 +1207,9 @@ public class OrderController {
         m.put("payment_mode", o.getPaymentMode());
         m.put("paid_amount", o.getPaidAmount() != null ? o.getPaidAmount() : 0.0);
         m.put("is_pos_order", o.getIsPosOrder() != null ? o.getIsPosOrder() : false);
+        m.put("delivery_address", o.getDeliveryAddress());
+        m.put("latitude", o.getLatitude());
+        m.put("longitude", o.getLongitude());
         return m;
     }
 

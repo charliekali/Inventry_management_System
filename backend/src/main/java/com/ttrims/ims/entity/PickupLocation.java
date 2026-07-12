@@ -25,6 +25,9 @@ public class PickupLocation {
     @Column(name = "contact_phone")
     private String contactPhone;
 
+    @Column(name = "google_maps_link")
+    private String googleMapsLink;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -56,6 +59,10 @@ public class PickupLocation {
     public String getContactPhone() { return contactPhone; }
     public void setContactPhone(String contactPhone) { this.contactPhone = contactPhone; }
 
+    public String getGoogleMapsLink() { return googleMapsLink; }
+    public void setGoogleMapsLink(String googleMapsLink) { this.googleMapsLink = googleMapsLink; }
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }
+
