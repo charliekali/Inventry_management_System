@@ -54,6 +54,7 @@ import ProductionApp from './production/ProductionApp';
 import WarehouseApp from './warehouse/WarehouseApp';
 import LogisticsApp from './logistics/LogisticsApp';
 import IpWhitelistPage from './pages/IpWhitelistPage';
+import EcomApp from './ecommerce/EcomApp';
 
 // Protected Route Guard
 function ProtectedRoute({ children, perm }) {
@@ -318,6 +319,9 @@ function App() {
           <Routes>
             {/* Public Login Route */}
             <Route path="/login" element={<LoginPage />} />
+
+            {/* E-Commerce Storefront */}
+            <Route path="/store/*" element={<EcomApp />} />
 
             {/* Protected Routes */}
             <Route path="/dashboard" element={
