@@ -48,6 +48,7 @@ import AttendanceTrackingPage from './pages/AttendanceTrackingPage';
 import KeyRegistryPage from './pages/KeyRegistryPage';
 import MobileKeyRegistry from './components/MobileKeyRegistry';
 import LogisticsAndDispatchPage from './pages/LogisticsAndDispatchPage';
+import DriverDispatchManagementPage from './pages/DriverDispatchManagementPage';
 import SalesApp from './sales/SalesApp';
 import ProductionApp from './production/ProductionApp';
 import WarehouseApp from './warehouse/WarehouseApp';
@@ -427,6 +428,14 @@ function App() {
               <ProtectedRoute perm="DISPATCH:VIEW">
                 <AuthenticatedLayout>
                   <LogisticsAndDispatchPage />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/driver-dispatch" element={
+              <ProtectedRoute perm="DISPATCH:VIEW">
+                <AuthenticatedLayout>
+                  <DriverDispatchManagementPage />
                 </AuthenticatedLayout>
               </ProtectedRoute>
             } />

@@ -31,6 +31,7 @@ const NAV_ITEMS = [
     { path: '/stock-in', label: 'Stock IN', icon: ArrowDownCircle, perm: 'TRANSACTIONS:STOCK_IN' },
     { path: '/stock-out', label: 'Stock OUT', icon: ArrowUpCircle, perm: 'TRANSACTIONS:STOCK_OUT' },
     { path: '/logistics-dispatch', label: 'Logistics & Dispatch', icon: Truck, perm: 'DISPATCH:VIEW' },
+    { path: '/driver-dispatch', label: 'Driver Dispatch Control', icon: Users, perm: 'DISPATCH:VIEW' },
     { path: '/production-run', label: 'Production Plan', icon: Factory, perm: 'PRODUCTION:PLAN' },
     { path: '/actual-production', label: 'Actual Production', icon: ClipboardList, perm: 'PRODUCTION:RUN' },
     { path: '/production-history', label: 'Production History', icon: History, perm: 'PRODUCTION:HISTORY' },

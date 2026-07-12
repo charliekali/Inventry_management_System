@@ -201,6 +201,19 @@ export const shipmentsAPI = {
   regenerate: () => api.post('/shipments/regenerate'),
 };
 
+// ─── Pickup Locations & Tasks ───────────────────────────────────────────────────
+export const pickupAPI = {
+  listLocations: () => api.get('/pickups/locations'),
+  createLocation: (data) => api.post('/pickups/locations', data),
+  updateLocation: (id, data) => api.patch(`/pickups/locations/${id}`, data),
+  deleteLocation: (id) => api.delete(`/pickups/locations/${id}`),
+  listTasks: (driverId) => api.get('/pickups/tasks', { params: { driver_id: driverId } }),
+  createTask: (data) => api.post('/pickups/tasks', data),
+  updateTaskStatus: (id, status, remarks) => api.patch(`/pickups/tasks/${id}/status`, { status, remarks }),
+  deleteTask: (id) => api.delete(`/pickups/tasks/${id}`),
+};
+
+
 
 // ─── Production Orders ────────────────────────────────────────────────────────
 export const productionOrdersAPI = {
