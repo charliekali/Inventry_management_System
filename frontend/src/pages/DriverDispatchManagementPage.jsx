@@ -172,6 +172,34 @@ export default function DriverDispatchManagementPage() {
     }
   };
 
+  const handleReassignShipment = async (shipmentId, newDriverId) => {
+    if (!newDriverId) return;
+    setProcessing(true);
+    try {
+      await shipmentsAPI.adminOverride(shipmentId, { driver_id: newDriverId });
+      toast.success('Shipment driver reassigned successfully!');
+      loadData();
+    } catch (err) {
+      toast.error('Failed to reassign driver to shipment');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleReassignPickupTask = async (taskId, newDriverId) => {
+    if (!newDriverId) return;
+    setProcessing(true);
+    try {
+      await pickupAPI.reassignTask(taskId, newDriverId);
+      toast.success('Pickup task driver reassigned successfully!');
+      loadData();
+    } catch (err) {
+      toast.error('Failed to reassign driver to pickup task');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const handleUpdateTaskStatus = async (taskId, newStatus) => {
     const remarks = window.prompt(`Enter remarks for marking task as ${newStatus} (optional):`);
     if (remarks === null) return; // cancelled
@@ -350,7 +378,21 @@ export default function DriverDispatchManagementPage() {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                   {dShipments.map(s => (
                                     <div key={s.id} style={{ background: 'rgba(59,130,246,0.06)', padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(59,130,246,0.15)' }}>
-                                      <div style={{ fontWeight: 600, fontSize: 12.5, color: '#3b82f6' }}>{s.shipmentNumber} ({s.status})</div>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                                        <div style={{ fontWeight: 600, fontSize: 12.5, color: '#3b82f6' }}>{s.shipmentNumber} ({s.status})</div>
+                                        {hasPermission('DISPATCH:MANAGE') && (s.status === 'CREATED' || s.status === 'EN_ROUTE') && (
+                                          <select
+                                            style={{ fontSize: 11, padding: '2px 4px', background: 'var(--color-bg-card)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)', borderRadius: 4 }}
+                                            value={driver.id}
+                                            onChange={(e) => handleReassignShipment(s.id, e.target.value)}
+                                            disabled={processing}
+                                          >
+                                            {drivers.map(d => (
+                                              <option key={d.id} value={d.id}>Reassign: {d.name}</option>
+                                            ))}
+                                          </select>
+                                        )}
+                                      </div>
                                       <div style={{ fontSize: 11, display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
                                         {s.orders?.map(o => (
                                           <span key={o.id} className="badge badge-gray" style={{ fontSize: 10 }}>
@@ -508,8 +550,22 @@ export default function DriverDispatchManagementPage() {
                             <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{task.pickup_location?.address}</div>
                           </td>
                           <td>
-                            <div style={{ fontWeight: 600 }}>{task.driver_name}</div>
-                            <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Vehicle: {task.vehicle_number || '—'}</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              <div style={{ fontWeight: 600 }}>{task.driver_name}</div>
+                              <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Vehicle: {task.vehicle_number || '—'}</div>
+                              {hasPermission('DISPATCH:MANAGE') && (task.status === 'PENDING' || task.status === 'EN_ROUTE') && (
+                                <select
+                                  style={{ fontSize: 11, padding: '2px 4px', background: 'var(--color-bg-card)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)', borderRadius: 4, marginTop: 4 }}
+                                  value={task.driver_id || ''}
+                                  onChange={(e) => handleReassignPickupTask(task.id, e.target.value)}
+                                  disabled={processing}
+                                >
+                                  {drivers.map(d => (
+                                    <option key={d.id} value={d.id}>Reassign: {d.name}</option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
                           </td>
                           <td>{task.scheduled_at ? new Date(task.scheduled_at).toLocaleString() : '—'}</td>
                           <td>{getTaskStatusBadge(task.status)}</td>

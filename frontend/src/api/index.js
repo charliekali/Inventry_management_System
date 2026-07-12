@@ -210,6 +210,7 @@ export const pickupAPI = {
   listTasks: (driverId) => api.get('/pickups/tasks', { params: { driver_id: driverId } }),
   createTask: (data) => api.post('/pickups/tasks', data),
   updateTaskStatus: (id, status, remarks) => api.patch(`/pickups/tasks/${id}/status`, { status, remarks }),
+  reassignTask: (id, driverId) => api.patch(`/pickups/tasks/${id}/reassign`, { driver_id: driverId }),
   deleteTask: (id) => api.delete(`/pickups/tasks/${id}`),
 };
 

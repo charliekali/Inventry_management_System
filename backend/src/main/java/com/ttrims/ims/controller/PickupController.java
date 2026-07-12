@@ -196,6 +196,38 @@ public class PickupController {
         }
     }
 
+    @PatchMapping("/tasks/{id}/reassign")
+    @Transactional
+    public ResponseEntity<?> reassignTask(@PathVariable String id, @RequestBody Map<String, String> body) {
+        auth.requirePermission("DISPATCH:MANAGE");
+        PickupTask task = taskRepo.findById(id).orElse(null);
+        if (task == null) return bad("Task not found");
+
+        String driverId = body.get("driver_id");
+        if (driverId == null || driverId.isBlank()) return bad("driver_id is required");
+
+        User newDriver = userRepo.findById(driverId).orElse(null);
+        if (newDriver == null) return bad("New driver not found");
+
+        // Release old driver if task is active
+        if (task.getStatus() == PickupTask.Status.PENDING || task.getStatus() == PickupTask.Status.EN_ROUTE) {
+            User oldDriver = task.getDriver();
+            if (oldDriver != null) {
+                oldDriver.setDriverStatus("AVAILABLE");
+                userRepo.save(oldDriver);
+            }
+        }
+
+        task.setDriver(newDriver);
+
+        // Set new driver status to BUSY
+        newDriver.setDriverStatus("BUSY");
+        userRepo.save(newDriver);
+
+        task = taskRepo.save(task);
+        return ResponseEntity.ok(Map.of("success", true, "data", taskToDto(task)));
+    }
+
     @DeleteMapping("/tasks/{id}")
     @Transactional
     public ResponseEntity<?> deleteTask(@PathVariable String id) {
