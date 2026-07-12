@@ -7,7 +7,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -424,6 +427,28 @@ public class LogisticsService {
 
     // ─── Driver Allocation ─────────────────────────────────────────────────────
 
+    /**
+     * Determines whether an attendance session counts as "present today".
+     * A session is considered today if its clock-in time falls on the current calendar date
+     * (server timezone). This prevents sessions from yesterday that were never closed out
+     * from polluting the eligible-driver pool.
+     */
+    private boolean isTodaySession(Attendance session) {
+        if (session.getClockInAt() == null) return false;
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        LocalDate sessionDay = session.getClockInAt().atZone(ZoneId.systemDefault()).toLocalDate();
+        return today.equals(sessionDay);
+    }
+
+    /**
+     * Auto-allocates an eligible driver to the given shipment.
+     * Eligibility rules (strict — no unsafe fallbacks):
+     *   1. Driver role + active user account.
+     *   2. Has an ACTIVE attendance session clocked in today (= Present & Logged In).
+     *   3. driverStatus is AVAILABLE or IDLE.
+     * If no eligible driver is found the shipment is marked Unassigned so the
+     * admin can use the manual override in the Dispatch console.
+     */
     public void allocateDriver(Shipment shipment, double targetLat, double targetLng) {
         Role driverRole = roleRepo.findByName("Driver").orElse(null);
         if (driverRole == null) {
@@ -432,70 +457,53 @@ public class LogisticsService {
             return;
         }
 
-        // Query all active drivers
+        // All system drivers with an active account
         List<User> allDrivers = userRepo.findAll().stream()
                 .filter(u -> u.getRole() != null && u.getRole().getId().equals(driverRole.getId()) && u.isActive())
                 .collect(Collectors.toList());
 
-        // Query clocked-in users
+        // Drivers who have an ACTIVE session that started TODAY (Present + Logged In)
         List<Attendance> activeSessions = attendanceRepo.findByStatusOrderByClockInAtDesc("ACTIVE");
-        Set<String> activeUserIds = activeSessions.stream()
+        Set<String> presentTodayIds = activeSessions.stream()
+                .filter(this::isTodaySession)
                 .map(Attendance::getUserId)
                 .collect(Collectors.toSet());
 
-        // Filter clocked-in + available drivers
-        List<User> availableDrivers = allDrivers.stream()
-                .filter(d -> activeUserIds.contains(d.getId()))
-                .filter(d -> "AVAILABLE".equalsIgnoreCase(d.getDriverStatus()) || "IDLE".equalsIgnoreCase(d.getDriverStatus()) || d.getDriverStatus() == null)
+        // Eligible = Present today + driverStatus AVAILABLE or IDLE
+        List<User> eligibleDrivers = allDrivers.stream()
+                .filter(d -> presentTodayIds.contains(d.getId()))
+                .filter(d -> "AVAILABLE".equalsIgnoreCase(d.getDriverStatus())
+                          || "IDLE".equalsIgnoreCase(d.getDriverStatus()))
                 .collect(Collectors.toList());
 
-        // Fallback 1: clocked-in any status
-        if (availableDrivers.isEmpty()) {
-            availableDrivers = allDrivers.stream()
-                    .filter(d -> activeUserIds.contains(d.getId()))
-                    .collect(Collectors.toList());
-        }
-
-        // Fallback 2: any available driver regardless of attendance
-        if (availableDrivers.isEmpty()) {
-            availableDrivers = allDrivers.stream()
-                    .filter(d -> "AVAILABLE".equalsIgnoreCase(d.getDriverStatus()) || "IDLE".equalsIgnoreCase(d.getDriverStatus()) || d.getDriverStatus() == null)
-                    .collect(Collectors.toList());
-        }
-
-        if (availableDrivers.isEmpty()) {
-            log.warn("No available or active drivers found. Assigning fallback driver.");
-            if (!allDrivers.isEmpty()) {
-                User fallback = allDrivers.get(0);
-                assignDriverToShipment(shipment, fallback);
-            } else {
-                shipment.setDriverName("Unassigned");
-            }
+        if (eligibleDrivers.isEmpty()) {
+            log.warn("No eligible drivers (Present + Available) found for Shipment {}. Marking as Unassigned.",
+                    shipment.getShipmentNumber());
+            shipment.setDriverName("Unassigned");
+            shipment.setDriver(null);
             return;
         }
 
-        // Score each driver: distance from target + workload penalty
+        // Score each eligible driver: proximity + workload + zone bonus
         User bestDriver = null;
         double bestScore = Double.MAX_VALUE;
 
-        for (User driver : availableDrivers) {
+        for (User driver : eligibleDrivers) {
             double driverLat = driver.getCurrentLatitude() != null ? driver.getCurrentLatitude() : DEPOT_LAT;
             double driverLng = driver.getCurrentLongitude() != null ? driver.getCurrentLongitude() : DEPOT_LNG;
 
             double dist = calculateDistance(driverLat, driverLng, targetLat, targetLng);
             long activeShipments = shipmentRepo.countActiveShipmentsByDriver(driver.getId());
 
-            // Zone matching bonus: reduce score by 5km if zones match
+            // Zone matching bonus: reduce score by 5 km if zones match
             double zoneBonus = 0;
-            if (driver.getDeliveryZone() != null && !driver.getDeliveryZone().isBlank()) {
-                // Simple area matching — if shipment destination contains driver zone name
-                if (shipment.getDestination() != null &&
-                        shipment.getDestination().toLowerCase().contains(driver.getDeliveryZone().toLowerCase())) {
-                    zoneBonus = -5.0;
-                }
+            if (driver.getDeliveryZone() != null && !driver.getDeliveryZone().isBlank()
+                    && shipment.getDestination() != null
+                    && shipment.getDestination().toLowerCase().contains(driver.getDeliveryZone().toLowerCase())) {
+                zoneBonus = -5.0;
             }
 
-            // Score = distance + 3km penalty per active shipment + zone bonus
+            // Score = distance + 3 km penalty per active shipment + zone bonus
             double score = dist + (activeShipments * 3.0) + zoneBonus;
 
             if (score < bestScore) {
@@ -506,8 +514,11 @@ public class LogisticsService {
 
         if (bestDriver != null) {
             assignDriverToShipment(shipment, bestDriver);
-            log.info("Auto-assigned driver: {} (Vehicle: {}) to Shipment (Score: {})",
-                    bestDriver.getName(), shipment.getVehicleNumber(), bestScore);
+            log.info("Auto-assigned driver: {} to Shipment {} (score: {:.2f})",
+                    bestDriver.getName(), shipment.getShipmentNumber(), bestScore);
+        } else {
+            shipment.setDriverName("Unassigned");
+            shipment.setDriver(null);
         }
     }
 
@@ -518,6 +529,67 @@ public class LogisticsService {
         shipment.setDriverName(driver.getName());
         shipment.setDriverPhone(driver.getDeliveryZone() != null ? driver.getDeliveryZone() : "077-1234560");
         shipment.setVehicleNumber(driver.getVehicleNumber() != null ? driver.getVehicleNumber() : "WP-CAR-7788");
+    }
+
+    /**
+     * Returns a list of all drivers enriched with attendance and workload data.
+     * Used by the Driver Attendance Dashboard in the Admin panel.
+     * Each entry contains:
+     *   - driver fields (id, name, email, vehicle, zone, driverStatus)
+     *   - attendanceStatus: PRESENT | ABSENT
+     *   - clockInAt: ISO timestamp of today's clock-in (if present)
+     *   - lastLat / lastLng: GPS coordinates from the attendance session
+     *   - lastPingAt: most recent GPS ping timestamp
+     *   - activeShipments: count of CREATED + IN_TRANSIT shipments
+     *   - eligibleForAutoAssign: true only when PRESENT + AVAILABLE/IDLE
+     */
+    public List<Map<String, Object>> getEligibleDrivers() {
+        Role driverRole = roleRepo.findByName("Driver").orElse(null);
+        if (driverRole == null) return Collections.emptyList();
+
+        List<User> allDrivers = userRepo.findAll().stream()
+                .filter(u -> u.getRole() != null && u.getRole().getId().equals(driverRole.getId()) && u.isActive())
+                .collect(Collectors.toList());
+
+        // Build a map: userId → today's active attendance session
+        List<Attendance> activeSessions = attendanceRepo.findByStatusOrderByClockInAtDesc("ACTIVE");
+        Map<String, Attendance> todaySessionByDriver = activeSessions.stream()
+                .filter(this::isTodaySession)
+                .collect(Collectors.toMap(
+                        Attendance::getUserId,
+                        a -> a,
+                        (a1, a2) -> a1 // keep first if duplicates
+                ));
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (User driver : allDrivers) {
+            Attendance session = todaySessionByDriver.get(driver.getId());
+            boolean presentToday = session != null;
+            boolean eligible = presentToday
+                    && ("AVAILABLE".equalsIgnoreCase(driver.getDriverStatus())
+                        || "IDLE".equalsIgnoreCase(driver.getDriverStatus()));
+
+            long activeShipmentsCount = shipmentRepo.countActiveShipmentsByDriver(driver.getId());
+
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("id", driver.getId());
+            entry.put("name", driver.getName());
+            entry.put("email", driver.getEmail());
+            entry.put("vehicle_number", driver.getVehicleNumber());
+            entry.put("delivery_zone", driver.getDeliveryZone());
+            entry.put("driver_status", driver.getDriverStatus() != null ? driver.getDriverStatus() : "AVAILABLE");
+            entry.put("current_lat", driver.getCurrentLatitude());
+            entry.put("current_lng", driver.getCurrentLongitude());
+            entry.put("attendance_status", presentToday ? "PRESENT" : "ABSENT");
+            entry.put("clock_in_at", session != null ? session.getClockInAt() : null);
+            entry.put("last_lat", session != null ? session.getLastLat() : null);
+            entry.put("last_lng", session != null ? session.getLastLng() : null);
+            entry.put("last_ping_at", session != null ? session.getLastPingAt() : null);
+            entry.put("active_shipments", activeShipmentsCount);
+            entry.put("eligible_for_auto_assign", eligible);
+            result.add(entry);
+        }
+        return result;
     }
 
     // ─── Internal Helpers ─────────────────────────────────────────────────────

@@ -736,6 +736,53 @@ public class ShipmentController {
         return dto;
     }
 
+    // ─── GET /api/shipments/eligible-drivers ────────────────────────────────────
+    /** Returns all drivers with live attendance, driverStatus, workload, and eligibility. */
+    @GetMapping("/eligible-drivers")
+    public ResponseEntity<?> getEligibleDrivers() {
+        auth.requirePermission("SHIPMENTS:MANAGE");
+        return ResponseEntity.ok(Map.of("success", true, "data", logisticsService.getEligibleDrivers()));
+    }
+
+    // ─── PATCH /api/shipments/{id}/assign-driver ─────────────────────────────────
+    /** Super Admin manual override: assigns any driver to a shipment ignoring eligibility rules. */
+    @PatchMapping("/{id}/assign-driver")
+    @Transactional
+    public ResponseEntity<?> assignDriver(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        auth.requirePermission("SHIPMENTS:MANAGE");
+
+        Shipment shipment = shipmentRepo.findById(id).orElse(null);
+        if (shipment == null) return bad("Shipment not found");
+
+        String driverId = (String) body.get("driver_id");
+        if (driverId == null || driverId.isBlank()) return bad("driver_id is required");
+
+        User driver = userRepo.findById(driverId).orElse(null);
+        if (driver == null) return bad("Driver not found");
+
+        // Free up the previously assigned driver if any
+        if (shipment.getDriver() != null && !shipment.getDriver().getId().equals(driverId)) {
+            User prev = shipment.getDriver();
+            long stillBusy = shipmentRepo.countActiveShipmentsByDriver(prev.getId()) - 1;
+            if (stillBusy <= 0) {
+                prev.setDriverStatus("AVAILABLE");
+                userRepo.save(prev);
+            }
+        }
+
+        driver.setDriverStatus("BUSY");
+        userRepo.save(driver);
+
+        shipment.setDriver(driver);
+        shipment.setDriverName(driver.getName());
+        shipment.setVehicleNumber(driver.getVehicleNumber() != null ? driver.getVehicleNumber() : "WP-CAR-XXXX");
+        shipment.setDriverPhone(driver.getDeliveryZone() != null ? driver.getDeliveryZone() : "N/A");
+        shipmentRepo.save(shipment);
+
+        return ResponseEntity.ok(Map.of("success", true, "data", toDto(shipment),
+                "message", "Driver manually assigned: " + driver.getName()));
+    }
+
     private ResponseEntity<?> bad(String msg) {
         return ResponseEntity.badRequest().body(Map.of("success", false, "message", msg));
     }

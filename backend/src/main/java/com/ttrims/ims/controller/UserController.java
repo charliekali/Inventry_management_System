@@ -14,12 +14,16 @@ import java.util.stream.Collectors;
 public class UserController {
     private final UserRepository userRepo;
     private final RoleRepository roleRepo;
+    private final AttendanceRepository attendanceRepo;
     private final PasswordEncoder passwordEncoder;
     private final AuthHelper auth;
 
-    public UserController(UserRepository userRepo, RoleRepository roleRepo, PasswordEncoder passwordEncoder, AuthHelper auth) {
+    public UserController(UserRepository userRepo, RoleRepository roleRepo,
+                          AttendanceRepository attendanceRepo,
+                          PasswordEncoder passwordEncoder, AuthHelper auth) {
         this.userRepo = userRepo;
         this.roleRepo = roleRepo;
+        this.attendanceRepo = attendanceRepo;
         this.passwordEncoder = passwordEncoder;
         this.auth = auth;
     }
@@ -84,6 +88,10 @@ public class UserController {
         }
         if (body.containsKey("is_active")) user.setActive((Boolean) body.get("is_active"));
         if (body.containsKey("warehouse_id")) user.setWarehouseId((String) body.get("warehouse_id"));
+        // Driver-specific fields
+        if (body.containsKey("driver_status")) user.setDriverStatus((String) body.get("driver_status"));
+        if (body.containsKey("vehicle_number")) user.setVehicleNumber((String) body.get("vehicle_number"));
+        if (body.containsKey("delivery_zone")) user.setDeliveryZone((String) body.get("delivery_zone"));
 
         userRepo.save(user);
         return ok(toDto(user));
@@ -106,6 +114,45 @@ public class UserController {
         }
     }
 
+    /** GET /api/users/drivers/status — returns all drivers with live attendance + workload data. */
+    @GetMapping("/drivers/status")
+    public ResponseEntity<?> driversStatus() {
+        auth.requirePermission("USERS:VIEW");
+        Role driverRole = roleRepo.findByName("Driver").orElse(null);
+        if (driverRole == null) return ok(Collections.emptyList());
+
+        List<User> drivers = userRepo.findAll().stream()
+                .filter(u -> u.getRole() != null && u.getRole().getId().equals(driverRole.getId()) && u.isActive())
+                .collect(Collectors.toList());
+
+        // Map userId → active attendance session
+        List<Attendance> activeSessions = attendanceRepo.findByStatusOrderByClockInAtDesc("ACTIVE");
+        Map<String, Attendance> sessionMap = activeSessions.stream()
+                .collect(Collectors.toMap(
+                        Attendance::getUserId,
+                        a -> a,
+                        (a1, a2) -> a1
+                ));
+
+        List<Map<String, Object>> result = drivers.stream().map(d -> {
+            Map<String, Object> m = new LinkedHashMap<>(toDto(d));
+            Attendance session = sessionMap.get(d.getId());
+            m.put("driver_status", d.getDriverStatus() != null ? d.getDriverStatus() : "AVAILABLE");
+            m.put("vehicle_number", d.getVehicleNumber());
+            m.put("delivery_zone", d.getDeliveryZone());
+            m.put("attendance_status", session != null ? "PRESENT" : "ABSENT");
+            m.put("clock_in_at", session != null ? session.getClockInAt() : null);
+            m.put("last_lat", session != null ? session.getLastLat() : null);
+            m.put("last_lng", session != null ? session.getLastLng() : null);
+            m.put("last_ping_at", session != null ? session.getLastPingAt() : null);
+            m.put("current_lat", d.getCurrentLatitude());
+            m.put("current_lng", d.getCurrentLongitude());
+            return m;
+        }).collect(Collectors.toList());
+
+        return ok(result);
+    }
+
     private Map<String, Object> toDto(User u) {
         Map<String, Object> m = new HashMap<>();
         m.put("id", u.getId());
@@ -118,6 +165,9 @@ public class UserController {
         m.put("role_name", u.getRole() != null ? u.getRole().getName() : null);
         m.put("role", u.getRole() != null ? u.getRole().getName() : null);
         m.put("warehouse_id", u.getWarehouseId());
+        m.put("driver_status", u.getDriverStatus());
+        m.put("vehicle_number", u.getVehicleNumber());
+        m.put("delivery_zone", u.getDeliveryZone());
         if (u.getRole() != null) {
             m.put("permissions", u.getRole().getPermissions().stream().map(Permission::getName).collect(Collectors.toList()));
         }

@@ -1,23 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { shipmentsAPI, usersAPI, pickupAPI, dispatchAPI } from '../api';
 import toast from 'react-hot-toast';
 import { 
   Users, MapPin, Truck, Plus, Trash2, Edit, Check, X, 
-  Calendar, Phone, UserCheck, RefreshCw, ClipboardList, Map, ShieldAlert
+  Calendar, Phone, UserCheck, RefreshCw, ClipboardList, Map, ShieldAlert,
+  Wifi, WifiOff, Clock, Activity, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function DriverDispatchManagementPage() {
   const { hasPermission } = useAuth();
-  const [activeTab, setActiveTab] = useState('drivers'); // drivers, locations, tasks
+  const [activeTab, setActiveTab] = useState('drivers'); // drivers, locations, tasks, attendance
 
   // Data states
   const [drivers, setDrivers] = useState([]);
+  const [driverStatusData, setDriverStatusData] = useState([]); // enriched attendance+workload data
   const [shipments, setShipments] = useState([]);
   const [orders, setOrders] = useState([]);
   const [locations, setLocations] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const refreshTimer = useRef(null);
 
   // Modal states
   const [showLocationModal, setShowLocationModal] = useState(false);
@@ -41,12 +44,13 @@ export default function DriverDispatchManagementPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [usersRes, shipmentsRes, ordersRes, locsRes, tasksRes] = await Promise.all([
+      const [usersRes, shipmentsRes, ordersRes, locsRes, tasksRes, driverStatusRes] = await Promise.all([
         usersAPI.list(),
         shipmentsAPI.list(),
         dispatchAPI.list(),
         pickupAPI.listLocations(),
-        pickupAPI.listTasks()
+        pickupAPI.listTasks(),
+        usersAPI.driversStatus()
       ]);
 
       // Filter drivers
@@ -58,6 +62,7 @@ export default function DriverDispatchManagementPage() {
       setOrders(ordersRes.data.data || []);
       setLocations(locsRes.data.data || []);
       setTasks(tasksRes.data.data || []);
+      setDriverStatusData(driverStatusRes.data.data || []);
     } catch (err) {
       toast.error('Failed to load driver dispatch data');
     } finally {
@@ -67,6 +72,9 @@ export default function DriverDispatchManagementPage() {
 
   useEffect(() => {
     loadData();
+    // Auto-refresh every 30 seconds for live attendance/status
+    refreshTimer.current = setInterval(loadData, 30000);
+    return () => clearInterval(refreshTimer.current);
   }, []);
 
   // ─── Location Handlers ───────────────────────────────────────────────────
@@ -176,11 +184,25 @@ export default function DriverDispatchManagementPage() {
     if (!newDriverId) return;
     setProcessing(true);
     try {
-      await shipmentsAPI.adminOverride(shipmentId, { driver_id: newDriverId });
-      toast.success('Shipment driver reassigned successfully!');
+      await shipmentsAPI.assignDriver(shipmentId, newDriverId);
+      toast.success('Shipment driver assigned successfully!');
       loadData();
     } catch (err) {
-      toast.error('Failed to reassign driver to shipment');
+      toast.error('Failed to assign driver to shipment');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleManualOverrideStatus = async (driverId, newStatus) => {
+    if (!newStatus) return;
+    setProcessing(true);
+    try {
+      await usersAPI.updateDriverStatus(driverId, newStatus);
+      toast.success(`Driver status updated to ${newStatus}`);
+      loadData();
+    } catch (err) {
+      toast.error('Failed to update driver status');
     } finally {
       setProcessing(false);
     }
@@ -240,12 +262,45 @@ export default function DriverDispatchManagementPage() {
   };
 
   const getStatusBadge = (status) => {
-    switch (status) {
+    switch ((status || 'AVAILABLE').toUpperCase()) {
       case 'AVAILABLE': return <span className="badge badge-green">Available</span>;
-      case 'BUSY': return <span className="badge badge-orange">Busy / En Route</span>;
-      case 'OFFLINE': return <span className="badge badge-gray">Offline</span>;
+      case 'IDLE':      return <span className="badge badge-green">Idle</span>;
+      case 'BUSY':      return <span className="badge badge-orange">Busy / En Route</span>;
+      case 'BREAK':     return <span className="badge badge-blue">On Break</span>;
+      case 'OFFLINE':   return <span className="badge badge-gray">Offline</span>;
+      case 'ON_LEAVE':  return <span className="badge badge-red">On Leave</span>;
+      case 'SHIFT_COMPLETED': return <span className="badge badge-gray">Shift Done</span>;
       default: return <span className="badge badge-gray">{status}</span>;
     }
+  };
+
+  const getAttendanceBadge = (status) => {
+    if (status === 'PRESENT')
+      return <span className="badge badge-green" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><CheckCircle2 size={11} /> Present</span>;
+    return <span className="badge badge-red" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><WifiOff size={11} /> Absent</span>;
+  };
+
+  // Ring color for driver card eligibility
+  const getDriverRingColor = (d) => {
+    const present = d.attendance_status === 'PRESENT';
+    const status = (d.driver_status || 'AVAILABLE').toUpperCase();
+    if (!present || status === 'OFFLINE' || status === 'ON_LEAVE') return '#ef4444'; // red
+    if (status === 'AVAILABLE' || status === 'IDLE') return '#22c55e'; // green
+    return '#f59e0b'; // yellow for BUSY/BREAK
+  };
+
+  const formatTimeAgo = (iso) => {
+    if (!iso) return '—';
+    const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  };
+
+  const formatClockIn = (iso) => {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const getTaskStatusBadge = (status) => {
@@ -315,6 +370,14 @@ export default function DriverDispatchManagementPage() {
           Drivers & Orders Allocation ({drivers.length})
         </button>
         <button
+          className={`btn btn-sm ${activeTab === 'attendance' ? 'btn-primary' : 'btn-ghost'}`}
+          onClick={() => setActiveTab('attendance')}
+          style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginLeft: 8 }}
+        >
+          <Activity size={13} style={{ marginRight: 4 }} />
+          Attendance & Availability ({driverStatusData.filter(d => d.attendance_status === 'PRESENT').length} Present)
+        </button>
+        <button
           className={`btn btn-sm ${activeTab === 'locations' ? 'btn-primary' : 'btn-ghost'}`}
           onClick={() => setActiveTab('locations')}
           style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginLeft: 8 }}
@@ -334,6 +397,214 @@ export default function DriverDispatchManagementPage() {
         <div className="loading-center"><div className="loading-spinner"></div></div>
       ) : (
         <>
+          {/* TAB: ATTENDANCE & AVAILABILITY */}
+          {activeTab === 'attendance' && (
+            <div>
+              {/* Summary strip */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
+                <div className="kpi-card green" style={{ padding: '14px 18px' }}>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>PRESENT TODAY</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: '#22c55e' }}>{driverStatusData.filter(d => d.attendance_status === 'PRESENT').length}</div>
+                </div>
+                <div className="kpi-card blue" style={{ padding: '14px 18px' }}>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>AVAILABLE (ELIGIBLE)</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: '#3b82f6' }}>{driverStatusData.filter(d => d.attendance_status === 'PRESENT' && (d.driver_status === 'AVAILABLE' || d.driver_status === 'IDLE')).length}</div>
+                </div>
+                <div className="kpi-card orange" style={{ padding: '14px 18px' }}>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>ON DUTY (BUSY)</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: '#f59e0b' }}>{driverStatusData.filter(d => d.driver_status === 'BUSY').length}</div>
+                </div>
+                <div className="kpi-card" style={{ padding: '14px 18px' }}>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>ABSENT / OFFLINE</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: '#ef4444' }}>{driverStatusData.filter(d => d.attendance_status === 'ABSENT' || d.driver_status === 'OFFLINE').length}</div>
+                </div>
+                <div className="kpi-card" style={{ padding: '14px 18px' }}>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>UNASSIGNED SHIPMENTS</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: '#a855f7' }}>{shipments.filter(s => s.status === 'CREATED' && (s.driver_name === 'Unassigned' || !s.driver_name)).length}</div>
+                </div>
+              </div>
+
+              {/* Driver live status table */}
+              <div className="card" style={{ marginBottom: 20 }}>
+                <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div className="card-title">Live Driver Status Board</div>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Activity size={13} style={{ color: '#22c55e' }} />
+                    Auto-refreshes every 30s
+                  </div>
+                </div>
+                <div className="table-wrapper">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Driver</th>
+                        <th>Attendance</th>
+                        <th>Live Status</th>
+                        <th>Clock In</th>
+                        <th>Last GPS Ping</th>
+                        <th>Active Loads</th>
+                        <th>Eligible?</th>
+                        {hasPermission('DISPATCH:MANAGE') && <th>Admin Override</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {driverStatusData.length === 0 ? (
+                        <tr><td colSpan="8" className="text-center">No drivers found.</td></tr>
+                      ) : (
+                        driverStatusData.map(d => (
+                          <tr key={d.id}>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{
+                                  width: 34, height: 34, borderRadius: '50%',
+                                  background: 'var(--color-bg-elevated)',
+                                  border: `3px solid ${getDriverRingColor(d)}`,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  fontWeight: 800, fontSize: 13, color: getDriverRingColor(d),
+                                  flexShrink: 0
+                                }}>
+                                  {d.name?.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <div style={{ fontWeight: 700, fontSize: 13 }}>{d.name}</div>
+                                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{d.vehicle_number || '—'}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td>{getAttendanceBadge(d.attendance_status)}</td>
+                            <td>{getStatusBadge(d.driver_status)}</td>
+                            <td style={{ fontSize: 12, fontFamily: 'monospace' }}>{formatClockIn(d.clock_in_at)}</td>
+                            <td style={{ fontSize: 12 }}>
+                              {d.last_ping_at ? (
+                                <span title={new Date(d.last_ping_at).toLocaleString()}>
+                                  <Wifi size={12} style={{ color: '#22c55e', marginRight: 4 }} />
+                                  {formatTimeAgo(d.last_ping_at)}
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--color-text-muted)' }}><WifiOff size={12} style={{ marginRight: 4 }} />No ping</span>
+                              )}
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Truck size={13} color={d.active_shipments > 0 ? '#f59e0b' : 'var(--color-text-muted)'} />
+                                <span style={{ fontWeight: 700, color: d.active_shipments > 0 ? '#f59e0b' : 'var(--color-text-primary)' }}>
+                                  {d.active_shipments}
+                                </span>
+                                <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>shipment{d.active_shipments !== 1 ? 's' : ''}</span>
+                              </div>
+                            </td>
+                            <td>
+                              {d.attendance_status === 'PRESENT' && (d.driver_status === 'AVAILABLE' || d.driver_status === 'IDLE') ? (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#22c55e', fontSize: 12, fontWeight: 600 }}>
+                                  <CheckCircle2 size={13} /> Yes
+                                </span>
+                              ) : (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#ef4444', fontSize: 12 }}>
+                                  <AlertCircle size={13} /> No
+                                </span>
+                              )}
+                            </td>
+                            {hasPermission('DISPATCH:MANAGE') && (
+                              <td>
+                                <select
+                                  value={d.driver_status || 'AVAILABLE'}
+                                  onChange={e => handleManualOverrideStatus(d.id, e.target.value)}
+                                  disabled={processing}
+                                  style={{
+                                    fontSize: 12, padding: '3px 7px',
+                                    background: 'var(--color-bg-card)', color: 'var(--color-text-primary)',
+                                    border: '1px solid var(--color-border)', borderRadius: 5, cursor: 'pointer'
+                                  }}
+                                >
+                                  <option value="AVAILABLE">Set: Available</option>
+                                  <option value="BUSY">Set: Busy</option>
+                                  <option value="BREAK">Set: On Break</option>
+                                  <option value="OFFLINE">Set: Offline</option>
+                                  <option value="ON_LEAVE">Set: On Leave</option>
+                                </select>
+                              </td>
+                            )}
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Unassigned Shipments Resolution Panel */}
+              {shipments.filter(s => s.status === 'CREATED' && (s.driver_name === 'Unassigned' || !s.driver_name)).length > 0 && (
+                <div className="card">
+                  <div className="card-header" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <AlertCircle size={18} color="#ef4444" />
+                    <div className="card-title" style={{ color: '#ef4444' }}>Unassigned Shipments — Manual Assignment Required</div>
+                  </div>
+                  <div className="table-wrapper">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Shipment</th>
+                          <th>Orders</th>
+                          <th>Destination</th>
+                          <th>Scheduled</th>
+                          <th>Assign Driver</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {shipments
+                          .filter(s => s.status === 'CREATED' && (s.driver_name === 'Unassigned' || !s.driver_name))
+                          .map(s => (
+                            <tr key={s.id}>
+                              <td>
+                                <div style={{ fontWeight: 700, color: '#ef4444', fontSize: 13 }}>{s.shipment_number || s.shipmentNumber}</div>
+                                <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Status: {s.status}</div>
+                              </td>
+                              <td style={{ fontSize: 12 }}>{s.orders?.length ?? 0} stop{s.orders?.length !== 1 ? 's' : ''}</td>
+                              <td style={{ fontSize: 12, maxWidth: 180 }}>{s.destination || '—'}</td>
+                              <td style={{ fontSize: 12 }}>{s.scheduled_at ? new Date(s.scheduled_at).toLocaleString() : '—'}</td>
+                              <td>
+                                {hasPermission('DISPATCH:MANAGE') ? (
+                                  <select
+                                    defaultValue=""
+                                    onChange={e => { if (e.target.value) handleReassignShipment(s.id, e.target.value); }}
+                                    disabled={processing}
+                                    style={{
+                                      fontSize: 12, padding: '4px 8px',
+                                      background: 'var(--color-bg-card)', color: 'var(--color-text-primary)',
+                                      border: '1px solid #ef4444', borderRadius: 5, cursor: 'pointer', minWidth: 180
+                                    }}
+                                  >
+                                    <option value="">— Select Driver —</option>
+                                    {driverStatusData.filter(d => d.attendance_status === 'PRESENT').map(d => (
+                                      <option key={d.id} value={d.id}>
+                                        {d.name} [{d.driver_status}] ({d.active_shipments} loads)
+                                      </option>
+                                    ))}
+                                    {driverStatusData.filter(d => d.attendance_status === 'ABSENT').length > 0 && (
+                                      <optgroup label="── Absent / Offline ──">
+                                        {driverStatusData.filter(d => d.attendance_status === 'ABSENT').map(d => (
+                                          <option key={d.id} value={d.id}>
+                                            ⚠️ {d.name} [ABSENT]
+                                          </option>
+                                        ))}
+                                      </optgroup>
+                                    )}
+                                  </select>
+                                ) : (
+                                  <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>Admin access required</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* TAB 1: DRIVERS LIST & ALLOCATIONS */}
           {activeTab === 'drivers' && (
             <div className="card">

@@ -82,6 +82,10 @@ export const usersAPI = {
   create: (data) => api.post('/users', data),
   update: (id, data) => api.patch(`/users/${id}`, data),
   delete: (id, params) => api.delete(`/users/${id}`, { params }),
+  /** Returns all drivers with live attendance status, GPS, and workload. */
+  driversStatus: () => api.get('/users/drivers/status'),
+  /** Admin override: set a driver's status directly (AVAILABLE, BUSY, OFFLINE, BREAK, ON_LEAVE). */
+  updateDriverStatus: (id, driverStatus) => api.patch(`/users/${id}`, { driver_status: driverStatus }),
 };
 
 // ─── Roles ────────────────────────────────────────────────────────────────────
@@ -199,6 +203,10 @@ export const shipmentsAPI = {
   removeOrder: (id, orderId) => api.delete(`/shipments/${id}/remove-order/${orderId}`),
   convertDeliveryMethod: (id, method) => api.post(`/shipments/${id}/convert-delivery-method`, { delivery_method: method }),
   regenerate: () => api.post('/shipments/regenerate'),
+  /** Returns all drivers enriched with attendance, status, GPS and active shipment count. */
+  eligibleDrivers: () => api.get('/shipments/eligible-drivers'),
+  /** Super Admin manual override: assign any driver to a shipment. */
+  assignDriver: (id, driverId) => api.patch(`/shipments/${id}/assign-driver`, { driver_id: driverId }),
 };
 
 // ─── Pickup Locations & Tasks ───────────────────────────────────────────────────
