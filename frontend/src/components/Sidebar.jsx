@@ -13,54 +13,67 @@ import {
 import ServerSettings from './ServerSettings';
 
 const NAV_ITEMS = [
-  { group: 'Overview', items: [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, perm: null },
-    { path: '/dashboard/production', label: 'Production Dashboard', icon: Factory, perm: 'STOCK:VIEW' },
-    { path: '/dashboard/warehouse', label: 'Warehouse Dashboard', icon: Warehouse, perm: 'STOCK:VIEW' },
-    { path: '/dashboard/sales', label: 'Sales Dashboard', icon: ShoppingBag, perm: 'ORDERS:VIEW' },
-    { path: '/dashboard/logistics', label: 'Logistics Dashboard', icon: Truck, perm: 'DISPATCH:VIEW' },
-  ]},
-  { group: 'CRM & Collections', items: [
-    { path: '/crm', label: 'CRM Workspace', icon: PhoneCall, perm: 'SALES:CRM' },
-    { path: '/crm/leads', label: 'New Leads', icon: Target, perm: 'SALES:LEADS' },
-    { path: '/crm/customers', label: 'Customers', icon: Users, perm: 'SALES:CUSTOMERS' },
-    { path: '/crm/visit-allocations', label: 'Visit Allocations', icon: MapPin, perm: 'SALES:CRM' },
-    { path: '/billing', label: 'Invoice & Billing', icon: ClipboardList, perm: 'SALES:COLLECT' },
-  ]},
-  { group: 'Inventory', items: [
-    { path: '/stock-in', label: 'Stock IN', icon: ArrowDownCircle, perm: 'TRANSACTIONS:STOCK_IN' },
-    { path: '/stock-out', label: 'Stock OUT', icon: ArrowUpCircle, perm: 'TRANSACTIONS:STOCK_OUT' },
-    { path: '/logistics-dispatch', label: 'Logistics & Dispatch', icon: Truck, perm: 'DISPATCH:VIEW' },
-    { path: '/driver-dispatch', label: 'Driver Dispatch Control', icon: Users, perm: 'DISPATCH:VIEW' },
-    { path: '/production-run', label: 'Production Plan', icon: Factory, perm: 'PRODUCTION:PLAN' },
-    { path: '/actual-production', label: 'Actual Production', icon: ClipboardList, perm: 'PRODUCTION:RUN' },
-    { path: '/production-history', label: 'Production History', icon: History, perm: 'PRODUCTION:HISTORY' },
-    { path: '/yield-analytics', label: 'Yield Analytics', icon: LineChart, perm: 'TRANSACTIONS:VIEW' },
-    { path: '/transactions', label: 'Transaction History', icon: ClipboardList, perm: 'TRANSACTIONS:VIEW' },
-    { path: '/stock-balance', label: 'Stock Balance', icon: BarChart3, perm: 'STOCK:VIEW' },
-    { path: '/locate', label: 'Location Finder', icon: MapPin, perm: 'STOCK:LOCATE' },
-  ]},
-  { group: 'Masters', items: [
-    { path: '/warehouses', label: 'Warehouses', icon: Warehouse, perm: 'WAREHOUSES:VIEW' },
-    { path: '/products', label: 'Products', icon: Package, perm: 'PRODUCTS:VIEW' },
-    { path: '/recipes', label: 'Recipes / BOM', icon: ListPlus, perm: 'BOM:VIEW' },
-  ]},
-  { group: 'Orders', items: [
-    { path: '/orders', label: 'Orders', icon: BookOpen, perm: 'ORDERS:VIEW' },
-    { path: '/feasibility', label: 'Feasibility Check', icon: ShieldCheck, perm: 'ORDERS:CHECK_FEASIBILITY' },
-  ]},
-  { group: 'Administration', items: [
-    { path: '/users', label: 'Users', icon: Users, perm: 'USERS:VIEW' },
-    { path: '/roles', label: 'Roles & Permissions', icon: Settings, perm: 'ROLES:VIEW' },
-    { path: '/ip-whitelist', label: 'IP Whitelist', icon: ShieldCheck, perm: 'ROLES:VIEW' },
-    { path: '/categories', label: 'Product Categories', icon: Tags, perm: 'ROLES:VIEW' },
-    { path: '/data-portability', label: 'Data Portability', icon: Database, perm: 'ROLES:VIEW' },
-    { path: '/form-settings', label: 'Form Settings', icon: SlidersHorizontal, perm: 'ROLES:VIEW' },
-    { path: '/invoice-designer', label: 'Invoice Designer', icon: FileText, perm: 'ROLES:VIEW' },
-    { path: '/attendance-tracking', label: 'Live Tracking', icon: Radio, perm: null },
-    { path: '/key-registry', label: 'Key Registry', icon: KeyRound, perm: null },
-    { path: '/postgres-provisioner', label: 'Postgres Databases', icon: Database, perm: 'INFRASTRUCTURE:VIEW' },
-  ]},
+  {
+    group: 'Overview', items: [
+      { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, perm: null },
+      { path: '/dashboard/production', label: 'Production Dashboard', icon: Factory, perm: 'STOCK:VIEW' },
+      { path: '/dashboard/warehouse', label: 'Warehouse Dashboard', icon: Warehouse, perm: 'STOCK:VIEW' },
+      { path: '/dashboard/sales', label: 'Sales Dashboard', icon: ShoppingBag, perm: 'ORDERS:VIEW' },
+      { path: '/dashboard/logistics', label: 'Logistics Dashboard', icon: Truck, perm: 'DISPATCH:VIEW' },
+    ]
+  },
+  {
+    group: 'CRM & Collections', items: [
+      { path: '/crm', label: 'CRM Workspace', icon: PhoneCall, perm: 'SALES:CRM' },
+      { path: '/crm/leads', label: 'New Leads', icon: Target, perm: 'SALES:LEADS' },
+      { path: '/crm/customers', label: 'Customers', icon: Users, perm: 'SALES:CUSTOMERS' },
+      { path: '/crm/visit-allocations', label: 'Visit Allocations', icon: MapPin, perm: 'SALES:CRM' },
+      { path: '/billing', label: 'Invoice & Billing', icon: ClipboardList, perm: 'SALES:COLLECT' },
+    ]
+  },
+  {
+    group: 'Inventory', items: [
+      { path: '/stock-in', label: 'Stock IN', icon: ArrowDownCircle, perm: 'TRANSACTIONS:STOCK_IN' },
+      { path: '/stock-out', label: 'Stock OUT', icon: ArrowUpCircle, perm: 'TRANSACTIONS:STOCK_OUT' },
+      { path: '/logistics-dispatch', label: 'Logistics & Dispatch', icon: Truck, perm: 'DISPATCH:VIEW' },
+      { path: '/driver-dispatch', label: 'Driver Dispatch Control', icon: Users, perm: 'DISPATCH:VIEW' },
+      { path: '/production-run', label: 'Production Plan', icon: Factory, perm: 'PRODUCTION:PLAN' },
+      { path: '/actual-production', label: 'Actual Production', icon: ClipboardList, perm: 'PRODUCTION:RUN' },
+      { path: '/production-history', label: 'Production History', icon: History, perm: 'PRODUCTION:HISTORY' },
+      { path: '/yield-analytics', label: 'Yield Analytics', icon: LineChart, perm: 'TRANSACTIONS:VIEW' },
+      { path: '/transactions', label: 'Transaction History', icon: ClipboardList, perm: 'TRANSACTIONS:VIEW' },
+      { path: '/stock-balance', label: 'Stock Balance', icon: BarChart3, perm: 'STOCK:VIEW' },
+      { path: '/locate', label: 'Location Finder', icon: MapPin, perm: 'STOCK:LOCATE' },
+    ]
+  },
+  {
+    group: 'Masters', items: [
+      { path: '/warehouses', label: 'Warehouses', icon: Warehouse, perm: 'WAREHOUSES:VIEW' },
+      { path: '/products', label: 'Products', icon: Package, perm: 'PRODUCTS:VIEW' },
+      { path: '/recipes', label: 'Recipes / BOM', icon: ListPlus, perm: 'BOM:VIEW' },
+    ]
+  },
+  {
+    group: 'Orders', items: [
+      { path: '/orders', label: 'Orders', icon: BookOpen, perm: 'ORDERS:VIEW' },
+      { path: '/feasibility', label: 'Feasibility Check', icon: ShieldCheck, perm: 'ORDERS:CHECK_FEASIBILITY' },
+    ]
+  },
+  {
+    group: 'Administration', items: [
+      { path: '/users', label: 'Users', icon: Users, perm: 'USERS:VIEW' },
+      { path: '/roles', label: 'Roles & Permissions', icon: Settings, perm: 'ROLES:VIEW' },
+      { path: '/ip-whitelist', label: 'IP Whitelist', icon: ShieldCheck, perm: 'ROLES:VIEW' },
+      { path: '/categories', label: 'Product Categories', icon: Tags, perm: 'ROLES:VIEW' },
+      { path: '/data-portability', label: 'Data Portability', icon: Database, perm: 'ROLES:VIEW' },
+      { path: '/form-settings', label: 'Form Settings', icon: SlidersHorizontal, perm: 'ROLES:VIEW' },
+      { path: '/invoice-designer', label: 'Invoice Designer', icon: FileText, perm: 'ROLES:VIEW' },
+      { path: '/attendance-tracking', label: 'Live Tracking', icon: Radio, perm: null },
+      { path: '/key-registry', label: 'Key Registry', icon: KeyRound, perm: null },
+      { path: '/ecom-admin', label: 'E-Commerce Admin', icon: ShoppingBag, perm: 'ORDERS:VIEW' },
+      { path: '/postgres-provisioner', label: 'Postgres Databases', icon: Database, perm: 'INFRASTRUCTURE:VIEW' },
+    ]
+  },
 ];
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -99,7 +112,7 @@ export default function Sidebar({ isOpen, onClose }) {
       <nav className="sidebar-nav">
         {NAV_ITEMS.map(group => {
           const visibleItems = group.items.filter(item =>
-             !item.perm || hasPermission(item.perm)
+            !item.perm || hasPermission(item.perm)
           );
           if (visibleItems.length === 0) return null;
           return (
@@ -148,7 +161,7 @@ export default function Sidebar({ isOpen, onClose }) {
             </>
           )}
         </div>
-        
+
         <ServerSettings
           isOpen={serverSettingsOpen}
           onClose={() => setServerSettingsOpen(false)}

@@ -1,124 +1,205 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ShoppingCart, Heart, Shield, Award, Sparkles } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { storefrontAPI } from '../api/ecomApi';
 import { useCart } from '../context/CartContext';
+import { Star, ShieldCheck, Heart, Truck, AlertCircle, ShoppingCart, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function ProductDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { addToCart } = useCart();
   const [product, setProduct] = useState(null);
-  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [qty, setQty] = useState(1);
+  const [pincode, setPincode] = useState('');
+  const [deliveryMessage, setDeliveryMessage] = useState('');
 
   useEffect(() => {
     setLoading(true);
     storefrontAPI.getProduct(id)
-      .then(res => {
-        setProduct(res.data.data);
-        setReviews(res.data.data.reviews || []);
+      .then(res => setProduct(res.data.data))
+      .catch(err => {
+        console.error(err);
+        toast.error("Product not found");
       })
-      .catch(err => console.error(err))
       .finally(() => setLoading(false));
   }, [id]);
 
-  const handleAdd = () => {
-    if (product) {
-      addToCart(product, qty);
-      toast.success(`${product.name} added to cart!`);
+  const handleAddToCart = () => {
+    if (!product) return;
+    addToCart({
+      id: product.id,
+      code: product.code,
+      name: product.name,
+      selling_price: product.discount_price || product.price || product.selling_price || 0,
+      image_url: product.image_url,
+      weight: product.weight || 0,
+      unit: product.unit || 'PCS'
+    }, 1);
+    toast.success("Added to Shopping Cart!");
+  };
+
+  const handleBuyNow = () => {
+    handleAddToCart();
+    navigate('/store/cart');
+  };
+
+  const handlePincodeCheck = (e) => {
+    e.preventDefault();
+    if (pincode.length === 6 && /^\d+$/.test(pincode)) {
+      setDeliveryMessage("✓ Express delivery in 2-3 Days to this pincode.");
+    } else {
+      setDeliveryMessage("✗ Invalid pincode. Please enter a valid 6-digit PIN.");
     }
   };
 
-  if (loading) return <div className="loading-center"><div className="loading-spinner"></div></div>;
-  if (!product) return <div className="ecom-container" style={{ padding: '64px 0', textAlign: 'center' }}><h2>Product not found</h2></div>;
+  if (loading) {
+    return <div className="ecom-container loading-center" style={{ minHeight: '60vh' }}><div className="loading-spinner"></div></div>;
+  }
 
-  const price = product.price || 0;
-  const discountPrice = product.discount_price;
-  const hasDiscount = discountPrice && discountPrice < price;
+  if (!product) {
+    return (
+      <div className="ecom-container" style={{ textAlign: 'center', padding: '64px 0' }}>
+        <AlertCircle size={48} style={{ color: 'var(--color-accent-red)', marginBottom: 16 }} />
+        <h2>Product Not Found</h2>
+        <p style={{ color: 'var(--color-text-secondary)' }}>This product may have been deactivated or hidden.</p>
+      </div>
+    );
+  }
+
+  const finalPrice = product.discount_price || product.price || product.selling_price || 0;
+  const originalPrice = product.price || product.selling_price || 0;
+  const hasDiscount = originalPrice > finalPrice;
+  const discountPercent = hasDiscount ? Math.round(((originalPrice - finalPrice) / originalPrice) * 100) : 0;
 
   return (
     <div className="ecom-container">
       <div className="detail-grid">
-        {/* Left Side: Product Image */}
+        {/* Left Side: Product Image & Quick Buttons */}
         <div className="detail-image-panel">
-          <img 
-            src={product.image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=600'} 
-            alt={product.name} 
-            className="detail-image"
-          />
-        </div>
-
-        {/* Right Side: Product Details */}
-        <div className="detail-info">
-          <span className="detail-brand">{product.brand || 'Generic'}</span>
-          <h1 className="detail-title">{product.name}</h1>
+          <div className="detail-image-container">
+            <img 
+              src={product.image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=600'} 
+              alt={product.name} 
+              className="detail-image"
+            />
+          </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '8px 0', color: '#f59e0b' }}>
-            ★ ★ ★ ★ ☆ <span style={{ color: 'var(--color-text-muted)', fontSize: 14 }}>(4.2 Rating)</span>
-          </div>
-
-          <div className="detail-price-panel">
-            {hasDiscount ? (
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-                <span style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-success)' }}>₹{discountPrice}</span>
-                <span style={{ fontSize: 18, color: 'var(--color-text-muted)', textDecoration: 'line-through' }}>₹{price}</span>
-                <span style={{ background: 'var(--color-success-bg)', color: 'var(--color-success)', fontSize: 12, padding: '4px 8px', borderRadius: 4, fontWeight: 'bold' }}>
-                  {Math.round(((price - discountPrice) / price) * 100)}% OFF
-                </span>
-              </div>
-            ) : (
-              <span style={{ fontSize: 28, fontWeight: 800 }}>₹{price}</span>
-            )}
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '8px 0 0' }}>Prices are inclusive of {product.gst_percent || 18}% GST.</p>
-          </div>
-
-          <p style={{ lineHeight: 1.6, marginBottom: 24 }}>{product.description || 'No description available for this finished product.'}</p>
-
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 32 }}>
-            <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-border)', borderRadius: 8, overflow: 'hidden' }}>
-              <button onClick={() => setQty(q => Math.max(1, q - 1))} className="ecom-btn ecom-btn-secondary" style={{ padding: 12, borderRadius: 0 }}>-</button>
-              <span style={{ padding: '0 16px', fontWeight: 600 }}>{qty}</span>
-              <button onClick={() => setQty(q => Math.min(product.max_order_qty || 100, q + 1))} className="ecom-btn ecom-btn-secondary" style={{ padding: 12, borderRadius: 0 }}>+</button>
-            </div>
-            <button onClick={handleAdd} className="ecom-btn ecom-btn-primary" style={{ flexGrow: 1 }}>
-              <ShoppingCart size={20} /> Add to Cart
+          {/* Action CTAs */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 16 }}>
+            <button 
+              onClick={handleAddToCart}
+              className="ecom-btn"
+              style={{ background: 'var(--color-accent-orange)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48 }}
+            >
+              <ShoppingCart size={18} /> Add to Cart
+            </button>
+            <button 
+              onClick={handleBuyNow}
+              className="ecom-btn"
+              style={{ background: 'var(--color-accent-red)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48 }}
+            >
+              <Zap size={18} /> Buy Now
             </button>
           </div>
+        </div>
 
-          {/* Product trust tags */}
-          <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 24, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center', fontSize: 13 }}>
-              <Shield size={20} style={{ color: 'var(--color-success)' }} /> Safe Packaging
+        {/* Right Side: Product Details & Specs */}
+        <div className="detail-info">
+          <span className="detail-brand">{product.brand || 'TTRIMS Spices'}</span>
+          <h1 className="detail-title">{product.name}</h1>
+          
+          {/* Ratings */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#388e3c', color: 'white', padding: '2px 8px', borderRadius: 3, fontSize: 12, fontWeight: 'bold' }}>
+              4.5 <Star size={12} fill="currentColor" />
             </div>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center', fontSize: 13 }}>
-              <Award size={20} style={{ color: 'var(--color-success)' }} /> Quality Inspected
+            <span style={{ fontSize: 13, color: 'var(--color-text-secondary)', fontWeight: 600 }}>128 Ratings & 45 Reviews</span>
+          </div>
+
+          {/* Pricing Info */}
+          <div className="detail-price-panel">
+            <div className="detail-price-row">
+              <span className="detail-price">₹{finalPrice.toFixed(2)}</span>
+              {hasDiscount && (
+                <>
+                  <span className="detail-old-price">₹{originalPrice.toFixed(2)}</span>
+                  <span className="detail-discount">{discountPercent}% Off</span>
+                </>
+              )}
             </div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 6, fontWeight: 500 }}>Inclusive of all taxes</div>
+          </div>
+
+          {/* Pack Options */}
+          <div style={{ marginBottom: 24 }}>
+            <h4 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', marginBottom: 12, color: '#212121' }}>Pack Size</h4>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <span style={{ border: '2px solid var(--color-primary)', padding: '6px 16px', borderRadius: 4, fontSize: 13, fontWeight: 'bold', color: 'var(--color-primary)', cursor: 'pointer' }}>
+                {product.pack_size_g ? `${product.pack_size_g}g` : `${product.weight || 100}g`}
+              </span>
+            </div>
+          </div>
+
+          {/* Delivery Pincode Estimator */}
+          <div style={{ border: '1px solid var(--color-border)', padding: 16, borderRadius: 4, marginBottom: 24 }}>
+            <h4 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', marginBottom: 10, color: '#212121' }}>Delivery Options</h4>
+            <form onSubmit={handlePincodeCheck} style={{ display: 'flex', gap: 8 }}>
+              <input 
+                type="text" 
+                maxLength="6"
+                placeholder="Enter 6-Digit Delivery Pincode"
+                value={pincode}
+                onChange={e => setPincode(e.target.value)}
+                style={{ flexGrow: 1, padding: '8px 12px', borderRadius: 4, border: '1px solid var(--color-border)', outline: 'none', fontSize: 13 }}
+              />
+              <button type="submit" className="ecom-btn ecom-btn-outline" style={{ padding: '8px 16px', fontSize: 13 }}>Check</button>
+            </form>
+            {deliveryMessage && (
+              <div style={{ fontSize: 13, marginTop: 10, fontWeight: 600, color: deliveryMessage.startsWith('✓') ? '#388e3c' : 'var(--color-accent-red)' }}>
+                {deliveryMessage}
+              </div>
+            )}
+          </div>
+
+          {/* Description */}
+          <div style={{ marginBottom: 24 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 10, borderBottom: '1px solid #eee', paddingBottom: 8 }}>Product Description</h3>
+            <p style={{ color: 'var(--color-text-secondary)', fontSize: 14, lineHeight: 1.6, margin: 0 }}>
+              {product.description || 'No detailed description configured for this product. Fully organic processing is maintained under hygienic standards.'}
+            </p>
+          </div>
+
+          {/* Specifications Table */}
+          <div>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 10, borderBottom: '1px solid #eee', paddingBottom: 8 }}>Specifications</h3>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+              <tbody>
+                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '8px 0', color: 'var(--color-text-secondary)', width: 140 }}>Code</td>
+                  <td style={{ padding: '8px 0', fontWeight: 500, color: '#212121' }}>{product.code}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '8px 0', color: 'var(--color-text-secondary)' }}>Category</td>
+                  <td style={{ padding: '8px 0', fontWeight: 500, color: '#212121' }}>{product.category || 'Spices'}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '8px 0', color: 'var(--color-text-secondary)' }}>Shelf Life</td>
+                  <td style={{ padding: '8px 0', fontWeight: 500, color: '#212121' }}>{product.shelf_life || '12 Months'}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '8px 0', color: 'var(--color-text-secondary)' }}>Country of Origin</td>
+                  <td style={{ padding: '8px 0', fontWeight: 500, color: '#212121' }}>{product.country_of_origin || 'India'}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '8px 0', color: 'var(--color-text-secondary)' }}>Ingredients</td>
+                  <td style={{ padding: '8px 0', fontWeight: 500, color: '#212121' }}>{product.ingredients || 'Organic ingredients'}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
-
-      {/* Reviews section */}
-      <section style={{ marginTop: 64 }}>
-        <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 24 }}>Customer Reviews ({reviews.length})</h3>
-        {reviews.length === 0 ? (
-          <p style={{ color: 'var(--color-text-muted)' }}>No reviews yet. Be the first to review!</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {reviews.map(r => (
-              <div key={r.id} style={{ background: 'var(--color-bg-card)', padding: 20, borderRadius: 8, border: '1px solid var(--color-border)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <strong>{r.customerName}</strong>
-                  <span style={{ color: '#f59e0b' }}>{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</span>
-                </div>
-                <h5 style={{ fontWeight: 600, margin: '0 0 8px 0' }}>{r.title}</h5>
-                <p style={{ margin: 0, fontSize: 14, color: 'var(--color-text-secondary)' }}>{r.comment}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
     </div>
   );
 }

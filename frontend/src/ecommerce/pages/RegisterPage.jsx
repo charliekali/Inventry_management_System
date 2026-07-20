@@ -33,60 +33,60 @@ export default function RegisterPage() {
   };
 
   return (
-    <div style={{ maxWidth: 400, margin: '80px auto', padding: 24, background: 'var(--color-bg-card)', borderRadius: 12, border: '1px solid var(--color-border)' }}>
-      <h2 style={{ fontWeight: 800, textAlign: 'center', marginBottom: 24 }}>Customer Registration</h2>
+    <div style={{ maxWidth: 400, margin: '80px auto', padding: 28, background: 'var(--color-bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-md)' }}>
+      <h2 style={{ fontWeight: 800, textAlign: 'center', marginBottom: 24, fontSize: '22px' }}>Customer Registration</h2>
       
       <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label className="form-label">Full Name</label>
+        <div className="ecom-form-group">
+          <label className="ecom-form-label">Full Name</label>
           <input 
             type="text" 
-            className="form-control" 
+            className="ecom-form-control" 
             value={name} 
             onChange={(e) => setName(e.target.value)} 
             required 
           />
         </div>
 
-        <div className="form-group" style={{ marginTop: 16 }}>
-          <label className="form-label">Email Address</label>
+        <div className="ecom-form-group">
+          <label className="ecom-form-label">Email Address</label>
           <input 
             type="email" 
-            className="form-control" 
+            className="ecom-form-control" 
             value={email} 
             onChange={(e) => setEmail(e.target.value)} 
             required 
           />
         </div>
 
-        <div className="form-group" style={{ marginTop: 16 }}>
-          <label className="form-label">Phone Number</label>
+        <div className="ecom-form-group">
+          <label className="ecom-form-label">Phone Number</label>
           <input 
             type="text" 
-            className="form-control" 
+            className="ecom-form-control" 
             value={phone} 
             onChange={(e) => setPhone(e.target.value)} 
           />
         </div>
 
-        <div className="form-group" style={{ margin: '16px 0 24px 0' }}>
-          <label className="form-label">Password</label>
+        <div className="ecom-form-group">
+          <label className="ecom-form-label">Password</label>
           <input 
             type="password" 
-            className="form-control" 
+            className="ecom-form-control" 
             value={password} 
             onChange={(e) => setPassword(e.target.value)} 
             required 
           />
         </div>
 
-        <button type="submit" className="ecom-btn ecom-btn-primary ecom-btn-block" disabled={loading}>
+        <button type="submit" className="ecom-btn ecom-btn-primary ecom-btn-block" disabled={loading} style={{ height: 44, borderRadius: 3, marginTop: 10 }}>
           {loading ? 'Creating Account...' : 'Register'}
         </button>
       </form>
 
-      <div style={{ marginTop: 24, textAlign: 'center', fontSize: 14 }}>
-        Already have an account? <Link to="/store/login" style={{ color: 'var(--color-success)', fontWeight: 600 }}>Login here</Link>
+      <div style={{ marginTop: 24, textAlign: 'center', fontSize: 13.5, fontWeight: 500 }}>
+        Already have an account? <Link to="/store/login" style={{ color: 'var(--color-primary)', fontWeight: 700, textDecoration: 'none' }}>Login here</Link>
       </div>
     </div>
   );

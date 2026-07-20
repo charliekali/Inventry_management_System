@@ -20,6 +20,7 @@ export const storefrontAPI = {
   getProduct: (id) => ecomApi.get(`/ecom/public/products/${id}`),
   listCategories: () => ecomApi.get('/ecom/public/categories'),
   getReviews: (id) => ecomApi.get(`/ecom/public/products/${id}/reviews`),
+  trackOrder: (orderNumber) => ecomApi.get(`/ecom/public/orders/track/${orderNumber}`),
 
   // Auth APIs
   login: (email, password) => ecomApi.post('/ecom/auth/login', { email, password }),

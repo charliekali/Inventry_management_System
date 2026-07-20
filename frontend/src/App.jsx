@@ -55,6 +55,7 @@ import WarehouseApp from './warehouse/WarehouseApp';
 import LogisticsApp from './logistics/LogisticsApp';
 import IpWhitelistPage from './pages/IpWhitelistPage';
 import EcomApp from './ecommerce/EcomApp';
+import EcomAdminPage from './pages/EcomAdminPage';
 
 // Protected Route Guard
 function ProtectedRoute({ children, perm }) {
@@ -157,11 +158,11 @@ function AuthenticatedLayout({ children }) {
   const isHome = location.pathname === '/dashboard' || location.pathname === '/';
 
   if (Capacitor.isNativePlatform()) {
-    const showHeader = !isHome && 
-      location.pathname !== '/login' && 
-      !location.pathname.startsWith('/sales') && 
-      !location.pathname.startsWith('/production') && 
-      !location.pathname.startsWith('/warehouse') && 
+    const showHeader = !isHome &&
+      location.pathname !== '/login' &&
+      !location.pathname.startsWith('/sales') &&
+      !location.pathname.startsWith('/production') &&
+      !location.pathname.startsWith('/warehouse') &&
       !location.pathname.startsWith('/logistics');
     return (
       <div className="app-layout native-layout" style={{ display: 'block' }}>
@@ -648,6 +649,14 @@ function App() {
               <ProtectedRoute>
                 <AuthenticatedLayout>
                   {Capacitor.isNativePlatform() ? <MobileKeyRegistry /> : <KeyRegistryPage />}
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/ecom-admin" element={
+              <ProtectedRoute perm="ORDERS:VIEW">
+                <AuthenticatedLayout>
+                  <EcomAdminPage />
                 </AuthenticatedLayout>
               </ProtectedRoute>
             } />

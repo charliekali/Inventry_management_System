@@ -21,10 +21,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
     private final UserRepository userRepository;
+    private final com.ttrims.ims.repository.EcomCustomerRepository ecomCustomerRepository;
 
-    public JwtAuthFilter(JwtUtils jwtUtils, UserRepository userRepository) {
+    public JwtAuthFilter(JwtUtils jwtUtils, UserRepository userRepository, com.ttrims.ims.repository.EcomCustomerRepository ecomCustomerRepository) {
         this.jwtUtils = jwtUtils;
         this.userRepository = userRepository;
+        this.ecomCustomerRepository = ecomCustomerRepository;
     }
 
     @Override
@@ -33,12 +35,20 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String token = extractToken(request);
         if (token != null && jwtUtils.validateToken(token)) {
             String userId = jwtUtils.getUserIdFromToken(token);
-            userRepository.findByIdAndActiveTrue(userId).ifPresent(user -> {
+            var adminUser = userRepository.findByIdAndActiveTrue(userId);
+            if (adminUser.isPresent()) {
+                User user = adminUser.get();
                 List<SimpleGrantedAuthority> authorities = buildAuthorities(user);
                 UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(user, null, authorities);
                 SecurityContextHolder.getContext().setAuthentication(auth);
-            });
+            } else {
+                ecomCustomerRepository.findById(userId).ifPresent(customer -> {
+                    UsernamePasswordAuthenticationToken auth =
+                        new UsernamePasswordAuthenticationToken(customer, null, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER")));
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                });
+            }
         }
         filterChain.doFilter(request, response);
     }

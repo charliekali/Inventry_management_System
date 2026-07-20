@@ -56,6 +56,19 @@ public class DataSeeder implements CommandLineRunner {
         this.jdbc = jdbc;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private EcomCouponRepository ecomCouponRepo;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private EcomReviewRepository ecomReviewRepo;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private EcomOrderRepository ecomOrderRepo;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private EcomCustomerRepository ecomCustomerRepo;
+
+
     private static final String[][] PERMISSION_DEFS = {
             { "USERS", "VIEW" }, { "USERS", "CREATE" }, { "USERS", "EDIT" }, { "USERS", "DELETE" },
             { "ROLES", "VIEW" }, { "ROLES", "CREATE" }, { "ROLES", "EDIT" }, { "ROLES", "DELETE" },
@@ -88,9 +101,11 @@ public class DataSeeder implements CommandLineRunner {
         Role viewerRole = seedRole("Viewer", "Read-only access", true, getPermsByAction("VIEW"));
         Role managerRole = seedRole("Warehouse Manager", "Stock transactions and reports", true, getWMPerms());
         Role keeperRole = seedRole("Store Keeper", "Handle stock IN/OUT", true, getStoreKeeperPerms());
-        Role logisticsRole = seedRole("Logistics Coordinator", "Manage shipments and delivery", true, getLogisticsPerms());
-        Role driverRole = seedRole("Driver", "Assigned deliveries, locations, and proof of delivery", true, getDriverPerms());
-        
+        Role logisticsRole = seedRole("Logistics Coordinator", "Manage shipments and delivery", true,
+                getLogisticsPerms());
+        Role driverRole = seedRole("Driver", "Assigned deliveries, locations, and proof of delivery", true,
+                getDriverPerms());
+
         // 1. One-time database purge of all dummy/test data for production readiness
         if (productRepo.findByCode("RM-CHD").isPresent()) {
             log.info("🧹 Dummy data detected! Performing a one-time database purge for production readiness...");
@@ -106,7 +121,8 @@ public class DataSeeder implements CommandLineRunner {
             jdbc.execute("DELETE FROM products");
             jdbc.execute("DELETE FROM sections");
             jdbc.execute("DELETE FROM warehouses");
-            jdbc.execute("DELETE FROM users WHERE email IN ('manager@ttrims.com', 'keeper@ttrims.com', 'viewer@ttrims.com')");
+            jdbc.execute(
+                    "DELETE FROM users WHERE email IN ('manager@ttrims.com', 'keeper@ttrims.com', 'viewer@ttrims.com')");
             log.info("✨ Database purged successfully! Ready for production.");
         }
 
@@ -118,6 +134,8 @@ public class DataSeeder implements CommandLineRunner {
         seedDriverUser("driver3@ttrims.com", "Driver Three", "driver3_123", driverRole, "WP-LH-1199", 9.9037, 78.1098);
         seedProductCategories();
         seedPostgresInstances();
+        seedProducts();
+        seedEcomDummyData();
     }
 
     // ─── Schema Migrations ────────────────────────────────────────────────────
@@ -142,20 +160,20 @@ public class DataSeeder implements CommandLineRunner {
         // Create attendance tables if they don't already exist (idempotent)
         try {
             jdbc.execute(
-                "CREATE TABLE IF NOT EXISTS attendance (" +
-                "  id VARCHAR(36) PRIMARY KEY, " +
-                "  user_id VARCHAR(36) NOT NULL, " +
-                "  user_name VARCHAR(255), " +
-                "  user_email VARCHAR(255), " +
-                "  status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE', " +
-                "  clock_in_at TIMESTAMP, " +
-                "  clock_out_at TIMESTAMP, " +
-                "  last_lat DOUBLE PRECISION, " +
-                "  last_lng DOUBLE PRECISION, " +
-                "  last_ping_at TIMESTAMP, " +
-                "  ping_count INTEGER DEFAULT 0, " +
-                "  created_at TIMESTAMP" +
-                ")");
+                    "CREATE TABLE IF NOT EXISTS attendance (" +
+                            "  id VARCHAR(36) PRIMARY KEY, " +
+                            "  user_id VARCHAR(36) NOT NULL, " +
+                            "  user_name VARCHAR(255), " +
+                            "  user_email VARCHAR(255), " +
+                            "  status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE', " +
+                            "  clock_in_at TIMESTAMP, " +
+                            "  clock_out_at TIMESTAMP, " +
+                            "  last_lat DOUBLE PRECISION, " +
+                            "  last_lng DOUBLE PRECISION, " +
+                            "  last_ping_at TIMESTAMP, " +
+                            "  ping_count INTEGER DEFAULT 0, " +
+                            "  created_at TIMESTAMP" +
+                            ")");
             log.info("Schema migration: attendance table ensured");
         } catch (Exception e) {
             log.warn("Schema migration: attendance table — {}", e.getMessage());
@@ -163,7 +181,8 @@ public class DataSeeder implements CommandLineRunner {
 
         try {
             jdbc.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS distance_km DOUBLE PRECISION DEFAULT 0.0");
-            jdbc.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS current_speed_kmph DOUBLE PRECISION DEFAULT 0.0");
+            jdbc.execute(
+                    "ALTER TABLE attendance ADD COLUMN IF NOT EXISTS current_speed_kmph DOUBLE PRECISION DEFAULT 0.0");
             log.info("Schema migration: attendance distance and speed columns ensured");
         } catch (Exception e) {
             log.warn("Schema migration: attendance columns — {}", e.getMessage());
@@ -171,22 +190,24 @@ public class DataSeeder implements CommandLineRunner {
 
         try {
             jdbc.execute(
-                "CREATE TABLE IF NOT EXISTS attendance_locations (" +
-                "  id VARCHAR(36) PRIMARY KEY, " +
-                "  attendance_id VARCHAR(36) NOT NULL, " +
-                "  latitude DOUBLE PRECISION NOT NULL, " +
-                "  longitude DOUBLE PRECISION NOT NULL, " +
-                "  accuracy DOUBLE PRECISION, " +
-                "  recorded_at TIMESTAMP" +
-                ")");
+                    "CREATE TABLE IF NOT EXISTS attendance_locations (" +
+                            "  id VARCHAR(36) PRIMARY KEY, " +
+                            "  attendance_id VARCHAR(36) NOT NULL, " +
+                            "  latitude DOUBLE PRECISION NOT NULL, " +
+                            "  longitude DOUBLE PRECISION NOT NULL, " +
+                            "  accuracy DOUBLE PRECISION, " +
+                            "  recorded_at TIMESTAMP" +
+                            ")");
             log.info("Schema migration: attendance_locations table ensured");
         } catch (Exception e) {
             log.warn("Schema migration: attendance_locations table — {}", e.getMessage());
         }
 
         try {
-            jdbc.execute("ALTER TABLE attendance_locations ADD COLUMN IF NOT EXISTS speed_kmph DOUBLE PRECISION DEFAULT 0.0");
-            jdbc.execute("ALTER TABLE attendance_locations ADD COLUMN IF NOT EXISTS distance_from_last_km DOUBLE PRECISION DEFAULT 0.0");
+            jdbc.execute(
+                    "ALTER TABLE attendance_locations ADD COLUMN IF NOT EXISTS speed_kmph DOUBLE PRECISION DEFAULT 0.0");
+            jdbc.execute(
+                    "ALTER TABLE attendance_locations ADD COLUMN IF NOT EXISTS distance_from_last_km DOUBLE PRECISION DEFAULT 0.0");
             log.info("Schema migration: attendance_locations speed and distance columns ensured");
         } catch (Exception e) {
             log.warn("Schema migration: attendance_locations columns — {}", e.getMessage());
@@ -202,7 +223,8 @@ public class DataSeeder implements CommandLineRunner {
 
         // Add wastage_quantity column to production_plan_ingredients
         try {
-            jdbc.execute("ALTER TABLE production_plan_ingredients ADD COLUMN IF NOT EXISTS wastage_quantity DOUBLE PRECISION DEFAULT 0.0");
+            jdbc.execute(
+                    "ALTER TABLE production_plan_ingredients ADD COLUMN IF NOT EXISTS wastage_quantity DOUBLE PRECISION DEFAULT 0.0");
             log.info("Schema migration: wastage_quantity column in production_plan_ingredients ensured");
         } catch (Exception e) {
             log.warn("Schema migration: wastage_quantity column — {}", e.getMessage());
@@ -211,15 +233,15 @@ public class DataSeeder implements CommandLineRunner {
         // Key Registry tables
         try {
             jdbc.execute(
-                "CREATE TABLE IF NOT EXISTS factory_keys (" +
-                "  id VARCHAR(36) PRIMARY KEY, " +
-                "  name VARCHAR(255) NOT NULL, " +
-                "  description VARCHAR(500), " +
-                "  key_number VARCHAR(100), " +
-                "  status VARCHAR(20) NOT NULL DEFAULT 'AVAILABLE', " +
-                "  created_at TIMESTAMP, " +
-                "  updated_at TIMESTAMP" +
-                ")");
+                    "CREATE TABLE IF NOT EXISTS factory_keys (" +
+                            "  id VARCHAR(36) PRIMARY KEY, " +
+                            "  name VARCHAR(255) NOT NULL, " +
+                            "  description VARCHAR(500), " +
+                            "  key_number VARCHAR(100), " +
+                            "  status VARCHAR(20) NOT NULL DEFAULT 'AVAILABLE', " +
+                            "  created_at TIMESTAMP, " +
+                            "  updated_at TIMESTAMP" +
+                            ")");
             log.info("Schema migration: factory_keys table ensured");
         } catch (Exception e) {
             log.warn("Schema migration: factory_keys table — {}", e.getMessage());
@@ -227,30 +249,31 @@ public class DataSeeder implements CommandLineRunner {
 
         try {
             jdbc.execute(
-                "CREATE TABLE IF NOT EXISTS key_logs (" +
-                "  id VARCHAR(36) PRIMARY KEY, " +
-                "  key_id VARCHAR(36) NOT NULL, " +
-                "  key_name VARCHAR(255), " +
-                "  key_number VARCHAR(100), " +
-                "  taken_by_id VARCHAR(36), " +
-                "  taken_by_name VARCHAR(255) NOT NULL, " +
-                "  taken_by_email VARCHAR(255), " +
-                "  reason TEXT NOT NULL, " +
-                "  taken_at TIMESTAMP NOT NULL, " +
-                "  returned_at TIMESTAMP, " +
-                "  return_notes TEXT, " +
-                "  recorded_by_id VARCHAR(36), " +
-                "  recorded_by_name VARCHAR(255), " +
-                "  status VARCHAR(30) NOT NULL DEFAULT 'PENDING_CHECKOUT', " +
-                "  created_at TIMESTAMP" +
-                ")");
+                    "CREATE TABLE IF NOT EXISTS key_logs (" +
+                            "  id VARCHAR(36) PRIMARY KEY, " +
+                            "  key_id VARCHAR(36) NOT NULL, " +
+                            "  key_name VARCHAR(255), " +
+                            "  key_number VARCHAR(100), " +
+                            "  taken_by_id VARCHAR(36), " +
+                            "  taken_by_name VARCHAR(255) NOT NULL, " +
+                            "  taken_by_email VARCHAR(255), " +
+                            "  reason TEXT NOT NULL, " +
+                            "  taken_at TIMESTAMP NOT NULL, " +
+                            "  returned_at TIMESTAMP, " +
+                            "  return_notes TEXT, " +
+                            "  recorded_by_id VARCHAR(36), " +
+                            "  recorded_by_name VARCHAR(255), " +
+                            "  status VARCHAR(30) NOT NULL DEFAULT 'PENDING_CHECKOUT', " +
+                            "  created_at TIMESTAMP" +
+                            ")");
             log.info("Schema migration: key_logs table ensured");
         } catch (Exception e) {
             log.warn("Schema migration: key_logs table — {}", e.getMessage());
         }
 
         try {
-            jdbc.execute("ALTER TABLE key_logs ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'CHECKED_OUT'");
+            jdbc.execute(
+                    "ALTER TABLE key_logs ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'CHECKED_OUT'");
             log.info("Schema migration: added status column to key_logs if it did not exist");
         } catch (Exception e) {
             log.debug("Schema migration: key_logs status column alter query — {}", e.getMessage());
@@ -301,6 +324,14 @@ public class DataSeeder implements CommandLineRunner {
             log.info("Schema migration: shipment_orders columns for proof of delivery ensured");
         } catch (Exception e) {
             log.warn("Schema migration shipment_orders: {}", e.getMessage());
+        }
+
+        try {
+            jdbc.execute("ALTER TABLE products ALTER COLUMN image_url TYPE TEXT");
+            jdbc.execute("ALTER TABLE products ALTER COLUMN gallery_images TYPE TEXT");
+            log.info("Schema migration: products image_url and gallery_images columns altered to TEXT");
+        } catch (Exception e) {
+            log.warn("Schema migration products alter: {}", e.getMessage());
         }
     }
 
@@ -401,8 +432,7 @@ public class DataSeeder implements CommandLineRunner {
         Map<String, Set<String>> allowed = Map.of(
                 "SHIPMENTS", Set.of("VIEW"),
                 "DELIVERY", Set.of("CONFIRM"),
-                "ORDERS", Set.of("VIEW")
-        );
+                "ORDERS", Set.of("VIEW"));
         permissionRepo.findAll().forEach(p -> {
             Set<String> acts = allowed.get(p.getModule());
             if (acts != null && acts.contains(p.getAction()))
@@ -411,7 +441,8 @@ public class DataSeeder implements CommandLineRunner {
         return perms;
     }
 
-    private void seedDriverUser(String email, String name, String password, Role role, String vehicle, double lat, double lng) {
+    private void seedDriverUser(String email, String name, String password, Role role, String vehicle, double lat,
+            double lng) {
         User user = userRepo.findByEmailAndActiveTrue(email).orElse(null);
         if (user == null) {
             user = new User();
@@ -511,9 +542,10 @@ public class DataSeeder implements CommandLineRunner {
         if (connectionString == null) {
             connectionString = "postgresql://postgres.sergoskjjzfrdrzfieye:••••••••@aws-1-ap-northeast-2.pooler.supabase.com:6543/postgres?sslmode=require&prepareThreshold=0";
         } else {
-            // Convert jdbc:postgresql to standard postgresql connection string URI and mask password for display
+            // Convert jdbc:postgresql to standard postgresql connection string URI and mask
+            // password for display
             connectionString = connectionString.replace("jdbc:postgresql", "postgres")
-                                               .replaceAll("(?<=:)[^@/:]+(?=@)", "••••••••");
+                    .replaceAll("(?<=:)[^@/:]+(?=@)", "••••••••");
         }
         instance.setConnectionString(connectionString);
         if (instance.getId() == null) {
@@ -524,5 +556,161 @@ public class DataSeeder implements CommandLineRunner {
         log.info("✅ Seeded/Updated Postgres instance: ttrims-postgres");
     }
 
+    private void seedProducts() {
+        if (productRepo.count() == 0) {
+            Product p1 = new Product();
+            p1.setCode("FG-TURMERIC500");
+            p1.setName("Organic Turmeric Powder");
+            p1.setType(Product.Type.FINISHED_GOOD);
+            p1.setUnit("PCS");
+            p1.setCategory("Spices");
+            p1.setSellingPrice(199.0);
+            p1.setDiscountPrice(169.0);
+            p1.setShowOnStorefront(true);
+            p1.setPublished(true);
+            p1.setBrand("TTRIMS Spices");
+            p1.setShortDescription("Premium organic turmeric powder with high curcumin content.");
+            p1.setWeight(500.0);
+            p1.setGstPercent(5.0);
+            p1.setTaxInclusive(true);
+            p1.setCountryOfOrigin("India");
+            p1.setShelfLife("12 Months");
+            p1.setIngredients("100% Organic Turmeric Rhizomes");
+            p1.setSpecifications("<ul><li>High Curcumin content (5%+)</li><li>Zero artificial additives</li><li>Gluten-free</li></ul>");
+            p1.setImageUrl("https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&q=80&w=300");
+            productRepo.save(p1);
+
+            Product p2 = new Product();
+            p2.setCode("FG-PEPPER250");
+            p2.setName("Premium Black Pepper");
+            p2.setType(Product.Type.FINISHED_GOOD);
+            p2.setUnit("PCS");
+            p2.setCategory("Spices");
+            p2.setSellingPrice(299.0);
+            p2.setDiscountPrice(249.0);
+            p2.setShowOnStorefront(true);
+            p2.setPublished(true);
+            p2.setBrand("TTRIMS Spices");
+            p2.setShortDescription("Freshly ground handpicked Malabar black pepper.");
+            p2.setWeight(250.0);
+            p2.setGstPercent(5.0);
+            p2.setTaxInclusive(true);
+            p2.setCountryOfOrigin("India");
+            p2.setShelfLife("12 Months");
+            p2.setIngredients("Premium Black Pepper Pods");
+            p2.setSpecifications("<ul><li>Bold & aromatic flavor</li><li>Sorted mechanically for uniform sizing</li></ul>");
+            p2.setImageUrl("https://images.unsplash.com/photo-1608797178974-15b35a61d121?auto=format&fit=crop&q=80&w=300");
+            productRepo.save(p2);
+
+            log.info("✅ Seeded initial Finished Goods products for E-Commerce Catalog");
+        }
+    }
+
+    private void seedEcomDummyData() {
+        if (ecomCouponRepo.count() == 0) {
+            EcomCoupon c1 = new EcomCoupon();
+            c1.setCode("WELCOME10");
+            c1.setDiscountType("PERCENTAGE");
+            c1.setDiscountValue(10.0);
+            c1.setMinOrderAmount(500.0);
+            c1.setValidFrom(LocalDateTime.now());
+            c1.setValidTo(LocalDateTime.now().plusMonths(6));
+            c1.setActive(true);
+            ecomCouponRepo.save(c1);
+
+            EcomCoupon c2 = new EcomCoupon();
+            c2.setCode("FLAT100");
+            c2.setDiscountType("FLAT");
+            c2.setDiscountValue(100.0);
+            c2.setMinOrderAmount(1000.0);
+            c2.setValidFrom(LocalDateTime.now());
+            c2.setValidTo(LocalDateTime.now().plusMonths(6));
+            c2.setActive(true);
+            ecomCouponRepo.save(c2);
+
+            log.info("✅ Seeded initial E-Commerce Coupons");
+        }
+
+        if (ecomOrderRepo.count() == 0) {
+            EcomCustomer cust = new EcomCustomer();
+            cust.setName("Rohan Kumar");
+            cust.setEmail("rohan@gmail.com");
+            cust.setPassword(passwordEncoder.encode("123456"));
+            cust.setPhone("9876543210");
+            cust.setCreatedAt(LocalDateTime.now());
+            ecomCustomerRepo.save(cust);
+
+            EcomOrder o1 = new EcomOrder();
+            o1.setOrderNumber("ECOM-1001");
+            o1.setCustomerId(cust.getId());
+            o1.setSubtotal(338.0);
+            o1.setTaxAmount(16.90);
+            o1.setShippingCharge(50.0);
+            o1.setGrandTotal(404.90);
+            o1.setPaymentMode("COD");
+            o1.setPaymentStatus("PENDING");
+            o1.setDeliveryAddress("12 Main St, Madurai, TN, 625001");
+            o1.setStatus(EcomOrder.Status.PLACED);
+            o1.setItems("[{\"name\":\"Organic Turmeric Powder\",\"quantity\":2,\"price\":169.0}]");
+            o1.setCreatedAt(LocalDateTime.now().minusHours(3));
+            ecomOrderRepo.save(o1);
+
+            EcomOrder o2 = new EcomOrder();
+            o2.setOrderNumber("ECOM-1002");
+            o2.setCustomerId(cust.getId());
+            o2.setSubtotal(199.0);
+            o2.setTaxAmount(9.95);
+            o2.setShippingCharge(50.0);
+            o2.setGrandTotal(258.95);
+            o2.setPaymentMode("ONLINE");
+            o2.setPaymentStatus("PAID");
+            o2.setDeliveryAddress("Apartment 4B, Anna Nagar, Chennai, TN, 600040");
+            o2.setStatus(EcomOrder.Status.DELIVERED);
+            o2.setItems("[{\"name\":\"Premium Black Pepper\",\"quantity\":1,\"price\":199.0}]");
+            o2.setCreatedAt(LocalDateTime.now().minusDays(1));
+            ecomOrderRepo.save(o2);
+
+            log.info("✅ Seeded initial E-Commerce Orders");
+        }
+
+        if (ecomReviewRepo.count() == 0) {
+            String customerId = "dummy-customer-id";
+            List<EcomCustomer> customers = ecomCustomerRepo.findAll();
+            if (!customers.isEmpty()) {
+                customerId = customers.get(0).getId();
+            } else {
+                EcomCustomer cust = new EcomCustomer();
+                cust.setName("Rohan Kumar");
+                cust.setEmail("rohan@gmail.com");
+                cust.setPassword(passwordEncoder.encode("123456"));
+                cust.setPhone("9876543210");
+                cust.setCreatedAt(LocalDateTime.now());
+                ecomCustomerRepo.save(cust);
+                customerId = cust.getId();
+            }
+
+            EcomReview r1 = new EcomReview();
+            r1.setProductId("seeded-id");
+            r1.setCustomerId(customerId);
+            r1.setCustomerName("Rohan K.");
+            r1.setRating(5);
+            r1.setTitle("Amazing Turmeric!");
+            r1.setComment("Very fresh and aromatic. Curcumin percentage is clearly high. Fully satisfied!");
+            r1.setCreatedAt(LocalDateTime.now().minusHours(2));
+            ecomReviewRepo.save(r1);
+
+            EcomReview r2 = new EcomReview();
+            r2.setProductId("seeded-id-2");
+            r2.setCustomerId(customerId);
+            r2.setCustomerName("Priya S.");
+            r2.setRating(4);
+            r2.setTitle("Great Pepper");
+            r2.setComment("Sorted pepper pods with nice flavor. Good packaging.");
+            r2.setCreatedAt(LocalDateTime.now().minusHours(5));
+            ecomReviewRepo.save(r2);
+
+            log.info("✅ Seeded initial E-Commerce Customer Reviews");
+        }
+    }
 
 }

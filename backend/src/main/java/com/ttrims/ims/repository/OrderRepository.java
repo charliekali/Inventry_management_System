@@ -10,10 +10,12 @@ import java.util.List;
 import java.util.Optional;
 
 public interface OrderRepository extends JpaRepository<Order, String> {
-    @EntityGraph(attributePaths = {"items"})
+    @EntityGraph(attributePaths = { "items" })
     List<Order> findAllByOrderByCreatedAtDesc();
 
-    @EntityGraph(attributePaths = {"items"})
+    Optional<Order> findByInvoiceNumber(String invoiceNumber);
+
+    @EntityGraph(attributePaths = { "items" })
     List<Order> findByDispatchStatusOrderByCreatedAtDesc(String dispatchStatus);
 
     List<Order> findByAssignedToIdOrderByCreatedAtDesc(String userId);
@@ -38,4 +40,3 @@ public interface OrderRepository extends JpaRepository<Order, String> {
     @Query("SELECT o FROM Order o WHERE o.dispatchStatus = 'PENDING' AND o.isPosOrder = false AND o.status IN ('FEASIBLE', 'PARTIAL', 'FULFILLED') ORDER BY o.createdAt ASC")
     List<Order> findEligibleForGrouping();
 }
-

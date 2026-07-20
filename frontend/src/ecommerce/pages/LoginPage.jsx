@@ -31,39 +31,39 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{ maxWidth: 400, margin: '80px auto', padding: 24, background: 'var(--color-bg-card)', borderRadius: 12, border: '1px solid var(--color-border)' }}>
-      <h2 style={{ fontWeight: 800, textAlign: 'center', marginBottom: 24 }}>Customer Login</h2>
+    <div style={{ maxWidth: 400, margin: '80px auto', padding: 28, background: 'var(--color-bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-md)' }}>
+      <h2 style={{ fontWeight: 800, textAlign: 'center', marginBottom: 24, fontSize: '22px' }}>Customer Login</h2>
       
       <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label className="form-label">Email Address</label>
+        <div className="ecom-form-group">
+          <label className="ecom-form-label">Email Address</label>
           <input 
             type="email" 
-            className="form-control" 
+            className="ecom-form-control" 
             value={email} 
             onChange={(e) => setEmail(e.target.value)} 
             required 
           />
         </div>
 
-        <div className="form-group" style={{ margin: '16px 0 24px 0' }}>
-          <label className="form-label">Password</label>
+        <div className="ecom-form-group">
+          <label className="ecom-form-label">Password</label>
           <input 
             type="password" 
-            className="form-control" 
+            className="ecom-form-control" 
             value={password} 
             onChange={(e) => setPassword(e.target.value)} 
             required 
           />
         </div>
 
-        <button type="submit" className="ecom-btn ecom-btn-primary ecom-btn-block" disabled={loading}>
+        <button type="submit" className="ecom-btn ecom-btn-primary ecom-btn-block" disabled={loading} style={{ height: 44, borderRadius: 3, marginTop: 10 }}>
           {loading ? 'Logging in...' : 'Sign In'}
         </button>
       </form>
 
-      <div style={{ marginTop: 24, textAlign: 'center', fontSize: 14 }}>
-        Don't have an account? <Link to="/store/register" style={{ color: 'var(--color-success)', fontWeight: 600 }}>Register here</Link>
+      <div style={{ marginTop: 24, textAlign: 'center', fontSize: 13.5, fontWeight: 500 }}>
+        Don't have an account? <Link to="/store/register" style={{ color: 'var(--color-primary)', fontWeight: 700, textDecoration: 'none' }}>Register here</Link>
       </div>
     </div>
   );

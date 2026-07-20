@@ -16,19 +16,14 @@ export default function TrackOrderPage() {
     if (!code) return;
     setLoading(true);
     try {
-      // Find order by order number (we can list order or add endpoint. In EcomOrderRepository we have findByOrderNumber)
-      // For ease of use in storefront, we can add a specific public endpoint or query
-      const res = await storefrontAPI.getOrders();
+      const res = await storefrontAPI.trackOrder(code);
       if (res.data.success) {
-        const found = res.data.data.find(o => o.orderNumber === code);
-        if (found) {
-          setOrder(found);
-        } else {
-          toast.error('Order not found under your account. Please log in.');
-        }
+        setOrder(res.data.data);
+      } else {
+        toast.error('Order not found.');
       }
     } catch {
-      toast.error('Error fetching order status');
+      toast.error('Order not found or invalid order number.');
     } finally {
       setLoading(false);
     }
@@ -47,7 +42,7 @@ export default function TrackOrderPage() {
   };
 
   const steps = ['PLACED', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED'];
-  const currentStepIdx = order ? steps.indexOf(order.status) : -1;
+  const currentStepIdx = order ? steps.indexOf(order.status?.toUpperCase()) : -1;
 
   return (
     <div className="ecom-container" style={{ margin: '40px auto', maxWidth: 700 }}>

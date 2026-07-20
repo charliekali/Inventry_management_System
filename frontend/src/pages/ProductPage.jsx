@@ -61,7 +61,7 @@ export default function ProductPage() {
   const [pSellingPrice, setPSellingPrice] = useState('');
   const [pCostPrice, setPCostPrice] = useState('');
   const [categories, setCategories] = useState([]); // [{category, subcategories:[]}]
-  
+
   const fileInputRef = useRef(null);
   const [importing, setImporting] = useState(false);
 
@@ -73,9 +73,9 @@ export default function ProductPage() {
     const loadingToast = toast.loading('Importing products...');
     try {
       const res = await dataPortabilityAPI.importTable('products', file);
-      toast.success(res.data.message || 'Products imported successfully!', { 
+      toast.success(res.data.message || 'Products imported successfully!', {
         id: loadingToast,
-        duration: 5000 
+        duration: 5000
       });
       loadProducts();
     } catch (err) {
@@ -117,9 +117,9 @@ export default function ProductPage() {
     try {
       const res = await productsAPI.nextCode(type);
       const baseCode = res.data.code;
-      const prefix = type === 'FINISHED_GOOD' ? 'FG-' : 
-                     type === 'RAW_MATERIAL' ? 'RM-' : 
-                     type === 'BLEND' ? 'BL-' : 'TL-';
+      const prefix = type === 'FINISHED_GOOD' ? 'FG-' :
+        type === 'RAW_MATERIAL' ? 'RM-' :
+          type === 'BLEND' ? 'BL-' : 'TL-';
       const numPart = baseCode.substring(prefix.length);
       const startNum = parseInt(numPart, 10) || 1;
 
@@ -140,7 +140,7 @@ export default function ProductPage() {
         }
         return row;
       }));
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const handleAddBulkRow = () => {
@@ -207,6 +207,49 @@ export default function ProductPage() {
   const [pDeductionValue, setPDeductionValue] = useState('0');
   const [pDesc, setPDesc] = useState('');
   const [pCategory, setPCategory] = useState('');
+  const [pImageUrl, setPImageUrl] = useState('');
+
+  const compressImage = (file, callback) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 500;
+        const MAX_HEIGHT = 500;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            width = MAX_HEIGHT;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        callback(dataUrl);
+      };
+    };
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    compressImage(file, (base64) => {
+      setPImageUrl(base64);
+    });
+  };
 
   // New product pack config fields
   const [pPackSizeG, setPPackSizeG] = useState('');
@@ -228,7 +271,7 @@ export default function ProductPage() {
   const loadCategories = () => {
     productCategoriesAPI.list()
       .then(r => setCategories(r.data.data))
-      .catch(() => {}); // non-critical
+      .catch(() => { }); // non-critical
   };
 
   useEffect(() => {
@@ -244,7 +287,7 @@ export default function ProductPage() {
     if (!editingProductId && showProductModal && pType) {
       productsAPI.nextCode(pType)
         .then(r => setPCode(r.data.code))
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [pType, showProductModal, editingProductId]);
 
@@ -271,7 +314,8 @@ export default function ProductPage() {
         pcs_per_innerbag: pType === 'FINISHED_GOOD' && pPcsPerInnerbag ? parseInt(pPcsPerInnerbag, 10) : null,
         innerbags_per_bag: pType === 'FINISHED_GOOD' && pInnerbagsPerBag ? parseInt(pInnerbagsPerBag, 10) : null,
         pcs_per_bag: pType === 'FINISHED_GOOD' && pPcsPerBag ? parseInt(pPcsPerBag, 10) : null,
-        process_notes: pType === 'FINISHED_GOOD' ? pProcessNotes : ''
+        process_notes: pType === 'FINISHED_GOOD' ? pProcessNotes : '',
+        image_url: pType === 'FINISHED_GOOD' ? (pImageUrl || null) : null
       };
 
       if (isSuperAdmin) {
@@ -313,6 +357,7 @@ export default function ProductPage() {
     setPProcessNotes('');
     setPSellingPrice('');
     setPCostPrice('');
+    setPImageUrl('');
   };
 
   const handleEditProduct = (p, e) => {
@@ -335,6 +380,7 @@ export default function ProductPage() {
     setPProcessNotes(p.process_notes || '');
     setPSellingPrice(p.selling_price ? p.selling_price.toString() : '');
     setPCostPrice(p.cost_price ? p.cost_price.toString() : '');
+    setPImageUrl(p.image_url || '');
     setShowProductModal(true);
   };
 
@@ -417,7 +463,7 @@ export default function ProductPage() {
     const selected = getSelectedItems();
     let csvContent = 'data:text/csv;charset=utf-8,';
     csvContent += 'Code,Name,Category,Type,Min Stock,Selling Price,Cost Price,Description\n';
-    
+
     selected.forEach(p => {
       const row = [
         p.code,
@@ -431,7 +477,7 @@ export default function ProductPage() {
       ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
       csvContent += row + '\n';
     });
-    
+
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
@@ -444,12 +490,12 @@ export default function ProductPage() {
 
   return (
     <div className="fade-in">
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={handleImportCSV} 
-        accept=".csv" 
-        style={{ display: 'none' }} 
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleImportCSV}
+        accept=".csv"
+        style={{ display: 'none' }}
       />
       <div className="page-header">
         <div className="page-header-left">
@@ -458,15 +504,15 @@ export default function ProductPage() {
         </div>
         <div className="page-header-right" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <div style={{ display: 'flex', background: 'var(--color-bg-card)', padding: 4, borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
-            <button 
-              className={`btn btn-sm ${!showArchived ? 'btn-primary' : 'btn-ghost'}`} 
+            <button
+              className={`btn btn-sm ${!showArchived ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => { setShowArchived(false); }}
               style={{ padding: '6px 12px', fontSize: 12 }}
             >
               Active
             </button>
-            <button 
-              className={`btn btn-sm ${showArchived ? 'btn-primary' : 'btn-ghost'}`} 
+            <button
+              className={`btn btn-sm ${showArchived ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => { setShowArchived(true); }}
               style={{ padding: '6px 12px', fontSize: 12 }}
             >
@@ -475,9 +521,9 @@ export default function ProductPage() {
           </div>
           {hasPermission('PRODUCTS:CREATE') && (
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <button 
-                className="btn btn-ghost btn-sm" 
-                onClick={handleDownloadTemplate} 
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={handleDownloadTemplate}
                 style={{ color: 'var(--color-primary-light)', textDecoration: 'underline', padding: '0 8px', fontSize: 13 }}
               >
                 Download Template
@@ -522,10 +568,10 @@ export default function ProductPage() {
               <thead>
                 <tr>
                   <th style={{ width: 40, textAlign: 'center' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={isAllSelected} 
-                      onChange={toggleSelectAll} 
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      onChange={toggleSelectAll}
                       style={{ cursor: 'pointer' }}
                     />
                   </th>
@@ -547,10 +593,10 @@ export default function ProductPage() {
                   return (
                     <tr key={p.id} style={{ background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent' }}>
                       <td style={{ textAlign: 'center' }}>
-                        <input 
-                          type="checkbox" 
-                          checked={isChecked} 
-                          onChange={() => toggleSelect(p.id)} 
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleSelect(p.id)}
                           style={{ cursor: 'pointer' }}
                         />
                       </td>
@@ -627,25 +673,25 @@ export default function ProductPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Product Code <span>*</span></label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
-                    value={pCode} 
-                    onChange={(e) => setPCode(e.target.value)} 
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={pCode}
+                    onChange={(e) => setPCode(e.target.value)}
                     placeholder="e.g. FG-1001, RM-2045"
                     disabled={editingProductId}
-                    required 
+                    required
                   />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Product Name <span>*</span></label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
-                    value={pName} 
-                    onChange={(e) => setPName(e.target.value)} 
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={pName}
+                    onChange={(e) => setPName(e.target.value)}
                     placeholder="e.g. Aluminum Frame, Solar Inverter"
-                    required 
+                    required
                   />
                 </div>
               </div>
@@ -653,9 +699,9 @@ export default function ProductPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Type</label>
-                  <select 
-                    className="form-control" 
-                    value={pType} 
+                  <select
+                    className="form-control"
+                    value={pType}
                     onChange={(e) => setPType(e.target.value)}
                     disabled={editingProductId}
                   >
@@ -665,14 +711,14 @@ export default function ProductPage() {
                     <option value="TOOL">Tools</option>
                   </select>
                 </div>
-                
+
                 <div className="form-group">
                   <label className="form-label">Unit of Measure</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
-                    value={pUnit} 
-                    onChange={(e) => setPUnit(e.target.value)} 
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={pUnit}
+                    onChange={(e) => setPUnit(e.target.value)}
                     placeholder="e.g. PCS, KG, LTRS"
                     required
                   />
@@ -682,12 +728,12 @@ export default function ProductPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Min Stock Level</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     step="any"
-                    className="form-control" 
-                    value={pMinStock} 
-                    onChange={(e) => setPMinStock(e.target.value)} 
+                    className="form-control"
+                    value={pMinStock}
+                    onChange={(e) => setPMinStock(e.target.value)}
                     placeholder="0.0"
                     required
                   />
@@ -695,12 +741,12 @@ export default function ProductPage() {
 
                 <div className="form-group">
                   <label className="form-label">Deduction Value</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     step="any"
-                    className="form-control" 
-                    value={pDeductionValue} 
-                    onChange={(e) => setPDeductionValue(e.target.value)} 
+                    className="form-control"
+                    value={pDeductionValue}
+                    onChange={(e) => setPDeductionValue(e.target.value)}
                     placeholder="0.0"
                     required
                   />
@@ -725,11 +771,11 @@ export default function ProductPage() {
                   <div className="form-row-3">
                     <div className="form-group">
                       <label className="form-label" style={{ fontSize: 11 }}>Pack Size (g)</label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         step="any"
-                        className="form-control" 
-                        value={pPackSizeG} 
+                        className="form-control"
+                        value={pPackSizeG}
                         onChange={(e) => {
                           const val = e.target.value;
                           setPPackSizeG(val);
@@ -739,17 +785,17 @@ export default function ProductPage() {
                           } else if (!val) {
                             setPPacksPerKg('');
                           }
-                        }} 
+                        }}
                         placeholder="e.g. 100"
                       />
                     </div>
                     <div className="form-group">
                       <label className="form-label" style={{ fontSize: 11 }}>Packs per kg</label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         step="any"
-                        className="form-control" 
-                        value={pPacksPerKg} 
+                        className="form-control"
+                        value={pPacksPerKg}
                         onChange={(e) => {
                           const val = e.target.value;
                           setPPacksPerKg(val);
@@ -759,18 +805,18 @@ export default function ProductPage() {
                           } else if (!val) {
                             setPPackSizeG('');
                           }
-                        }} 
+                        }}
                         placeholder="e.g. 10"
                       />
                     </div>
                     <div className="form-group">
                       <label className="form-label" style={{ fontSize: 11 }}>Batch Size (kg)</label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         step="any"
-                        className="form-control" 
-                        value={pBatchSizeKg} 
-                        onChange={(e) => setPBatchSizeKg(e.target.value)} 
+                        className="form-control"
+                        value={pBatchSizeKg}
+                        onChange={(e) => setPBatchSizeKg(e.target.value)}
                         placeholder="e.g. 50"
                       />
                     </div>
@@ -778,42 +824,42 @@ export default function ProductPage() {
                   <div className="form-row-3" style={{ marginTop: 10 }}>
                     <div className="form-group">
                       <label className="form-label" style={{ fontSize: 11 }}>Pcs / Innerbag</label>
-                      <input 
-                        type="number" 
-                        className="form-control" 
-                        value={pPcsPerInnerbag} 
-                        onChange={(e) => setPPcsPerInnerbag(e.target.value)} 
+                      <input
+                        type="number"
+                        className="form-control"
+                        value={pPcsPerInnerbag}
+                        onChange={(e) => setPPcsPerInnerbag(e.target.value)}
                         placeholder="e.g. 10"
                       />
                     </div>
                     <div className="form-group">
                       <label className="form-label" style={{ fontSize: 11 }}>Innerbags / Bag</label>
-                      <input 
-                        type="number" 
-                        className="form-control" 
-                        value={pInnerbagsPerBag} 
-                        onChange={(e) => setPInnerbagsPerBag(e.target.value)} 
+                      <input
+                        type="number"
+                        className="form-control"
+                        value={pInnerbagsPerBag}
+                        onChange={(e) => setPInnerbagsPerBag(e.target.value)}
                         placeholder="e.g. 5"
                       />
                     </div>
                     <div className="form-group">
                       <label className="form-label" style={{ fontSize: 11 }}>Pcs / Bag (If Pcs alone)</label>
-                      <input 
-                        type="number" 
-                        className="form-control" 
-                        value={pPcsPerBag} 
-                        onChange={(e) => setPPcsPerBag(e.target.value)} 
+                      <input
+                        type="number"
+                        className="form-control"
+                        value={pPcsPerBag}
+                        onChange={(e) => setPPcsPerBag(e.target.value)}
                         placeholder="e.g. 50"
                       />
                     </div>
                   </div>
                   <div className="form-group" style={{ marginTop: 10 }}>
                     <label className="form-label" style={{ fontSize: 11 }}>Process / Blending Notes</label>
-                    <textarea 
-                      className="form-control" 
+                    <textarea
+                      className="form-control"
                       style={{ minHeight: 50 }}
-                      value={pProcessNotes} 
-                      onChange={(e) => setPProcessNotes(e.target.value)} 
+                      value={pProcessNotes}
+                      onChange={(e) => setPProcessNotes(e.target.value)}
                       placeholder="Specify blending steps, roasting/grinding instructions..."
                     />
                   </div>
@@ -821,38 +867,61 @@ export default function ProductPage() {
               )}
 
               {isSuperAdmin && (
-                <div className="form-row" style={{ marginTop: 10 }}>
-                  <div className="form-group">
-                    <label className="form-label">Selling Price (₹)</label>
-                    <input 
-                      type="number" 
-                      step="any"
-                      className="form-control" 
-                      value={pSellingPrice} 
-                      onChange={(e) => setPSellingPrice(e.target.value)} 
-                      placeholder="0.00"
-                    />
+                <>
+                  <div className="form-row" style={{ marginTop: 10 }}>
+                    <div className="form-group">
+                      <label className="form-label">Selling Price (₹)</label>
+                      <input
+                        type="number"
+                        step="any"
+                        className="form-control"
+                        value={pSellingPrice}
+                        onChange={(e) => setPSellingPrice(e.target.value)}
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Cost Price (₹)</label>
+                      <input
+                        type="number"
+                        step="any"
+                        className="form-control"
+                        value={pCostPrice}
+                        onChange={(e) => setPCostPrice(e.target.value)}
+                        placeholder="0.00"
+                      />
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Cost Price (₹)</label>
-                    <input 
-                      type="number" 
-                      step="any"
-                      className="form-control" 
-                      value={pCostPrice} 
-                      onChange={(e) => setPCostPrice(e.target.value)} 
-                      placeholder="0.00"
-                    />
-                  </div>
-                </div>
+                  {pType === 'FINISHED_GOOD' && (
+                    <div className="form-group" style={{ marginTop: 10 }}>
+                      <label className="form-label">Product Photo (Finished Goods Only)</label>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="form-control"
+                          style={{ flex: 1 }}
+                        />
+                        {pImageUrl && (
+                          <img
+                            src={pImageUrl}
+                            alt="Preview"
+                            style={{ width: 45, height: 45, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--color-border)' }}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               <div className="form-group" style={{ marginTop: 10 }}>
                 <label className="form-label">Description</label>
-                <textarea 
-                  className="form-control" 
-                  value={pDesc} 
-                  onChange={(e) => setPDesc(e.target.value)} 
+                <textarea
+                  className="form-control"
+                  value={pDesc}
+                  onChange={(e) => setPDesc(e.target.value)}
                   placeholder="Specify product details, specs, suppliers, dimensions..."
                 />
               </div>
@@ -1011,7 +1080,7 @@ export default function ProductPage() {
         </div>
       )}
 
-      <BulkActionBar 
+      <BulkActionBar
         selectedCount={selectedCount}
         onClear={clearSelection}
         actions={!showArchived ? [
