@@ -320,7 +320,7 @@ public class Product {
     }
 
     public Double getMinStock() {
-        return minStock;
+        return minStock != null ? minStock : 0.0;
     }
 
     public void setMinStock(Double minStock) {
